@@ -156,13 +156,13 @@ export const DEFAULT_CATEGORIES: CategoryPreset[] = [
     keywords: ['nodejs', 'node', 'npm', 'javascript', 'server']
   },
   {
-    name: 'React',
-    nameEn: 'React',
-    emoji: '⚛️',
-    description: 'React 生态系统',
-    descriptionEn: 'React ecosystem',
-    color: '#61dafb',
-    keywords: ['react', 'jsx', 'hooks', 'redux', 'nextjs']
+    name: 'Vue',
+    nameEn: 'Vue',
+    emoji: '🟩',
+    description: 'Vue 生态系统',
+    descriptionEn: 'Vue ecosystem',
+    color: '#42b883',
+    keywords: ['vue', 'vuejs', 'composition-api', 'vuex', 'pinia', 'vite', 'nuxt']
   },
   {
     name: '其他',
