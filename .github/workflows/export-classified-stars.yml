@@ -30,7 +30,6 @@ jobs:
 
       - name: Fetch and classify every public starred repository
         env:
-          GITHUB_TOKEN: ${{ github.token }}
           STAR_USER: hujinghaoabcd
           STAR_OUTPUT: exports/github-stars-classified-hujinghaoabcd.md
         run: python scripts/export_classified_stars.py
