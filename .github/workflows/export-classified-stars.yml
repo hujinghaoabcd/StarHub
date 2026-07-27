@@ -6,19 +6,22 @@ on:
       - chatgpt-stars-export-20260727
     paths:
       - .github/workflows/export-classified-stars.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - .github/workflows/export-classified-stars.yml
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   export-stars:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Check out export branch
+      - name: Check out pull request branch
         uses: actions/checkout@v4
-        with:
-          ref: chatgpt-stars-export-20260727
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -39,12 +42,3 @@ jobs:
           path: exports/github-stars-classified-hujinghaoabcd.md
           if-no-files-found: error
           retention-days: 7
-
-      - name: Commit generated Markdown to export branch
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add exports/github-stars-classified-hujinghaoabcd.md
-          git diff --cached --quiet && exit 0
-          git commit -m "Generate classified GitHub stars Markdown"
-          git push origin HEAD:chatgpt-stars-export-20260727
