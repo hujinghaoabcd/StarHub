@@ -11,6 +11,7 @@ on:
       - main
     paths:
       - .github/workflows/export-classified-stars.yml
+      - scripts/export_classified_stars_fast.py
 
 permissions:
   contents: read
@@ -18,7 +19,7 @@ permissions:
 jobs:
   export-stars:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
       - name: Check out pull request branch
         uses: actions/checkout@v4
@@ -32,7 +33,7 @@ jobs:
         env:
           STAR_USER: hujinghaoabcd
           STAR_OUTPUT: exports/github-stars-classified-hujinghaoabcd.md
-        run: python scripts/export_classified_stars.py
+        run: python -u scripts/export_classified_stars_fast.py
 
       - name: Upload Markdown artifact
         uses: actions/upload-artifact@v4
