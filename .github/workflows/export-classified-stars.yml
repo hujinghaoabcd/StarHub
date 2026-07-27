@@ -13,6 +13,7 @@ on:
       - .github/workflows/export-classified-stars.yml
       - scripts/export_stars_graphql.py
       - scripts/export_classified_stars_fast.py
+      - scripts/run_export_stars_graphql.py
 
 permissions:
   contents: read
@@ -35,7 +36,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           STAR_USER: hujinghaoabcd
           STAR_OUTPUT: exports/github-stars-classified-hujinghaoabcd.md
-        run: python -u scripts/export_stars_graphql.py
+        run: python -u scripts/run_export_stars_graphql.py
 
       - name: Upload Markdown artifact
         uses: actions/upload-artifact@v4
