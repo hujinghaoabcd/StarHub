@@ -11,6 +11,7 @@ on:
       - main
     paths:
       - .github/workflows/export-classified-stars.yml
+      - scripts/export_stars_graphql.py
       - scripts/export_classified_stars_fast.py
 
 permissions:
@@ -31,9 +32,10 @@ jobs:
 
       - name: Fetch and classify every public starred repository
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           STAR_USER: hujinghaoabcd
           STAR_OUTPUT: exports/github-stars-classified-hujinghaoabcd.md
-        run: python -u scripts/export_classified_stars_fast.py
+        run: python -u scripts/export_stars_graphql.py
 
       - name: Upload Markdown artifact
         uses: actions/upload-artifact@v4
