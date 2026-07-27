@@ -1,0 +1,50 @@
+name: Export classified GitHub stars
+
+on:
+  push:
+    branches:
+      - chatgpt-stars-export-20260727
+    paths:
+      - .github/workflows/export-classified-stars.yml
+
+permissions:
+  contents: write
+
+jobs:
+  export-stars:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out export branch
+        uses: actions/checkout@v4
+        with:
+          ref: chatgpt-stars-export-20260727
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch and classify every public starred repository
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          STAR_USER: hujinghaoabcd
+          STAR_OUTPUT: exports/github-stars-classified-hujinghaoabcd.md
+        run: python scripts/export_classified_stars.py
+
+      - name: Upload Markdown artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-stars-classified-hujinghaoabcd
+          path: exports/github-stars-classified-hujinghaoabcd.md
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Commit generated Markdown to export branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add exports/github-stars-classified-hujinghaoabcd.md
+          git diff --cached --quiet && exit 0
+          git commit -m "Generate classified GitHub stars Markdown"
+          git push origin HEAD:chatgpt-stars-export-20260727
