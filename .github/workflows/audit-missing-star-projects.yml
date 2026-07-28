@@ -1,0 +1,42 @@
+name: Audit missing important GitHub projects
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - scripts/audit_missing_star_projects.py
+      - .github/workflows/audit-missing-star-projects.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out pull request branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Search GitHub and compare against all existing Stars
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          STAR_USER: hujinghaoabcd
+          AUDIT_OUTPUT: exports/github-stars-gap-audit.md
+          AUDIT_JSON: exports/github-stars-gap-audit.json
+        run: python scripts/audit_missing_star_projects.py
+
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-stars-gap-audit
+          path: |
+            exports/github-stars-gap-audit.md
+            exports/github-stars-gap-audit.json
+          if-no-files-found: error
+          retention-days: 7
