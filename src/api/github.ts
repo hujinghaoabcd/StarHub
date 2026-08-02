@@ -1,7 +1,7 @@
 import http from './request'
 import qs from 'query-string'
 import type { AxiosResponse } from 'axios'
-import type { User, Repository } from '@/types'
+import type { User, Repository, RepositoryPagesSite } from '@/types'
 
 export const githubApi = {
   // Get authenticated user
@@ -44,9 +44,21 @@ export const githubApi = {
     })
   },
 
-  // Get repository details
+  // Get repository details, including About homepage and Pages availability
   getRepository(owner: string, repo: string): Promise<AxiosResponse<Repository>> {
     return http.get(`/repos/${owner}/${repo}`)
+  },
+
+  // Get the configured GitHub Pages site and its actual public URL
+  getRepositoryPages(
+    owner: string,
+    repo: string
+  ): Promise<AxiosResponse<RepositoryPagesSite>> {
+    return http.get(`/repos/${owner}/${repo}/pages`)
+  },
+
+  // Remove a star for the authenticated user
+  unstarRepository(owner: string, repo: string): Promise<AxiosResponse<void>> {
+    return http.delete(`/user/starred/${owner}/${repo}`)
   }
 }
-
