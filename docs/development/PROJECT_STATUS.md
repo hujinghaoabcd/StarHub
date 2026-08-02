@@ -9,7 +9,7 @@
 - 基准分支：`main`
 - 草稿 PR：`#3 chore: establish CI baseline and development handoff`
 - 最近更新：2026-08-02
-- 当前目标：在可重复通过 CI 的基础上，进入仓库同步正确性与 OAuth 安全重构
+- 当前目标：完成 GitHub Pages 首次启用，随后进入仓库同步正确性与 OAuth 安全重构
 
 ## 已完成
 
@@ -31,7 +31,37 @@
 - [x] GitHub Actions 首次完整验证通过：Lint、TypeScript 类型检查、生产构建均成功
 - [x] 新增项目状态文档和交接文档
 
+### 批次 2：应用预览与文档同域部署
+
+- [x] 为 Vite 应用增加可配置 `base`，GitHub Pages 目标路径为 `/StarHub/`
+- [x] 为 VitePress 增加可配置 `base`，文档目标路径为 `/StarHub/docs/`
+- [x] 修复生产环境文档链接，使登录页“文档”指向同域 `/StarHub/docs/`
+- [x] 修复 GitHub OAuth 回调路径，使项目站点回调保留 `/StarHub/` 前缀
+- [x] 保留 Vite 对 `public` 静态资源的原生路径处理，避免将 `/logo.svg` 错误编译为模块导入
+- [x] 新增 `scripts/build-pages.mjs`，统一构建应用与文档
+- [x] 将 VitePress 产物合并到 `dist/docs/`
+- [x] 生成 `.nojekyll` 与 `deployment-info.json`
+- [x] 新增 `npm run pages:build`
+- [x] CI 改为验证完整 Pages 组合产物，而不仅是应用产物
+- [x] 新增 `.github/workflows/deploy-pages.yml`
+- [x] Pages 工作流具备构建、配置、上传和发布四个阶段
+- [x] PR 事件只验证组合产物，不执行生产发布
+- [x] 分支推送和 PR 验证使用不同并发组，避免互相取消
+- [x] GitHub Actions 已验证应用与文档联合构建成功
+- [x] Pages 配置探测已执行：`GET /repos/hujinghaoabcd/StarHub/pages` 返回 HTTP 404
+- [x] 确认当前仓库尚未创建 GitHub Pages 站点
+
 ## 未完成
+
+### 当前人工阻塞：GitHub Pages 首次启用
+
+- [ ] 在仓库 `Settings → Pages` 中将 `Build and deployment → Source` 设置为 `GitHub Actions`
+- [ ] 首次启用后重新运行 `Deploy GitHub Pages` 工作流
+- [ ] 验证应用地址 `https://hujinghaoabcd.github.io/StarHub/`
+- [ ] 验证文档地址 `https://hujinghaoabcd.github.io/StarHub/docs/`
+- [ ] 完成浏览器级静态资源、路由和文档导航检查
+
+说明：创建 Pages 站点要求 Pages 写入和 Administration 写入权限。Actions 的 `GITHUB_TOKEN` 只有 Pages 权限，不能代替仓库管理员完成首次启用。首次启用完成后，后续提交可自动发布。
 
 ### P0：必须优先处理
 
@@ -53,14 +83,16 @@
 - [ ] AI 与 README 请求接入 `AbortController`
 - [ ] AI 返回结果增加结构化校验
 
-### P1：部署
+### P1：部署与后端
 
-- [ ] 增加 GitHub Pages 构建和部署工作流
-- [ ] 配置 Vite 的 GitHub Pages `base`
-- [ ] 修复静态资源绝对路径
+- [x] 增加 GitHub Pages 构建和部署工作流
+- [x] 配置 Vite 的 GitHub Pages `base`
+- [x] 配置 VitePress 文档子路径
+- [x] 建立应用和文档统一部署产物
 - [ ] 配置生产 API 地址环境变量
 - [ ] 部署 Cloudflare Worker OAuth 后端
-- [ ] 配置生产 OAuth App 回调地址
+- [ ] 配置生产 OAuth App 首页和回调地址
+- [ ] 在在线环境完成 GitHub 登录测试
 
 ### P1：依赖安全
 
@@ -72,6 +104,9 @@
 ### P2：质量与产品功能
 
 - [ ] 清理当前 9 条非阻断 ESLint 警告
+- [ ] 处理应用构建中 Element Plus 与 libs 超过 1 MB 的 chunk 警告
+- [ ] 处理 VitePress 文档中的 `env` 语法高亮回退提示
+- [ ] 处理 VitePress CSS nesting 兼容性警告
 - [ ] 增加 Vitest 单元测试
 - [ ] 增加 Vue Test Utils 组件测试
 - [ ] 增加 Playwright E2E 测试
@@ -84,15 +119,29 @@
 ## 当前验证状态
 
 - 静态代码审查：已完成第一轮
-- GitHub Actions：通过
+- GitHub Actions CI：通过
   - `npm ci`：成功
   - `npm run lint`：成功，9 条非阻断警告
   - `npm run type-check`：成功
-  - `npm run build`：成功
+  - `npm run pages:build`：成功
+- Pages 组合产物：通过
+  - 应用：`dist/`，目标 `/StarHub/`
+  - 文档：`dist/docs/`，目标 `/StarHub/docs/`
+- GitHub Pages 配置：尚未启用，API 返回 HTTP 404
+- 在线地址：尚不可访问
 - 依赖审计：发现 33 个漏洞，尚未升级
-- 本地安装与构建：当前执行环境未安装 GitHub CLI，且无法通过本地网络解析 `github.com`，未在本地执行
-- 浏览器手工测试：未完成
-- OAuth 真实登录测试：未完成
+- 本地安装与构建：当前执行环境无法通过本地网络解析 `github.com`，未在本地执行
+- 浏览器手工测试：等待 Pages 首次启用
+- OAuth 真实登录测试：未完成，生产后端尚未部署
+
+## 下一步
+
+1. 仓库管理员首次启用 GitHub Pages，Source 选择 `GitHub Actions`；
+2. 重新运行 Pages 工作流并验证应用与文档地址；
+3. 合并或继续维护 PR #3；
+4. 提取仓库同步合并逻辑并增加测试；
+5. 修复取消 Star 后仍保留的幽灵仓库；
+6. 开始 OAuth 安全重构和 Cloudflare Worker 部署。
 
 ## 更新规则
 
