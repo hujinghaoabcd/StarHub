@@ -42,5 +42,11 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
+      - name: Type-check Cloudflare Functions
+        run: npm run cloudflare:type-check
+
       - name: Build application and documentation
         run: npm run pages:build
+
+      - name: Build Cloudflare Pages bundle
+        run: npm run cloudflare:build
