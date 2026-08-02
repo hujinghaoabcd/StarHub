@@ -8,7 +8,6 @@ import {
   buildRepositorySnapshot,
   calculateRepositoryChanges,
   pruneRepoTagsForRepositories,
-  pruneTagsForRepositories,
   type RepoSyncResult,
   type RepoSyncStatus
 } from '@/services/repoSync'
@@ -86,7 +85,7 @@ export const useRepoStore = defineStore('repo', {
         const tagStore = useTagStore()
         const tag = tagStore.tags.find(tagItem => tagItem.id === this.selectedTag)
         if (tag) {
-          const tagRepoIds = new Set(tag.repos || [])
+          const tagRepoIds = new Set(tag.repos)
           result = result.filter(repository => tagRepoIds.has(repository.id))
         }
       }
@@ -129,7 +128,7 @@ export const useRepoStore = defineStore('repo', {
       const taggedIds = new Set<number>()
 
       tagStore.tags.forEach(tag => {
-        ;(tag.repos || []).forEach(repositoryId => taggedIds.add(repositoryId))
+        tag.repos.forEach(repositoryId => taggedIds.add(repositoryId))
       })
 
       return this.repos.filter(repository => !taggedIds.has(repository.id))
@@ -289,41 +288,24 @@ export const useRepoStore = defineStore('repo', {
         const validRepositoryIds = new Set(
           remoteRepositories.map(repository => repository.id)
         )
-        const [storedTags, storedRepoTags] = await Promise.all([
-          db.tags.toArray(),
-          db.repoTags.toArray()
-        ])
-        const prunedTags = pruneTagsForRepositories(
-          storedTags,
-          validRepositoryIds
-        )
-        const prunedRepoTags = pruneRepoTagsForRepositories(
-          storedRepoTags,
-          validRepositoryIds
-        )
 
-        await db.transaction(
-          'rw',
-          db.repos,
-          db.tags,
-          db.repoTags,
-          async () => {
-            await db.repos.clear()
-            if (remoteRepositories.length > 0) {
-              await db.repos.bulkAdd(remoteRepositories)
-            }
+        await db.transaction('rw', db.repos, db.repoTags, async () => {
+          const storedRelations = await db.repoTags.toArray()
+          const prunedRelations = pruneRepoTagsForRepositories(
+            storedRelations,
+            validRepositoryIds
+          )
 
-            await db.tags.clear()
-            if (prunedTags.tags.length > 0) {
-              await db.tags.bulkAdd(prunedTags.tags)
-            }
-
-            await db.repoTags.clear()
-            if (prunedRepoTags.repoTags.length > 0) {
-              await db.repoTags.bulkAdd(prunedRepoTags.repoTags)
-            }
+          await db.repos.clear()
+          if (remoteRepositories.length > 0) {
+            await db.repos.bulkAdd(remoteRepositories)
           }
-        )
+
+          await db.repoTags.clear()
+          if (prunedRelations.repoTags.length > 0) {
+            await db.repoTags.bulkAdd(prunedRelations.repoTags)
+          }
+        })
 
         if (!isCurrentSync()) {
           return cancelledResult(
@@ -342,7 +324,7 @@ export const useRepoStore = defineStore('repo', {
         )
 
         const tagStore = useTagStore()
-        tagStore.$state.tags = prunedTags.tags
+        await tagStore.loadTags()
 
         const result: RepoSyncResult = {
           status: 'success',
@@ -445,20 +427,8 @@ export const useRepoStore = defineStore('repo', {
       this.$state.syncProgress = { ...EMPTY_PROGRESS }
 
       const tagStore = useTagStore()
-      tagStore.$state.tags = []
-      tagStore.$state.loading = false
-
-      await db.transaction(
-        'rw',
-        db.repos,
-        db.tags,
-        db.repoTags,
-        async () => {
-          await db.repos.clear()
-          await db.tags.clear()
-          await db.repoTags.clear()
-        }
-      )
+      await tagStore.replaceAllTags([])
+      await db.repos.clear()
 
       const result = await this.loadRepos(true)
       if (result.status !== 'success') {
