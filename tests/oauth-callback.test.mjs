@@ -48,8 +48,8 @@ test('main relays popup callbacks before bootstrapping the Vue application', asy
     'utf8'
   )
 
-  const relayCall = mainSource.indexOf('relayOAuthPopupCallback()')
-  const bootstrapCall = mainSource.indexOf('bootstrapApplication()')
+  const relayCall = mainSource.lastIndexOf('relayOAuthPopupCallback()')
+  const bootstrapCall = mainSource.lastIndexOf('bootstrapApplication()')
 
   assert.notEqual(relayCall, -1)
   assert.notEqual(bootstrapCall, -1)
