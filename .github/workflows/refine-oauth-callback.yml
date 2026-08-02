@@ -64,9 +64,10 @@ jobs:
 
           opener_start = content.find("    ;(window as Window & {")
           if opener_start >= 0:
-              opener_end = content.find("  } catch {", opener_start)
+              opener_end = content.find("\n  } catch {", opener_start)
               if opener_end < 0:
                   raise SystemExit('OAuth opener callback end not found')
+              opener_end += 1
               content = (
                   content[:opener_start]
                   + """    const handleOAuthMessage = async (
