@@ -233,7 +233,7 @@ CLIENT_SECRET=your_client_secret
 
 ```bash
 # Start OAuth proxy server
-npm run cloudflare:dev
+node server/dev-server.js
 
 # Start frontend development server in another terminal
 npm run dev
@@ -265,7 +265,7 @@ npm run build
 
 #### 3. Configure Cloudflare Workers
 
-OAuth token exchange logic is provided in `functions/api/oauth/token.ts`. Set environment variables in Cloudflare Dashboard:
+OAuth token exchange logic is provided in `functions/api/getToken.ts`. Set environment variables in Cloudflare Dashboard:
 
 - `CLIENT_ID`: GitHub OAuth Client ID
 - `CLIENT_SECRET`: GitHub OAuth Client Secret
@@ -292,7 +292,7 @@ npm run build
 npm run preview
 ```
 
-> ⚠️ **Note**: Self-hosting requires handling OAuth token exchange backend logic yourself. Refer to `functions/api/oauth/token.ts` or `functions/api/oauth/token.ts`.
+> ⚠️ **Note**: Self-hosting requires handling OAuth token exchange backend logic yourself. Refer to `server/dev-server.js` or `functions/api/getToken.ts`.
 
 ---
 
@@ -473,12 +473,12 @@ StarHub/
 │   ├── guide/               # Usage guides
 │   ├── reference/           # Reference documentation
 │   └── troubleshooting/     # Troubleshooting
-├── server/                  # Cloudflare Pages Functions local server
+├── server/                  # Local development server
 │   ├── dev-server.js        # OAuth proxy server
 │   └── package.json         # Server dependencies
 ├── functions/               # Workers
 │   ├── api/
-│   │   └── oauth/token.ts      # OAuth Token exchange
+│   │   └── getToken.ts      # OAuth Token exchange
 │   └── tsconfig.json        # TypeScript configuration
 ├── backups/                 # Backup files
 ├── package.json             # Project configuration
@@ -500,7 +500,7 @@ StarHub/
 
 1. Check if `CLIENT_ID` is configured correctly
 2. Confirm GitHub OAuth App callback URL matches current address
-3. Ensure `npm run cloudflare:dev` is running for local development
+3. Ensure `node server/dev-server.js` is running for local development
 4. Check if `CLIENT_SECRET` in `.env` file is correct
 
 ### AI Classification Failed

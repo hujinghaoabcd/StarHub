@@ -44,7 +44,7 @@ cd starhub
 npm install
 
 # 启动 OAuth 服务器
-npm run cloudflare:dev
+node server/dev-server.js
 
 # 启动开发服务器（另一个终端）
 npm run dev

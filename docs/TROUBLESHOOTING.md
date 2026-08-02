@@ -32,7 +32,7 @@
 3. **本地开发检查后端服务**
    ```bash
    # 确认后端服务正在运行
-   npm run cloudflare:dev
+   node server/dev-server.js
    ```
 
 4. **检查 .env 配置**

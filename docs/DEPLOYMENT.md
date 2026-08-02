@@ -56,7 +56,7 @@ npm run build
 
 ### 步骤 5：配置 Functions
 
-项目中的 `functions/api/oauth/token.ts` 会自动被识别为 Cloudflare Workers 函数，处理 OAuth token 交换。
+项目中的 `functions/api/getToken.ts` 会自动被识别为 Cloudflare Workers 函数，处理 OAuth token 交换。
 
 ### 步骤 6：更新 GitHub OAuth 回调地址
 
@@ -112,7 +112,7 @@ module.exports = {
     },
     {
       name: 'starhub-backend',
-      script: 'functions/api/oauth/token.ts',
+      script: 'server/dev-server.js',
       cwd: '/path/to/starhub',
       env: {
         CLIENT_ID: 'your_client_id',
