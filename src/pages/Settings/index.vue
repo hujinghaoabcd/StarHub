@@ -327,6 +327,12 @@ import {
 import { useTagStore } from '@/stores/tag'
 import { useRepoStore } from '@/stores/repo'
 import { db } from '@/db'
+import type { Repository, Tag } from '@/types'
+import {
+  buildRepoTagsFromTags,
+  toStoredTag
+} from '@/services/tagRelations'
+import { runDataMutation } from '@/services/dataMutationQueue'
 import Dexie from 'dexie'
 
 const { t } = useI18n()
@@ -401,15 +407,12 @@ const loadDataStats = async () => {
       await db.open()
     }
     
-    const repos = await db.repos.toArray()
-    const tags = await db.tags.toArray()
-    
-    const taggedRepoIds = new Set<number>()
-    tags.forEach(tag => {
-      if (tag.repos && Array.isArray(tag.repos)) {
-        tag.repos.forEach(id => taggedRepoIds.add(id))
-      }
-    })
+    const [repos, tags, relations] = await Promise.all([
+      db.repos.toArray(),
+      db.tags.toArray(),
+      db.repoTags.toArray()
+    ])
+    const taggedRepoIds = new Set(relations.map(relation => relation.repoId))
     
     dataStats.value = {
       repos: repos.length,
@@ -741,12 +744,16 @@ const handleExport = async () => {
   try {
     exporting.value = true
     
-    // 收集所有数据
+    // Collect a portable snapshot. Tag membership is hydrated from repoTags.
+    await tagStore.loadTags()
     const repos = await db.repos.toArray()
-    const tags = await db.tags.toArray()
+    const tags = tagStore.tags.map(tag => ({
+      ...tag,
+      repos: [...tag.repos]
+    }))
     
     const exportData = {
-      version: '1.0',
+      version: '2.0',
       exportDate: new Date().toISOString(),
       data: {
         repos,
@@ -818,18 +825,49 @@ const handleImport = () => {
         }
       )
       
-      // 清空现有数据
-      await db.repos.clear()
-      await db.tags.clear()
-      
-      // 导入新数据
-      if (importData.data.repos && importData.data.repos.length > 0) {
-        await db.repos.bulkAdd(importData.data.repos)
-      }
-      
-      if (importData.data.tags && importData.data.tags.length > 0) {
-        await db.tags.bulkAdd(importData.data.tags)
-      }
+      const now = Date.now()
+      const importedRepos: Repository[] = Array.isArray(importData.data.repos)
+        ? importData.data.repos
+        : []
+      const importedTags: Tag[] = Array.isArray(importData.data.tags)
+        ? importData.data.tags.map((tag: Partial<Tag>) => ({
+            id: String(tag.id || ''),
+            name: String(tag.name || ''),
+            color: String(tag.color || '#409EFF'),
+            emoji: tag.emoji,
+            repos: Array.isArray(tag.repos)
+              ? Array.from(new Set(tag.repos.filter(Number.isFinite)))
+              : [],
+            createdAt: Number(tag.createdAt) || now,
+            updatedAt: Number(tag.updatedAt) || now
+          })).filter((tag: Tag) => tag.id && tag.name)
+        : []
+      const storedTags = importedTags.map(toStoredTag)
+      const relations = buildRepoTagsFromTags(importedTags)
+
+      await runDataMutation(() =>
+        db.transaction(
+          'rw',
+          db.repos,
+          db.tags,
+          db.repoTags,
+          async () => {
+            await db.repos.clear()
+            await db.tags.clear()
+            await db.repoTags.clear()
+
+            if (importedRepos.length > 0) {
+              await db.repos.bulkAdd(importedRepos)
+            }
+            if (storedTags.length > 0) {
+              await db.tags.bulkAdd(storedTags)
+            }
+            if (relations.length > 0) {
+              await db.repoTags.bulkAdd(relations)
+            }
+          }
+        )
+      )
       
       // 恢复预设分类
       if (importData.data.categoryPresets) {
@@ -1020,14 +1058,20 @@ const handleClearAll = async () => {
             await db.open()
           }
           
-          // Clear all tables
-          await db.repos.clear()
-          await db.tags.clear()
-          
-          // Clear repoTags table if exists
-          if (db.repoTags) {
-            await db.repoTags.clear()
-          }
+          // Clear all canonical tables in one transaction.
+          await runDataMutation(() =>
+            db.transaction(
+              'rw',
+              db.repos,
+              db.tags,
+              db.repoTags,
+              async () => {
+                await db.repos.clear()
+                await db.tags.clear()
+                await db.repoTags.clear()
+              }
+            )
+          )
           
           // Verify cleared
           const newRepoCount = await db.repos.count()
