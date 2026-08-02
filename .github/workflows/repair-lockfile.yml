@@ -34,14 +34,17 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
-      - name: Regenerate lockfile from package.json
+      - name: Regenerate lockfile from a clean installation
         shell: bash
         run: |
-          rm -f package-lock.json
-          npm install --package-lock-only
+          rm -rf node_modules package-lock.json
+          npm install
 
-      - name: Verify clean installation
-        run: npm ci
+      - name: Verify reproducible clean installation
+        shell: bash
+        run: |
+          rm -rf node_modules
+          npm ci
 
       - name: Run complete project checks
         run: npm run check
