@@ -42,5 +42,5 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
-      - name: Build
-        run: npm run build
+      - name: Build application and documentation
+        run: npm run pages:build
