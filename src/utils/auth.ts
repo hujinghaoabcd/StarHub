@@ -247,8 +247,11 @@ export const AuthToken = createAuthTokenManager({
 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', event => {
-    if (event.key === AUTH_LOGOUT_EVENT_KEY) {
+    if (event.key === AUTH_LOGOUT_EVENT_KEY && event.newValue) {
       AuthToken.clean({ notify: false })
+      window.location.replace(
+        `${import.meta.env.BASE_URL}#/login?reason=logged-out`
+      )
     }
   })
 }

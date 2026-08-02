@@ -414,6 +414,10 @@ onMounted(async () => {
       error.value = currentLanguage.value === 'zh'
         ? 'GitHub 已拒绝当前凭据，请重新授权。'
         : 'GitHub rejected the current credentials. Please authorize again.'
+    } else if (reason === 'logged-out') {
+      error.value = currentLanguage.value === 'zh'
+        ? '登录已在另一个标签页退出。'
+        : 'You signed out in another tab.'
     }
     return
   }
