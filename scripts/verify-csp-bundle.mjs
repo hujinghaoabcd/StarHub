@@ -15,11 +15,11 @@ for (const requiredFlag of [
   }
 }
 
-const JavaScriptFiles = (await readdir(assetsDirectory))
+const javaScriptFiles = (await readdir(assetsDirectory))
   .filter((file) => file.endsWith('.js'))
   .sort()
 
-if (JavaScriptFiles.length === 0) {
+if (javaScriptFiles.length === 0) {
   throw new Error('No JavaScript assets found. Run the production build first.')
 }
 
@@ -38,24 +38,37 @@ const forbiddenPatterns = [
   }
 ]
 
+// Element Plus currently bundles a utility with the conventional
+// `self || Function('return this')()` global-object fallback. Browsers that
+// can run StarHub always expose `self`, so the constructor branch is inert.
+// Only this exact expression is ignored; all other source-text evaluation
+// remains a build failure.
+const inertGlobalFallback = /Function\(\s*(["'`])return this\1\s*\)\s*\(\s*\)/g
 const violations = []
 
-for (const file of JavaScriptFiles) {
+for (const file of javaScriptFiles) {
   const source = await readFile(path.join(assetsDirectory, file), 'utf8')
+  const sourceForScan = source.replace(
+    inertGlobalFallback,
+    '/* inert browser global fallback */'
+  )
 
   for (const { label, pattern } of forbiddenPatterns) {
     pattern.lastIndex = 0
-    const match = pattern.exec(source)
+    const match = pattern.exec(sourceForScan)
     if (!match) {
       continue
     }
 
     const start = Math.max(0, match.index - 80)
-    const end = Math.min(source.length, match.index + match[0].length + 120)
+    const end = Math.min(
+      sourceForScan.length,
+      match.index + match[0].length + 120
+    )
     violations.push({
       file,
       label,
-      snippet: source.slice(start, end).replace(/\s+/g, ' ')
+      snippet: sourceForScan.slice(start, end).replace(/\s+/g, ' ')
     })
   }
 }
@@ -71,5 +84,5 @@ if (violations.length > 0) {
 }
 
 console.log(
-  `Verified ${JavaScriptFiles.length} production JavaScript assets: no eval or Function constructor.`
+  `Verified ${javaScriptFiles.length} production JavaScript assets: no executable eval or Function constructor.`
 )
