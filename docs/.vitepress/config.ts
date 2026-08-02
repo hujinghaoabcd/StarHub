@@ -1,6 +1,14 @@
 import { defineConfig } from 'vitepress'
 
+function normalizeBase(base: string): string {
+  const withLeadingSlash = base.startsWith('/') ? base : `/${base}`
+  return withLeadingSlash.endsWith('/') ? withLeadingSlash : `${withLeadingSlash}/`
+}
+
+const docsBase = normalizeBase(process.env.VITEPRESS_BASE_PATH || '/')
+
 export default defineConfig({
+  base: docsBase,
   vite: {
     server: {
       port: 5174
@@ -13,15 +21,15 @@ export default defineConfig({
   title: 'StarHub',
   description: '专业的 GitHub Stars 管理工具',
   lang: 'zh-CN',
-  
+
   head: [
-    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: `${docsBase}logo.svg` }],
     ['meta', { name: 'theme-color', content: '#1c2333' }],
   ],
 
   themeConfig: {
     logo: '/logo.svg',
-    
+
     nav: [
       { text: '首页', link: '/' },
       { text: '指南', link: '/guide/installation' },
@@ -144,4 +152,3 @@ export default defineConfig({
     }
   }
 })
-
