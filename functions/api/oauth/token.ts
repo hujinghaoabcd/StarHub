@@ -1,9 +1,8 @@
-
 interface Env {
-  CLIENT_ID: string
-  CLIENT_SECRET: string
-  ALLOWED_ORIGINS: string
-  GITHUB_REDIRECT_URI: string
+  CLIENT_ID?: string
+  CLIENT_SECRET?: string
+  ALLOWED_ORIGINS?: string
+  GITHUB_REDIRECT_URI?: string
 }
 
 interface TokenRequestBody {
@@ -22,7 +21,8 @@ interface GitHubTokenResponse {
 
 function allowedOrigins(env: Env): Set<string> {
   return new Set(
-    env.ALLOWED_ORIGINS.split(',')
+    (env.ALLOWED_ORIGINS || '')
+      .split(',')
       .map((origin) => origin.trim())
       .filter(Boolean)
   )
@@ -43,7 +43,7 @@ function corsHeaders(origin: string): HeadersInit {
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
     'Cache-Control': 'no-store',
-    'Vary': 'Origin',
+    Vary: 'Origin',
     'X-Content-Type-Options': 'nosniff'
   }
 }
@@ -77,6 +77,7 @@ export const onRequestOptions: PagesFunction<Env> = async ({ request, env }) => 
   if (!origin) {
     return new Response(null, { status: 403 })
   }
+
   return new Response(null, {
     status: 204,
     headers: corsHeaders(origin)
@@ -103,7 +104,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
 
   let payload: TokenRequestBody
   try {
-    payload = await request.json<TokenRequestBody>()
+    payload = (await request.json()) as TokenRequestBody
   } catch {
     return jsonResponse({ error: 'invalid_json' }, 400, origin)
   }
@@ -141,7 +142,7 @@ export const onRequestPost: PagesFunction<Env> = async ({ request, env }) => {
       }
     )
 
-    const tokenData = await githubResponse.json<GitHubTokenResponse>()
+    const tokenData = (await githubResponse.json()) as GitHubTokenResponse
     if (!githubResponse.ok || !tokenData.access_token) {
       return jsonResponse(
         {
