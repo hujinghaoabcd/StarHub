@@ -7,7 +7,7 @@
 - 当前阶段：第一阶段——稳定性与部署基础
 - 工作分支：`agent/foundation-ci-sync`
 - 基准分支：`main`
-- 草稿 PR：`#3 chore: establish CI and GitHub Pages deployment foundation`
+- PR：`#3 chore: establish CI and GitHub Pages deployment foundation`
 - 最近更新：2026-08-02
 - 当前目标：完成 PR 验证并合并到 `main`，触发首次正式 Pages 部署
 
