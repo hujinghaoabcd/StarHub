@@ -4,13 +4,16 @@ on:
   push:
     branches:
       - agent/dependency-security-hardening
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: upgrade-frontend-toolchain
+  group: upgrade-frontend-toolchain-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -63,6 +66,7 @@ jobs:
           NODE
 
       - name: Commit compatible toolchain upgrade
+        if: github.event_name == 'push'
         shell: bash
         run: |
           if git diff --quiet -- package.json package-lock.json; then
