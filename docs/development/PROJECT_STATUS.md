@@ -32,17 +32,17 @@
 - [x] 修复生产环境文档链接和 OAuth 回调路径前缀
 - [x] 新增 `scripts/build-pages.mjs` 与 `npm run pages:build`
 - [x] 将文档合并到 `dist/docs/`
-- [x] 生成 `.nojekyll` 与 `deployment-info.json`
-- [x] `deployment-info.json` 记录实际构建提交 SHA
+- [x] 生成 `.nojekyll` 与带提交 SHA 的 `deployment-info.json`
 - [x] CI 验证完整 Pages 组合产物
 - [x] 新增 GitHub Pages 构建、上传、部署与公网冒烟测试
-- [x] Pages 已在仓库设置中启用，`build_type` 为 `workflow`
+- [x] Pages 已启用，`build_type` 为 `workflow`
 - [x] Pages API 返回正式地址 `https://hujinghaoabcd.github.io/StarHub/`
-- [x] 诊断开发分支生产发布失败：构建和 artifact 上传成功，`Deploy Pages site` 在分配 runner 前失败
+- [x] 诊断开发分支生产发布失败：构建和 artifact 上传成功，部署环境在 runner 前拒绝分支发布
 - [x] 将生产发布调整为标准模式：PR 只构建，只有 `main` 推送才部署
 - [x] 公网冒烟测试检查应用、文档、部署元数据、提交 SHA 和实际 JS/CSS 资源
-- [x] 修复部署结果回写权限，增加 `pull-requests: read`
+- [x] 修复部署结果回写权限
 - [x] 删除临时 Pages 诊断工作流
+- [x] 更新 PR 说明、项目状态与交接文档
 
 ## 未完成
 
@@ -50,10 +50,9 @@
 
 - [ ] 完成 PR #3 最后一轮 CI
 - [ ] 将 PR #3 合并到 `main`
-- [ ] 确认 `main` 的 `Deploy GitHub Pages` 成功
+- [ ] 确认 `main` 的 Pages 部署成功
 - [ ] 确认公网冒烟测试通过
-- [ ] 验证应用地址 `https://hujinghaoabcd.github.io/StarHub/`
-- [ ] 验证文档地址 `https://hujinghaoabcd.github.io/StarHub/docs/`
+- [ ] 验证应用与文档在线地址
 
 ### P0：必须优先处理
 
@@ -102,7 +101,7 @@
 
 ## 当前验证状态
 
-- GitHub Actions CI：通过既有基线
+- GitHub Actions 基线：通过
   - `npm ci`：成功
   - `npm run lint`：成功，9 条非阻断警告
   - `npm run type-check`：成功
@@ -111,14 +110,14 @@
   - 应用：`dist/` → `/StarHub/`
   - 文档：`dist/docs/` → `/StarHub/docs/`
 - Pages 配置：已启用，`build_type: workflow`
-- 开发分支生产尝试：构建与上传成功，部署环境拒绝分支发布
+- 开发分支生产尝试：构建与上传成功，环境拒绝非 `main` 发布
 - 正式生产策略：只允许 `main` 部署
 - 在线地址：尚未发布当前 PR 内容
 - OAuth 真实登录：未完成，生产后端尚未部署
 
 ## 下一步
 
-1. 等待本次 PR CI 完成；
+1. 等待本次 PR CI；
 2. 将 PR #3 转为 Ready 并合并到 `main`；
 3. 检查 `main` 的构建、部署和公网冒烟测试；
 4. 更新最终 Pages 上线状态；
