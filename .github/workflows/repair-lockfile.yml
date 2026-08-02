@@ -1,0 +1,57 @@
+name: Repair dependency lockfile
+
+on:
+  push:
+    branches:
+      - agent/dependency-security-hardening
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-dependency-lockfile
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out dependency branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/dependency-security-hardening
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Regenerate lockfile from package.json
+        shell: bash
+        run: |
+          rm -f package-lock.json
+          npm install --package-lock-only
+
+      - name: Verify clean installation
+        run: npm ci
+
+      - name: Run complete project checks
+        run: npm run check
+
+      - name: Commit repaired lockfile
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "Lockfile is already consistent."
+            exit 0
+          fi
+          git commit -m "chore: regenerate dependency lockfile"
+          git push origin HEAD:agent/dependency-security-hardening
