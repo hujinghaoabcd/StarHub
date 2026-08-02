@@ -1,0 +1,43 @@
+name: Apply cross-tab logout patch
+
+on:
+  push:
+    branches:
+      - agent/session-auth-lifecycle
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cross-tab-logout-patch
+  cancel-in-progress: true
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/session-auth-lifecycle
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Apply cross-tab logout patch
+        run: node scripts/apply-cross-tab-logout-patch.mjs
+
+      - name: Commit generated changes
+        run: |
+          if git diff --quiet -- src/utils/auth.ts src/pages/Login.vue; then
+            echo "No cross-tab changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/utils/auth.ts src/pages/Login.vue
+          git commit -m "security: synchronize logout across tabs"
+          git push origin HEAD:agent/session-auth-lifecycle
