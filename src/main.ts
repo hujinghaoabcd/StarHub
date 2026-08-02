@@ -11,6 +11,7 @@ import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
 import { useThemeStore } from './stores/theme'
+import { startAuthSessionLifecycle } from './utils/authLifecycle'
 import './styles/main.scss'
 
 const app = createApp(App)
@@ -36,7 +37,7 @@ if (themeStore.language !== i18n.global.locale.value) {
 
 // Make i18n available globally for theme store
 if (typeof window !== 'undefined') {
-  (window as any).__VUE_I18N__ = i18n
+  ;(window as any).__VUE_I18N__ = i18n
 }
 
 app.use(router)
@@ -46,4 +47,4 @@ app.use(ElementPlus, {
 })
 
 app.mount('#app')
-
+startAuthSessionLifecycle()
