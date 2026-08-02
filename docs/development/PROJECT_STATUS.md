@@ -3,22 +3,22 @@
 ## 当前概况
 
 - 基准分支：`main`
-- `main` 当前提交：`4bf20a5dc57776438a35be86b9a1dbc04514ab45`
-- 开发分支：`agent/session-auth-lifecycle`
-- 当前 PR：`#9 security: scope authentication to a bounded browser session`
-- 当前阶段：GitHub token 会话化、过期控制和统一清理
-- GitHub Pages：已发布
-- Cloudflare Pages OAuth：已部署并接通
-- PR #9：代码和自动验证完成，等待合并与生产浏览器验收
+- `main` 当前提交：`ca85ce9291a446bcce367f181f5480629488915e`
+- 开发分支：`agent/local-oauth-docs-hardening`
+- 当前 PR：`#11 refactor: unify local OAuth development`
+- 当前阶段：统一本地 OAuth、部署与文档模型
+- 生产前端：`https://hujinghaoabcd.github.io/StarHub/`
+- 生产文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
+- OAuth API：`https://starhub-oauth.pages.dev/api`
 
 ## 已完成批次
 
-### 工程、部署与 OAuth
+### 工程与部署基础
 
-- [x] Node.js 22、ESLint、TypeScript、CI 和联合构建
-- [x] GitHub Pages 应用与文档部署
-- [x] Cloudflare Pages Functions OAuth 后端
-- [x] OAuth `state`、PKCE、严格 CORS 和安全弹窗回调
+- [x] Node.js 22、ESLint、TypeScript、单元测试和 CI
+- [x] GitHub Pages 应用与 VitePress 文档联合构建
+- [x] Cloudflare Pages Functions OAuth API
+- [x] GitHub OAuth `state`、PKCE、JSON POST、严格 Origin 与 redirect URI 校验
 
 ### 仓库同步正确性（PR #7，已合并）
 
@@ -30,113 +30,120 @@
 ### 标签关系单一真源（PR #8，已合并）
 
 - [x] `repoTags` 成为唯一持久化标签关系真源
-- [x] IndexedDB 升级到 v3 并迁移旧关系
-- [x] 仓库同步、标签编辑、导入和清空共享事务队列
-- [x] 备份格式升级到 v2.0
+- [x] IndexedDB v3 迁移与孤儿关系过滤
+- [x] 同步、标签编辑、导入与清空共享事务队列
 - [x] 合并提交：`4bf20a5dc57776438a35be86b9a1dbc04514ab45`
 
-### 会话级认证（PR #9）
+### 会话级认证（PR #9，已合并）
 
-- [x] GitHub token 从 `localStorage` 迁移到 `sessionStorage`
-- [x] 旧 `github-token` 首次读取时自动迁移并删除
-- [x] 旧 `app-token` 自动清除
-- [x] 用户资料缓存从 `localStorage` 迁移到 `sessionStorage`
-- [x] 会话最长 12 小时
-- [x] 关闭标签页或浏览器后不再长期保存 token
-- [x] 浏览器禁止 Storage API 时退化为当前页面内存会话
-- [x] 会话数据结构校验和损坏数据清理
-- [x] 每 5 分钟最多更新一次 `lastUsedAt`
-- [x] 每分钟、窗口聚焦和页面重新可见时检查会话期限
-- [x] OAuth callback 和登录页不受会话守护器干扰
-- [x] 请求前发现无有效会话时直接跳转登录
-- [x] GitHub 401 统一清理并只跳转一次
-- [x] 清理认证时同时删除 token 和缓存用户资料
-- [x] 跨标签页同步退出
-- [x] 登录页区分会话过期、GitHub 拒绝和其他标签页退出
+- [x] GitHub token 与用户资料迁移到 `sessionStorage`
+- [x] 旧长期 token 自动迁移并删除
+- [x] 12 小时会话边界、定时检查与 401 统一清理
+- [x] 跨标签页退出同步
+- [x] 合并提交：`f4aee772a9d71b97e5302f7fcb0c31d9682a8575`
 
-## 自动验证
+### 依赖与静态交付加固（PR #10，已合并）
+
+- [x] Axios `1.19.0`、DOMPurify `3.4.12`
+- [x] Vite `8.2.0`、TypeScript `5.9.3`、vue-tsc `3.3.9`
+- [x] VitePress `2.0.0-alpha.17` 与可重现 lockfile
+- [x] CSP、Referrer Policy 与外置主题初始化脚本
+- [x] `npm audit --omit=dev` 加入 CI 质量门
+- [x] 生产依赖漏洞为 0
+- [x] 合并提交：`ca85ce9291a446bcce367f181f5480629488915e`
+
+## 当前批次：本地 OAuth 与文档统一（PR #11）
+
+### 已完成
+
+- [x] 删除重复的 `server/` Node OAuth 服务及独立依赖树
+- [x] 本地 API 统一为 Cloudflare Pages Functions
+- [x] Vite `/api` 代理从 7001 改为 Wrangler 默认端口 8788
+- [x] 本地 token 交换统一为 `POST /api/oauth/token`
+- [x] `.dev.vars.example` 改为仅允许 `http://localhost:5173`
+- [x] 本地服务端变量统一为 `CLIENT_ID`、`CLIENT_SECRET`、`ALLOWED_ORIGINS`、`GITHUB_REDIRECT_URI`
+- [x] 新增 `.env.local` 中的 `VITE_GITHUB_CLIENT_ID` 配置说明
+- [x] 明确浏览器 Client ID 与 Functions Client ID 必须属于同一个 OAuth App
+- [x] 重写本地开发、部署、自托管和登录排障文档
+- [x] 删除通配 CORS、长期 `localStorage` 和旧 GET token 流程的过时指导
+- [x] 新增 `scripts/verify-oauth-docs.mjs`
+- [x] CI 阻止旧服务目录、旧接口、旧端口和旧路径回归
+
+### 自动验证
+
+迁移工作流已通过：
 
 ```text
-PR                              #9
-Branch                          agent/session-auth-lifecycle
-CI run                          30761611893  PASS
-npm ci                                        PASS
-npm run lint                                 PASS
-npm run type-check                           PASS
-npm run test:unit                            PASS，17 tests
-npm run cloudflare:type-check                PASS
-npm run pages:build                          PASS
-npm run cloudflare:build                     PASS
+Migration application                    PASS
+npm ci                                   PASS
+Lint                                     PASS
+Type-check                               PASS
+Unit tests                               PASS，17 tests
+Cloudflare Functions type-check          PASS
+OAuth documentation verification         PASS
+Application + docs build                 PASS
+Static security verification             PASS
+Production dependency audit              PASS，0 vulnerabilities
+Cloudflare Pages bundle                   PASS
 ```
 
-新增认证测试覆盖：
+机器人生成的文档提交会显示 GitHub `action_required`，最终普通提交将重新运行 PR CI 与 Pages 构建。
 
-- 新 token 只写入会话存储；
-- 旧 localStorage token 自动迁移；
-- 到期会话拒绝并删除；
-- 退出清理和通知；
-- Storage API 被阻止时的内存回退；
-- 会话时间元数据不暴露 token。
+## 本地开发标准流程
 
-## 在线地址
+```bash
+npm ci
+cp .dev.vars.example .dev.vars
+# 创建 .env.local，写入 VITE_GITHUB_CLIENT_ID
+npm run cloudflare:dev
+npm run dev
+```
 
-- 应用：`https://hujinghaoabcd.github.io/StarHub/`
-- 文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
-- OAuth API：`https://starhub-oauth.pages.dev/api`
+本地地址：
 
-## PR #9 主要文件
+```text
+Frontend: http://localhost:5173/
+Functions: http://localhost:8788
+Health:    http://localhost:8788/api/health
+```
 
-- `src/utils/auth.ts`
-- `src/utils/authLifecycle.ts`
-- `src/api/request.ts`
-- `src/stores/user.ts`
-- `src/pages/Login.vue`
-- `src/main.ts`
-- `tests/auth-session.test.mjs`
+本地 OAuth App：
+
+```text
+Homepage URL: http://localhost:5173/
+Authorization callback URL: http://localhost:5173/
+```
 
 ## 合并后人工验收
 
-- [ ] 已登录旧版本升级后无需立即重新授权
-- [ ] localStorage 中不再存在 `github-token`、`app-token`、`starhub_user`
-- [ ] sessionStorage 中存在版本化认证会话和用户资料
-- [ ] 刷新当前标签页仍保持登录
-- [ ] 关闭标签页后重新打开需要重新登录
-- [ ] 手动退出后 token 和用户资料全部删除
-- [ ] 两个标签页中任一标签页退出，另一标签页同步返回登录页
-- [ ] 模拟 401 后显示重新授权提示
-- [ ] 模拟过期后显示会话过期提示
-- [ ] OAuth 弹窗和同页回调仍能完成登录
+- [ ] `.dev.vars` 使用本地 OAuth App 的 Client ID 与 Secret
+- [ ] `.env.local` 的 `VITE_GITHUB_CLIENT_ID` 与 `.dev.vars` 的 `CLIENT_ID` 一致
+- [ ] `/api/health` 返回 `configured: true`
+- [ ] 本地授权回调到 `http://localhost:5173/`
+- [ ] Network 面板只出现 `POST /api/oauth/token`
+- [ ] 错误 Origin 返回拒绝响应
+- [ ] 错误 redirect URI 返回拒绝响应
+- [ ] 登录成功后 URL 中不残留 `code` 与 `state`
+- [ ] GitHub Pages 生产登录与仓库同步不回归
 
 ## 已知风险
 
-- `sessionStorage` 仍可被同源 JavaScript 读取，不能抵御成功的 XSS；
-- 真正的 HttpOnly 服务端会话需要后续引入同站后端会话或 GitHub API BFF；
-- 自动测试尚未覆盖真实浏览器跨标签页和计时器行为；
-- npm audit 仍报告 33 个依赖漏洞；
-- 主要前端 chunk 仍偏大。
+- `sessionStorage` 仍可被成功执行的同源恶意脚本读取，不能替代 HttpOnly 会话；
+- VitePress 2 当前为 alpha 版本，升级时需继续运行完整文档构建；
+- 本地 OAuth App 与生产 OAuth App 必须分别维护；
+- 自动测试尚未覆盖真实 GitHub 授权、浏览器弹窗和 Cloudflare 生产变量；
+- 前端主要 chunk 仍偏大；
+- ESLint 仍有历史 warning，但没有 error。
 
 ## 后续计划
 
-### P1：认证纵深防御
-
-- [ ] 评估同站自定义域名与 HttpOnly Cookie 可行性
-- [ ] 评估 Cloudflare KV/D1 会话或 GitHub API BFF
-- [ ] 增加 Content Security Policy 和 XSS 防护审查
-
-### P1：依赖与质量
-
-- [ ] 审查 33 个依赖漏洞：2 low、12 moderate、19 high
-- [ ] 清理现有 ESLint 警告
-- [ ] 处理主要 chunk 过大问题
-- [ ] 增加 Playwright 认证与 IndexedDB E2E
-
-## 下一步
-
-1. 将 PR #9 标记 Ready 并 squash 合并到 `main`；
-2. 跟踪主分支 CI 与 GitHub Pages 发布；
-3. 执行会话迁移、刷新、关闭标签页和跨标签页退出验收；
-4. 下一批处理依赖漏洞与前端安全响应头。
+1. 完成 PR #11 最终 CI、Pages PR 构建与 squash 合并；
+2. 执行本地 OAuth 和生产 OAuth 人工验收；
+3. 清理 ESLint warning；
+4. 增加 Playwright 登录、IndexedDB 与跨标签页 E2E；
+5. 评估同站自定义域名、HttpOnly Cookie 与 GitHub API BFF；
+6. 拆分大体积前端 chunk。
 
 ## 更新规则
 
-每一批必须记录：已完成、未完成、修改文件、验证结果、已知风险和下一步。自动检查通过不得替代真实浏览器和生产行为验收。
+每一批记录：已完成、未完成、修改文件、验证结果、已知风险、人工验收和下一步。自动检查通过不能替代真实浏览器与生产环境验收。
