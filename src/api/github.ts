@@ -1,7 +1,15 @@
-import http from './request'
+import axios, { type AxiosResponse } from 'axios'
 import qs from 'query-string'
-import type { AxiosResponse } from 'axios'
+import http from './request'
 import type { User, Repository, RepositoryPagesSite } from '@/types'
+
+const publicGithubHttp = axios.create({
+  baseURL: 'https://api.github.com',
+  timeout: 30000,
+  headers: {
+    Accept: 'application/vnd.github+json'
+  }
+})
 
 export const githubApi = {
   // Get authenticated user
@@ -49,12 +57,12 @@ export const githubApi = {
     return http.get(`/repos/${owner}/${repo}`)
   },
 
-  // Get the configured GitHub Pages site and its actual public URL
+  // Public Pages metadata does not need the user's OAuth token.
   getRepositoryPages(
     owner: string,
     repo: string
   ): Promise<AxiosResponse<RepositoryPagesSite>> {
-    return http.get(`/repos/${owner}/${repo}/pages`)
+    return publicGithubHttp.get(`/repos/${owner}/${repo}/pages`)
   },
 
   // Remove a star for the authenticated user
