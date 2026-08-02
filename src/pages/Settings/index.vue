@@ -332,6 +332,7 @@ import {
   buildRepoTagsFromTags,
   toStoredTag
 } from '@/services/tagRelations'
+import { runDataMutation } from '@/services/dataMutationQueue'
 import Dexie from 'dexie'
 
 const { t } = useI18n()
@@ -844,26 +845,28 @@ const handleImport = () => {
       const storedTags = importedTags.map(toStoredTag)
       const relations = buildRepoTagsFromTags(importedTags)
 
-      await db.transaction(
-        'rw',
-        db.repos,
-        db.tags,
-        db.repoTags,
-        async () => {
-          await db.repos.clear()
-          await db.tags.clear()
-          await db.repoTags.clear()
+      await runDataMutation(() =>
+        db.transaction(
+          'rw',
+          db.repos,
+          db.tags,
+          db.repoTags,
+          async () => {
+            await db.repos.clear()
+            await db.tags.clear()
+            await db.repoTags.clear()
 
-          if (importedRepos.length > 0) {
-            await db.repos.bulkAdd(importedRepos)
+            if (importedRepos.length > 0) {
+              await db.repos.bulkAdd(importedRepos)
+            }
+            if (storedTags.length > 0) {
+              await db.tags.bulkAdd(storedTags)
+            }
+            if (relations.length > 0) {
+              await db.repoTags.bulkAdd(relations)
+            }
           }
-          if (storedTags.length > 0) {
-            await db.tags.bulkAdd(storedTags)
-          }
-          if (relations.length > 0) {
-            await db.repoTags.bulkAdd(relations)
-          }
-        }
+        )
       )
       
       // 恢复预设分类
@@ -1056,16 +1059,18 @@ const handleClearAll = async () => {
           }
           
           // Clear all canonical tables in one transaction.
-          await db.transaction(
-            'rw',
-            db.repos,
-            db.tags,
-            db.repoTags,
-            async () => {
-              await db.repos.clear()
-              await db.tags.clear()
-              await db.repoTags.clear()
-            }
+          await runDataMutation(() =>
+            db.transaction(
+              'rw',
+              db.repos,
+              db.tags,
+              db.repoTags,
+              async () => {
+                await db.repos.clear()
+                await db.tags.clear()
+                await db.repoTags.clear()
+              }
+            )
           )
           
           // Verify cleared
