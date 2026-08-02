@@ -6,17 +6,10 @@ import {
   hydrateTags,
   toStoredTag
 } from '@/services/tagRelations'
-
-let mutationQueue: Promise<void> = Promise.resolve()
-
-function queueMutation<T>(operation: () => Promise<T>): Promise<T> {
-  const result = mutationQueue.then(operation, operation)
-  mutationQueue = result.then(
-    () => undefined,
-    () => undefined
-  )
-  return result
-}
+import {
+  runDataMutation,
+  waitForDataMutations
+} from '@/services/dataMutationQueue'
 
 async function ensureDatabaseOpen() {
   if (!db.isOpen()) {
@@ -41,6 +34,50 @@ function createTagId(): string {
   return `tag_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
 }
 
+async function persistRepositoryTagSelection(
+  tags: readonly Tag[],
+  repoId: number,
+  requestedTagIds: readonly string[]
+): Promise<Tag[]> {
+  await ensureDatabaseOpen()
+
+  const existingTagIds = new Set(tags.map(tag => tag.id))
+  const selectedTagIds = new Set(
+    requestedTagIds.filter(tagId => existingTagIds.has(tagId))
+  )
+  const now = Date.now()
+  const changedTags = tags
+    .filter(
+      tag => tag.repos.includes(repoId) !== selectedTagIds.has(tag.id)
+    )
+    .map(tag => ({
+      ...tag,
+      repos: selectedTagIds.has(tag.id)
+        ? Array.from(new Set([...tag.repos, repoId]))
+        : tag.repos.filter(existingRepoId => existingRepoId !== repoId),
+      updatedAt: now
+    }))
+
+  await db.transaction('rw', db.tags, db.repoTags, async () => {
+    await db.repoTags.where('repoId').equals(repoId).delete()
+
+    const relations: RepoTag[] = Array.from(selectedTagIds).map(tagId => ({
+      repoId,
+      tagId
+    }))
+    if (relations.length > 0) {
+      await db.repoTags.bulkAdd(relations)
+    }
+
+    if (changedTags.length > 0) {
+      await db.tags.bulkPut(changedTags.map(toStoredTag))
+    }
+  })
+
+  const changedById = new Map(changedTags.map(tag => [tag.id, tag]))
+  return tags.map(tag => changedById.get(tag.id) || tag)
+}
+
 export const useTagStore = defineStore('tag', {
   state: () => ({
     tags: [] as Tag[],
@@ -59,7 +96,7 @@ export const useTagStore = defineStore('tag', {
       this.$state.loading = true
 
       try {
-        await mutationQueue
+        await waitForDataMutations()
         await ensureDatabaseOpen()
 
         const [storedTags, relations] = await Promise.all([
@@ -92,7 +129,7 @@ export const useTagStore = defineStore('tag', {
       color: string = '#409EFF',
       emoji?: string
     ): Promise<Tag> {
-      return queueMutation(async () => {
+      return runDataMutation(async () => {
         this.$state.isMutating = true
 
         try {
@@ -119,7 +156,7 @@ export const useTagStore = defineStore('tag', {
     },
 
     async updateTag(tagId: string, updates: Partial<Tag>) {
-      return queueMutation(async () => {
+      return runDataMutation(async () => {
         this.$state.isMutating = true
 
         try {
@@ -132,8 +169,10 @@ export const useTagStore = defineStore('tag', {
           const updatedTag: Tag = {
             ...currentTag,
             ...updates,
+            id: currentTag.id,
+            createdAt: currentTag.createdAt,
             repos: Array.isArray(updates.repos)
-              ? Array.from(new Set(updates.repos))
+              ? Array.from(new Set(updates.repos.filter(Number.isFinite)))
               : [...currentTag.repos],
             updatedAt: Date.now()
           }
@@ -159,7 +198,7 @@ export const useTagStore = defineStore('tag', {
     },
 
     async deleteTag(tagId: string) {
-      return queueMutation(async () => {
+      return runDataMutation(async () => {
         this.$state.isMutating = true
 
         try {
@@ -176,7 +215,7 @@ export const useTagStore = defineStore('tag', {
     },
 
     async replaceAllTags(tags: Tag[]) {
-      return queueMutation(async () => {
+      return runDataMutation(async () => {
         this.$state.isMutating = true
 
         try {
@@ -185,9 +224,13 @@ export const useTagStore = defineStore('tag', {
           const now = Date.now()
 
           for (const tag of tags) {
+            if (!tag.id || !tag.name) continue
+
             tagMap.set(tag.id, {
               ...tag,
-              repos: Array.from(new Set(tag.repos || [])),
+              repos: Array.from(
+                new Set((tag.repos || []).filter(Number.isFinite))
+              ),
               createdAt: tag.createdAt || now,
               updatedAt: now
             })
@@ -221,46 +264,14 @@ export const useTagStore = defineStore('tag', {
     },
 
     async replaceTagsForRepo(repoId: number, tagIds: string[]) {
-      return queueMutation(async () => {
+      return runDataMutation(async () => {
         this.$state.isMutating = true
 
         try {
-          await ensureDatabaseOpen()
-          const selectedTagIds = new Set(
-            tagIds.filter(tagId => this.$state.tags.some(tag => tag.id === tagId))
-          )
-          const now = Date.now()
-          const changedTags = this.$state.tags
-            .filter(tag =>
-              tag.repos.includes(repoId) !== selectedTagIds.has(tag.id)
-            )
-            .map(tag => ({
-              ...tag,
-              repos: selectedTagIds.has(tag.id)
-                ? Array.from(new Set([...tag.repos, repoId]))
-                : tag.repos.filter(existingRepoId => existingRepoId !== repoId),
-              updatedAt: now
-            }))
-
-          await db.transaction('rw', db.tags, db.repoTags, async () => {
-            await db.repoTags.where('repoId').equals(repoId).delete()
-
-            const relations: RepoTag[] = Array.from(selectedTagIds).map(tagId => ({
-              repoId,
-              tagId
-            }))
-            if (relations.length > 0) {
-              await db.repoTags.bulkAdd(relations)
-            }
-
-            if (changedTags.length > 0) {
-              await db.tags.bulkPut(changedTags.map(toStoredTag))
-            }
-          })
-
-          const changedById = new Map(changedTags.map(tag => [tag.id, tag]))
-          this.$state.tags = this.$state.tags.map(
-            tag => changedById.get(tag.id) || tag
+          this.$state.tags = await persistRepositoryTagSelection(
+            this.$state.tags,
+            repoId,
+            tagIds
           )
         } finally {
           this.$state.isMutating = false
@@ -269,29 +280,64 @@ export const useTagStore = defineStore('tag', {
     },
 
     async setTagForRepo(repoId: number, tagId: string, selected: boolean) {
-      const tag = this.$state.tags.find(candidate => candidate.id === tagId)
-      if (!tag) {
-        throw new Error(`Tag ${tagId} not found`)
-      }
+      return runDataMutation(async () => {
+        this.$state.isMutating = true
 
-      const selectedTagIds = this.$state.tags
-        .filter(candidate =>
-          candidate.id === tagId
-            ? selected
-            : candidate.repos.includes(repoId)
-        )
-        .map(candidate => candidate.id)
+        try {
+          const tag = this.$state.tags.find(candidate => candidate.id === tagId)
+          if (!tag) {
+            throw new Error(`Tag ${tagId} not found`)
+          }
 
-      await this.replaceTagsForRepo(repoId, selectedTagIds)
+          const selectedTagIds = this.$state.tags
+            .filter(candidate =>
+              candidate.id === tagId
+                ? selected
+                : candidate.repos.includes(repoId)
+            )
+            .map(candidate => candidate.id)
+
+          this.$state.tags = await persistRepositoryTagSelection(
+            this.$state.tags,
+            repoId,
+            selectedTagIds
+          )
+        } finally {
+          this.$state.isMutating = false
+        }
+      })
     },
 
     async toggleTagForRepo(repoId: number, tagId: string) {
-      const tag = this.$state.tags.find(candidate => candidate.id === tagId)
-      if (!tag) return
-      await this.setTagForRepo(repoId, tagId, !tag.repos.includes(repoId))
+      return runDataMutation(async () => {
+        this.$state.isMutating = true
+
+        try {
+          const tag = this.$state.tags.find(candidate => candidate.id === tagId)
+          if (!tag) return
+
+          const selected = !tag.repos.includes(repoId)
+          const selectedTagIds = this.$state.tags
+            .filter(candidate =>
+              candidate.id === tagId
+                ? selected
+                : candidate.repos.includes(repoId)
+            )
+            .map(candidate => candidate.id)
+
+          this.$state.tags = await persistRepositoryTagSelection(
+            this.$state.tags,
+            repoId,
+            selectedTagIds
+          )
+        } finally {
+          this.$state.isMutating = false
+        }
+      })
     },
 
     async getRepoTags(repoId: number): Promise<Tag[]> {
+      await waitForDataMutations()
       return this.$state.tags.filter(tag => tag.repos.includes(repoId))
     },
 
@@ -304,7 +350,7 @@ export const useTagStore = defineStore('tag', {
     },
 
     async washTags(allRepoIds: Set<number>) {
-      return queueMutation(async () => {
+      return runDataMutation(async () => {
         this.$state.isMutating = true
 
         try {
