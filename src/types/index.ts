@@ -16,6 +16,8 @@ export interface Repository {
   full_name: string
   description?: string
   html_url: string
+  homepage?: string
+  has_pages?: boolean
   language?: string
   stargazers_count: number
   forks_count: number
@@ -37,6 +39,18 @@ export interface Repository {
   archived: boolean
   disabled: boolean
   private: boolean
+}
+
+export interface RepositoryPagesSite {
+  status?: string
+  cname?: string | null
+  html_url: string
+  public?: boolean
+  https_enforced?: boolean
+  source?: {
+    branch: string
+    path: string
+  }
 }
 
 export interface StoredTag {
