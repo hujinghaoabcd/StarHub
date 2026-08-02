@@ -81,12 +81,64 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
+  verify:
+    name: Verify deployed Pages site
+    if: github.event_name != 'pull_request'
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Smoke test application and documentation
+        env:
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          base_url="${PAGE_URL%/}"
+          curl_args=(
+            --fail
+            --silent
+            --show-error
+            --location
+            --retry 12
+            --retry-all-errors
+            --retry-delay 5
+          )
+
+          curl "${curl_args[@]}" "${base_url}/" --output application.html
+          curl "${curl_args[@]}" "${base_url}/docs/" --output documentation.html
+          curl "${curl_args[@]}" "${base_url}/deployment-info.json" --output deployment-info.json
+
+          grep -q '<div id="app"></div>' application.html
+          grep -Eq '/StarHub/assets/[^"[:space:]]+\.(js|css)' application.html
+          grep -q 'StarHub' documentation.html
+          grep -q '/StarHub/docs/assets/' documentation.html
+          jq -e '.appBase == "/StarHub/" and .docsBase == "/StarHub/docs/"' deployment-info.json
+
+          application_asset="$(grep -oE '/StarHub/assets/[^"[:space:]]+\.(js|css)' application.html | head -n 1)"
+          documentation_asset="$(grep -oE '/StarHub/docs/assets/[^"[:space:]]+\.(js|css)' documentation.html | head -n 1)"
+
+          test -n "${application_asset}"
+          test -n "${documentation_asset}"
+
+          curl "${curl_args[@]}" "${base_url}${application_asset#/StarHub}" --output /dev/null
+          curl "${curl_args[@]}" "${base_url}${documentation_asset#/StarHub}" --output /dev/null
+
+          echo "Application URL: ${base_url}/"
+          echo "Documentation URL: ${base_url}/docs/"
+          echo "Application asset: ${application_asset}"
+          echo "Documentation asset: ${documentation_asset}"
+          echo "GitHub Pages smoke test passed."
+
   report:
     name: Report Pages status
     if: ${{ always() && github.event_name != 'pull_request' }}
     needs:
       - build
       - deploy
+      - verify
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -99,6 +151,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BUILD_RESULT: ${{ needs.build.result }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
+          VERIFY_RESULT: ${{ needs.verify.result }}
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
           HEAD_BRANCH: ${{ github.ref_name }}
         shell: bash
@@ -116,18 +169,22 @@ jobs:
           fi
 
           marker='<!-- starhub-pages-deployment -->'
-          if [[ "${BUILD_RESULT}" == "success" && "${DEPLOY_RESULT}" == "success" ]]; then
-            summary='✅ GitHub Pages 部署成功'
+          if [[ "${BUILD_RESULT}" == "success" && "${DEPLOY_RESULT}" == "success" && "${VERIFY_RESULT}" == "success" ]]; then
+            summary='✅ GitHub Pages 部署与公网冒烟测试成功'
             application_url="${PAGE_URL}"
             documentation_url="${PAGE_URL%/}/docs/"
           elif [[ "${BUILD_RESULT}" != "success" ]]; then
             summary='❌ GitHub Pages 构建失败'
             application_url='尚未生成'
             documentation_url='尚未生成'
-          else
-            summary='⚠️ 构建成功，但 GitHub Pages 发布失败或被跳过'
+          elif [[ "${DEPLOY_RESULT}" != "success" ]]; then
+            summary='❌ GitHub Pages 发布失败或被跳过'
             application_url='尚不可访问'
             documentation_url='尚不可访问'
+          else
+            summary='⚠️ GitHub Pages 已发布，但公网冒烟测试失败'
+            application_url="${PAGE_URL}"
+            documentation_url="${PAGE_URL%/}/docs/"
           fi
 
           body="${marker}
@@ -139,6 +196,7 @@ jobs:
           - 项目文档：${documentation_url}
           - 构建结果：\`${BUILD_RESULT}\`
           - 发布结果：\`${DEPLOY_RESULT}\`
+          - 公网验证：\`${VERIFY_RESULT}\`
           - 分支：\`${HEAD_BRANCH}\`
           - 提交：\`${GITHUB_SHA}\`
 
