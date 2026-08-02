@@ -1,0 +1,45 @@
+name: Update legacy OAuth documentation
+
+on:
+  push:
+    branches:
+      - agent/dependency-security-hardening
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-legacy-oauth-docs
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: agent/dependency-security-hardening
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Update legacy OAuth documentation
+        run: node scripts/update-legacy-oauth-docs.mjs
+
+      - name: Commit documentation migration
+        shell: bash
+        run: |
+          if git diff --quiet -- README.md README.en.md CONTRIBUTING.md docs; then
+            echo "OAuth documentation is already current."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md README.en.md CONTRIBUTING.md docs
+          git commit -m "docs: remove legacy OAuth server instructions"
+          git push origin HEAD:agent/dependency-security-hardening
