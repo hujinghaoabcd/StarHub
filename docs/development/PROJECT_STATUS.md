@@ -7,9 +7,9 @@
 - 当前阶段：第一阶段——稳定性与部署基础
 - 工作分支：`agent/foundation-ci-sync`
 - 基准分支：`main`
-- 草稿 PR：`#3 chore: establish CI baseline and development handoff`
+- 草稿 PR：`#3 chore: establish CI and GitHub Pages deployment foundation`
 - 最近更新：2026-08-02
-- 当前目标：完成 GitHub Pages 首次启用，随后进入仓库同步正确性与 OAuth 安全重构
+- 当前目标：验证首次 GitHub Pages 正式部署，随后进入仓库同步正确性与 OAuth 安全重构
 
 ## 已完成
 
@@ -48,20 +48,16 @@
 - [x] PR 事件只验证组合产物，不执行生产发布
 - [x] 分支推送和 PR 验证使用不同并发组，避免互相取消
 - [x] GitHub Actions 已验证应用与文档联合构建成功
-- [x] Pages 配置探测已执行：`GET /repos/hujinghaoabcd/StarHub/pages` 返回 HTTP 404
-- [x] 确认当前仓库尚未创建 GitHub Pages 站点
+- [x] 仓库管理员已将 `Settings → Pages → Source` 设置为 `GitHub Actions`
 
 ## 未完成
 
-### 当前人工阻塞：GitHub Pages 首次启用
+### 当前发布验证
 
-- [ ] 在仓库 `Settings → Pages` 中将 `Build and deployment → Source` 设置为 `GitHub Actions`
-- [ ] 首次启用后重新运行 `Deploy GitHub Pages` 工作流
+- [ ] 确认首次正式 `Deploy GitHub Pages` 工作流成功
 - [ ] 验证应用地址 `https://hujinghaoabcd.github.io/StarHub/`
 - [ ] 验证文档地址 `https://hujinghaoabcd.github.io/StarHub/docs/`
-- [ ] 完成浏览器级静态资源、路由和文档导航检查
-
-说明：创建 Pages 站点要求 Pages 写入和 Administration 写入权限。Actions 的 `GITHUB_TOKEN` 只有 Pages 权限，不能代替仓库管理员完成首次启用。首次启用完成后，后续提交可自动发布。
+- [ ] 完成静态资源、Hash Router 和文档导航检查
 
 ### P0：必须优先处理
 
@@ -89,6 +85,7 @@
 - [x] 配置 Vite 的 GitHub Pages `base`
 - [x] 配置 VitePress 文档子路径
 - [x] 建立应用和文档统一部署产物
+- [x] 首次启用 GitHub Pages，Source 选择 `GitHub Actions`
 - [ ] 配置生产 API 地址环境变量
 - [ ] 部署 Cloudflare Worker OAuth 后端
 - [ ] 配置生产 OAuth App 首页和回调地址
@@ -127,18 +124,18 @@
 - Pages 组合产物：通过
   - 应用：`dist/`，目标 `/StarHub/`
   - 文档：`dist/docs/`，目标 `/StarHub/docs/`
-- GitHub Pages 配置：尚未启用，API 返回 HTTP 404
-- 在线地址：尚不可访问
+- GitHub Pages 配置：管理员已启用，等待本次提交触发正式部署验证
+- 在线地址：等待首次正式发布完成
 - 依赖审计：发现 33 个漏洞，尚未升级
 - 本地安装与构建：当前执行环境无法通过本地网络解析 `github.com`，未在本地执行
-- 浏览器手工测试：等待 Pages 首次启用
+- 浏览器检查：等待首次正式发布完成
 - OAuth 真实登录测试：未完成，生产后端尚未部署
 
 ## 下一步
 
-1. 仓库管理员首次启用 GitHub Pages，Source 选择 `GitHub Actions`；
-2. 重新运行 Pages 工作流并验证应用与文档地址；
-3. 合并或继续维护 PR #3；
+1. 验证本次 push 触发的 Pages 正式部署；
+2. 检查应用、文档、静态资源、Hash Router 和导航；
+3. 更新本文件与 `HANDOFF.md` 的最终部署结果；
 4. 提取仓库同步合并逻辑并增加测试；
 5. 修复取消 Star 后仍保留的幽灵仓库；
 6. 开始 OAuth 安全重构和 Cloudflare Worker 部署。
