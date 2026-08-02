@@ -39,14 +39,21 @@ export interface Repository {
   private: boolean
 }
 
-export interface Tag {
+export interface StoredTag {
   id: string
   name: string
   color: string
-  emoji?: string // Emoji icon for the tag
-  repos: number[] // Repository IDs that have this tag
+  emoji?: string
   createdAt: number
   updatedAt: number
+}
+
+/**
+ * UI-facing tag view. Repository membership is derived from repoTags and is
+ * never persisted inside the tags table.
+ */
+export interface Tag extends StoredTag {
+  repos: number[]
 }
 
 export interface RepoTag {
@@ -69,4 +76,3 @@ export interface ApiResponse<T> {
 
 export type Theme = 'light' | 'dark'
 export type Language = 'zh' | 'en'
-
