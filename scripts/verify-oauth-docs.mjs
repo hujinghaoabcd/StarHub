@@ -58,18 +58,39 @@ if (!viteConfig.includes("target: 'http://localhost:8788'")) {
   throw new Error('Vite /api proxy must target the local Wrangler port 8788')
 }
 
-const localGuide = await readFile(path.join(root, 'docs/development/local-oauth.md'), 'utf8')
+const localGuide = await readFile(
+  path.join(root, 'docs/development/local-oauth.md'),
+  'utf8'
+)
 for (const required of [
   'CLIENT_ID',
   'CLIENT_SECRET',
   'ALLOWED_ORIGINS',
   'GITHUB_REDIRECT_URI',
+  'VITE_GITHUB_CLIENT_ID',
+  '.env.local',
   'POST /api/oauth/token',
   'npm run cloudflare:dev'
 ]) {
   if (!localGuide.includes(required)) {
     throw new Error(`Local OAuth guide is missing: ${required}`)
   }
+}
+
+const localVarsExample = await readFile(path.join(root, '.dev.vars.example'), 'utf8')
+for (const requiredLine of [
+  'CLIENT_ID=replace_with_your_local_github_oauth_client_id',
+  'CLIENT_SECRET=replace_with_your_local_github_oauth_client_secret',
+  'ALLOWED_ORIGINS=http://localhost:5173',
+  'GITHUB_REDIRECT_URI=http://localhost:5173/'
+]) {
+  if (!localVarsExample.includes(requiredLine)) {
+    throw new Error(`.dev.vars.example is missing: ${requiredLine}`)
+  }
+}
+
+if (localVarsExample.includes('github.io') || localVarsExample.includes('ALLOWED_ORIGINS=*')) {
+  throw new Error('.dev.vars.example must remain local-only and use an explicit Origin')
 }
 
 console.log(`OAuth documentation verified across ${markdownFiles.length} Markdown files.`)
