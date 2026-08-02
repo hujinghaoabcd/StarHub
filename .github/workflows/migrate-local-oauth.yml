@@ -58,6 +58,9 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
+      - name: Normalize temporary migration script
+        run: npx eslint scripts/migrate-local-oauth.mjs --fix
+
       - name: Run complete checks
         run: npm run check
 
