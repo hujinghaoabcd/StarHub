@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
-import * as ts from 'typescript'
 
+const typescriptModule = await import('typescript')
+const ts = typescriptModule.default || typescriptModule
 const source = await readFile(
   new URL('../src/services/repoSync.ts', import.meta.url),
   'utf8'
