@@ -43,14 +43,13 @@ const emit = defineEmits<{
   'update:editMode': [value: boolean]
 }>()
 
-const localRepoTags = ref<Array<{ id: string; name: string; emoji?: string; selected: boolean }>>([])
+const localRepoTags = ref<
+  Array<{ id: string; name: string; emoji?: string; selected: boolean }>
+>([])
 
 const repoTags = computed(() => {
-  const allTags = tagStore.tags
-  
-  // 去重：使用 Set 记录已处理的 id
   const seenIds = new Set<string>()
-  let tags = allTags
+  let tags = tagStore.tags
     .filter(tag => {
       if (seenIds.has(tag.id)) return false
       seenIds.add(tag.id)
@@ -62,41 +61,32 @@ const repoTags = computed(() => {
       emoji: tag.emoji,
       selected: tag.repos.includes(props.repoId)
     }))
-  
+
   if (!props.editMode) {
     tags = tags.filter(tag => tag.selected)
   }
-  
+
   return tags
 })
 
-// Define updateLocalRepoTags before using it in watch
 const updateLocalRepoTags = () => {
-  if (props.editMode) {
-    // When entering edit mode, initialize with all tags
-    const allTags = tagStore.tags
-    const currentRepoTags = repoTags.value.filter(t => t.selected).map(t => t.id)
-    
-    localRepoTags.value = allTags.map(tag => ({
-      id: tag.id,
-      name: tag.name,
-      emoji: tag.emoji,
-      selected: currentRepoTags.includes(tag.id)
-    }))
-  }
+  if (!props.editMode) return
+
+  localRepoTags.value = tagStore.tags.map(tag => ({
+    id: tag.id,
+    name: tag.name,
+    emoji: tag.emoji,
+    selected: tag.repos.includes(props.repoId)
+  }))
 }
 
 const activeRepoTags = computed(() => {
   return props.editMode ? localRepoTags.value : repoTags.value
 })
 
-watch(repoTags, () => {
-  updateLocalRepoTags()
-})
+watch(repoTags, updateLocalRepoTags)
 
-onMounted(() => {
-  updateLocalRepoTags()
-})
+onMounted(updateLocalRepoTags)
 
 const onContainerClick = (event: Event) => {
   if (props.editMode) {
@@ -104,10 +94,15 @@ const onContainerClick = (event: Event) => {
   }
 }
 
-const toggleRepoTag = (tag: { id: string; name: string; emoji?: string; selected: boolean }) => {
+const toggleRepoTag = (tag: {
+  id: string
+  name: string
+  emoji?: string
+  selected: boolean
+}) => {
   if (!props.editMode) return
-  
-  const index = localRepoTags.value.findIndex(t => t.id === tag.id)
+
+  const index = localRepoTags.value.findIndex(item => item.id === tag.id)
   if (index > -1) {
     localRepoTags.value[index].selected = !localRepoTags.value[index].selected
   }
@@ -118,21 +113,11 @@ const closeEdit = () => {
 }
 
 const confirmEdit = async () => {
-  const allTags = [...tagStore.tags]
-  
-  localRepoTags.value.forEach(localTag => {
-    const tag = allTags.find(t => t.id === localTag.id)
-    if (tag) {
-      const included = tag.repos.includes(props.repoId)
-      if (localTag.selected && !included) {
-        tag.repos.push(props.repoId)
-      } else if (!localTag.selected && included) {
-        tag.repos = tag.repos.filter(id => id !== props.repoId)
-      }
-    }
-  })
-  
-  await tagStore.updateAndSaveTags(allTags)
+  const selectedTagIds = localRepoTags.value
+    .filter(tag => tag.selected)
+    .map(tag => tag.id)
+
+  await tagStore.replaceTagsForRepo(props.repoId, selectedTagIds)
   closeEdit()
 }
 </script>
@@ -142,7 +127,7 @@ const confirmEdit = async () => {
   user-select: none;
   padding: 0 $spacing-md;
   margin-top: $spacing-xs;
-  
+
   &.edit {
     cursor: initial;
     .c-tag-item {
@@ -183,21 +168,21 @@ const confirmEdit = async () => {
   font-size: 0.75rem;
   color: var(--text-primary);
   background: var(--bg-tertiary);
-  
+
   .tag-emoji {
     font-size: 0.875rem;
     line-height: 1;
   }
-  
+
   &:hover {
     border-color: var(--el-color-primary);
   }
-  
+
   &.selected {
     color: #fff;
     background: var(--el-color-primary);
     border-color: var(--el-color-primary);
-    
+
     &:hover {
       background: var(--el-color-primary-light-3);
       border-color: var(--el-color-primary-light-3);
@@ -223,27 +208,27 @@ const confirmEdit = async () => {
   border-radius: $radius-sm;
   cursor: pointer;
   transition: all $transition-base;
-  
+
   :deep(.el-icon) {
     color: inherit;
   }
-  
+
   &.cancel {
     color: var(--text-primary);
     background: var(--bg-secondary);
     border-color: var(--border);
-    
+
     &:hover {
       background: var(--bg-tertiary);
       border-color: var(--text-tertiary);
     }
   }
-  
+
   &.confirm {
     color: #fff;
     background: var(--el-color-primary);
     border-color: var(--el-color-primary);
-    
+
     &:hover {
       background: var(--el-color-primary-light-3);
       border-color: var(--el-color-primary-light-3);
@@ -251,4 +236,3 @@ const confirmEdit = async () => {
   }
 }
 </style>
-
