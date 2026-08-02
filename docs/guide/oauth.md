@@ -1,7 +1,6 @@
-
 # GitHub OAuth 配置
 
-StarHub 使用 GitHub OAuth Web Flow。静态前端运行在 GitHub Pages，授权 code 由 Cloudflare Pages Function 在服务端兑换为访问令牌。
+StarHub 使用 GitHub OAuth Web Flow。静态前端运行在 GitHub Pages，authorization code 由 Cloudflare Pages Function 在服务端兑换为访问令牌。
 
 ## 生产地址
 
@@ -34,9 +33,44 @@ Homepage URL: http://localhost:5173/
 Authorization callback URL: http://localhost:5173/
 ```
 
-本地 Function 变量放在未提交的 `.dev.vars` 中，可从 `.dev.vars.example` 复制。
+### Functions 变量
 
-## 必需配置
+从示例复制未提交的 `.dev.vars`：
+
+```bash
+cp .dev.vars.example .dev.vars
+```
+
+```env
+CLIENT_ID=your_local_client_id
+CLIENT_SECRET=your_local_client_secret
+ALLOWED_ORIGINS=http://localhost:5173
+GITHUB_REDIRECT_URI=http://localhost:5173/
+```
+
+### 浏览器变量
+
+创建未提交的 `.env.local`：
+
+```env
+VITE_GITHUB_CLIENT_ID=your_local_client_id
+```
+
+`.env.local` 中的 `VITE_GITHUB_CLIENT_ID` 必须与 `.dev.vars` 中的 `CLIENT_ID` 属于同一个本地 OAuth App。Client Secret 不能进入任何 `VITE_*` 变量。
+
+### 启动
+
+```bash
+# 终端 1：OAuth Functions，端口 8788
+npm run cloudflare:dev
+
+# 终端 2：Vite 前端，端口 5173
+npm run dev
+```
+
+Vite 会把 `/api` 请求代理到 `http://localhost:8788`。完整说明见 [本地 OAuth 开发](../development/local-oauth.md)。
+
+## 生产必需配置
 
 Cloudflare Production Variables and Secrets：
 
@@ -51,7 +85,7 @@ GitHub Actions Variables：
 
 ```text
 VITE_API_BASE_URL=https://你的项目.pages.dev/api
-VITE_GITHUB_CLIENT_ID=Ov23liIm4iNdpnHwGLfp
+VITE_GITHUB_CLIENT_ID=你的生产 GitHub OAuth Client ID
 ```
 
-详细步骤见 [Cloudflare Pages Functions OAuth 后端](../deploy/cloudflare.md)。
+浏览器变量与 Cloudflare 的 `CLIENT_ID` 必须使用同一个生产 OAuth App。详细步骤见 [Cloudflare Pages Functions OAuth 后端](../deploy/cloudflare.md)。

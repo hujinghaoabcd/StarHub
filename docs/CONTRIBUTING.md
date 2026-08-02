@@ -30,7 +30,7 @@
 
 ### 环境要求
 
-- Node.js >= 18.0.0
+- Node.js >= 22.12.0
 - npm >= 8.0.0
 
 ### 本地开发
@@ -44,7 +44,7 @@ cd starhub
 npm install
 
 # 启动 OAuth 服务器
-node server/dev-server.js
+npm run cloudflare:dev
 
 # 启动开发服务器（另一个终端）
 npm run dev

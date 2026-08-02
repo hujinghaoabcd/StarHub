@@ -1,238 +1,174 @@
 # 登录问题
 
-本页介绍 StarHub 的登录相关问题和解决方案。
+本页用于排查 StarHub 的 GitHub OAuth 登录问题。当前流程由浏览器端 `state` 与 PKCE、Cloudflare Pages Functions 以及会话级凭据存储共同组成。
 
-## OAuth 登录失败
+## 快速检查顺序
 
-### 问题描述
+1. 确认前端地址和 GitHub OAuth 回调地址完全一致；
+2. 确认浏览器 Client ID 与 Functions 中的 Client ID 属于同一个 OAuth App；
+3. 确认 `/api/health` 返回 `configured: true`；
+4. 确认 token 交换使用 `POST /api/oauth/token`；
+5. 检查浏览器控制台和 Network 面板中的具体错误码。
 
-点击「使用 GitHub 登录」后，跳转 GitHub 授权，但返回后显示错误。
+## 本地登录失败
 
-### 常见原因
+### 1. 检查回调地址
 
-1. **回调地址不匹配**
-2. **后端服务未运行**
-3. **Client ID/Secret 配置错误**
-4. **网络问题**
+本地 OAuth App 应配置：
 
-### 解决方案
-
-#### 检查回调地址
-
-GitHub OAuth App 的回调地址必须**完全匹配**：
-
-| 环境 | 回调地址 |
-|------|----------|
-| 本地开发 | `http://localhost:5173/` |
-| 生产环境 | `https://yourdomain.com/` |
-
-注意：
-- 协议（http/https）必须匹配
-- 端口号必须匹配
-- 路径必须匹配
-
-#### 检查后端服务
-
-本地开发时，确保 OAuth 代理服务器正在运行：
-
-```bash
-node server/dev-server.js
+```text
+Homepage URL: http://localhost:5173/
+Authorization callback URL: http://localhost:5173/
 ```
 
-成功运行会显示：
-```
-🚀 本地开发服务器运行在 http://localhost:7001
-```
+协议、主机、端口、路径和末尾 `/` 都应保持一致。
 
-#### 检查配置文件
+### 2. 检查服务端变量
 
-确认 `src/config/oauth.ts` 中的 `CLIENT_ID` 正确：
-
-```typescript
-export const GITHUB_OAUTH_CONFIG = {
-  CLIENT_ID: 'your_actual_client_id'
-}
-```
-
-确认 `.env` 文件存在且内容正确：
+复制并编辑 `.dev.vars`：
 
 ```env
-CLIENT_ID=your_client_id
-CLIENT_SECRET=your_client_secret
+CLIENT_ID=your_local_client_id
+CLIENT_SECRET=your_local_client_secret
+ALLOWED_ORIGINS=http://localhost:5173
+GITHUB_REDIRECT_URI=http://localhost:5173/
 ```
 
----
+不要使用 `Access-Control-Allow-Origin: *`。OAuth token 接口只应允许明确配置的前端 Origin。
 
-## 授权后一直加载
+### 3. 检查浏览器 Client ID
 
-### 问题描述
+创建未提交的 `.env.local`：
 
-GitHub 授权成功，跳转回 StarHub 后页面一直显示加载状态。
+```env
+VITE_GITHUB_CLIENT_ID=your_local_client_id
+```
 
-### 解决方案
+该值必须与 `.dev.vars` 中的 `CLIENT_ID` 完全一致。Client Secret 不得出现在 `.env.local` 或任何 `VITE_*` 变量中。
 
-1. **检查控制台错误**：按 F12 查看是否有报错
+### 4. 启动两个进程
 
-2. **清除登录状态**：
-   ```javascript
-   localStorage.removeItem('github_token');
-   localStorage.removeItem('access_token');
-   location.reload();
-   ```
+```bash
+# 终端 1：Cloudflare Pages Functions
+npm run cloudflare:dev
 
-3. **重新登录**：清除后刷新页面重试
+# 终端 2：Vite 前端
+npm run dev
+```
 
----
+访问健康检查：
 
-## Token 失效
+```text
+http://localhost:8788/api/health
+```
 
-### 问题描述
+返回结果中的 `configured` 应为 `true`。
 
-之前可以正常使用，突然无法获取数据或提示未授权。
+## 常见错误
 
-### 原因
+### `oauth_state_mismatch`
 
-- Token 过期
-- 在 GitHub 撤销了授权
-- Token 被意外清除
+可能原因：
 
-### 解决方案
+- 在另一个标签页完成了授权；
+- 会话存储被清除；
+- 重复使用旧回调页；
+- 从浏览器历史记录重新打开了带 `code` 的地址。
 
-1. **退出重新登录**：点击头像 → 退出登录 → 重新登录
+处理方式：关闭旧授权页，返回 StarHub 登录页重新发起授权。不要手动复制或复用回调 URL。
 
-2. **检查 GitHub 授权**：
-   - 访问 https://github.com/settings/applications
-   - 确认 StarHub 在已授权列表中
+### `redirect_uri_mismatch` 或 `invalid_redirect_uri`
 
-3. **手动清除重新授权**：
-   ```javascript
-   localStorage.clear();
-   location.reload();
-   ```
+确认以下值完全一致：
 
----
+- GitHub OAuth App 的 Authorization callback URL；
+- `.dev.vars` 中的 `GITHUB_REDIRECT_URI`；
+- 浏览器实际访问的 StarHub 根地址。
 
-## 跨域错误
+生产 GitHub Pages 地址应包含仓库子路径：
 
-### 问题描述
+```text
+https://hujinghaoabcd.github.io/StarHub/
+```
 
-控制台显示 CORS 相关错误。
+不要使用 `#/login` 作为 OAuth callback URL。
 
-### 原因
+### `origin_not_allowed`
 
-- 后端代理未正确配置
-- 生产环境 Workers/Serverless 配置问题
+本地环境确认：
 
-### 解决方案
+```env
+ALLOWED_ORIGINS=http://localhost:5173
+```
 
-#### 本地开发
+生产环境确认 `ALLOWED_ORIGINS` 是正式前端的 Origin，例如：
 
-确认 `vite.config.ts` 中代理配置正确：
+```env
+ALLOWED_ORIGINS=https://hujinghaoabcd.github.io
+```
+
+Origin 不包含路径。修改 Cloudflare Variables and Secrets 后需要重新部署，修改 `.dev.vars` 后需要重启本地 Functions。
+
+### `bad_verification_code`
+
+GitHub authorization code 只能使用一次，也可能在等待过久后失效。重新从登录页开始，不要刷新或重复提交旧回调。
+
+### `/api/oauth/token` 返回 404
+
+本地检查 Vite 代理是否指向：
 
 ```typescript
 proxy: {
   '/api': {
-    target: 'http://localhost:7001',
+    target: 'http://localhost:8788',
     changeOrigin: true
   }
 }
 ```
 
-#### 生产环境
+生产环境检查 `VITE_API_BASE_URL` 是否以 `/api` 结尾，例如：
 
-确认 Cloudflare Workers 或 Serverless Function 正确返回 CORS 头：
-
-```typescript
-return new Response(JSON.stringify(data), {
-  headers: {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*'
-  }
-})
+```text
+https://your-project.pages.dev/api
 ```
 
----
+### `/api/health` 返回 `configured: false`
+
+至少有一个必需变量缺失。检查：
+
+```text
+CLIENT_ID
+CLIENT_SECRET
+ALLOWED_ORIGINS
+GITHUB_REDIRECT_URI
+```
+
+不要在日志、Issue 或聊天中粘贴 Client Secret。
+
+## 登录后一直加载
+
+1. 查看 Network 面板中 `/api/oauth/token` 和 GitHub `/user` 请求的状态码；
+2. 确认回调完成后地址栏中的 `code` 与 `state` 已被清理；
+3. 关闭其他正在进行 OAuth 的 StarHub 标签页；
+4. 使用应用内“退出登录”后重新授权。
+
+StarHub 的 GitHub token 和用户资料存储在当前浏览器会话中，不应依赖长期 `localStorage`。不建议执行 `localStorage.clear()`，因为它会同时删除主题和其他无关设置。
+
+## Token 失效或 GitHub 返回 401
+
+StarHub 会清理失效会话并返回登录页。重新授权即可。也可以在 GitHub 的已授权应用页面确认 StarHub 是否仍被授权：
+
+```text
+https://github.com/settings/applications
+```
+
+若你主动撤销了应用授权，旧 token 无法恢复，必须重新登录。
 
 ## 网络超时
 
-### 问题描述
+1. 确认浏览器和 Cloudflare 运行环境都能访问 GitHub；
+2. 检查本地防火墙是否阻止 5173 或 8788；
+3. 查看 GitHub 状态和 Cloudflare 部署日志；
+4. 重新发起一次新的授权流程。
 
-登录过程中提示网络超时或连接失败。
-
-### 解决方案
-
-1. **检查网络连接**：确保可以访问 GitHub
-
-2. **使用代理**：如果 GitHub 访问受限，配置网络代理
-
-3. **稍后重试**：GitHub API 可能暂时不可用
-
-4. **检查防火墙**：确保没有阻止相关请求
-
----
-
-## 多账户切换
-
-### 问题描述
-
-想要切换到另一个 GitHub 账户。
-
-### 解决方案
-
-1. 点击头像 → 退出登录
-2. 刷新页面
-3. 点击登录，在 GitHub 页面切换账户
-4. 授权新账户
-
-如果 GitHub 自动使用旧账户：
-1. 先在 GitHub 网站退出登录
-2. 或在授权页面点击「Use another account」
-
----
-
-## 权限不足
-
-### 问题描述
-
-登录后无法获取仓库数据，提示权限不足。
-
-### 解决方案
-
-1. **重新授权**：
-   - 访问 https://github.com/settings/applications
-   - 找到 StarHub → Revoke access
-   - 回到 StarHub 重新登录授权
-
-2. **检查 OAuth Scope**：确保请求了正确的权限范围
-
-StarHub 需要的权限：
-- `read:user` - 读取用户信息
-- `public_repo` - 访问公开仓库
-
----
-
-## 调试技巧
-
-### 查看请求详情
-
-1. 打开开发者工具 (F12)
-2. 切换到 Network 标签
-3. 筛选 `getToken` 请求
-4. 查看请求和响应内容
-
-### 查看存储的 Token
-
-```javascript
-console.log('Token:', localStorage.getItem('access_token'));
-console.log('GitHub Token:', localStorage.getItem('github_token'));
-```
-
-### 测试 API 连通性
-
-```javascript
-fetch('/api/health')
-  .then(r => r.json())
-  .then(console.log)
-  .catch(console.error);
-```
-
+更完整的本地配置见 [本地 OAuth 开发](../development/local-oauth.md)。

@@ -1,83 +1,41 @@
 # 自托管部署
 
-如果你有自己的服务器，可以选择自托管部署。
+StarHub 前端可以部署在任意静态服务器，但 GitHub OAuth code 交换必须由可信服务端完成。推荐的最小维护方案是：**自托管前端 + 复用 Cloudflare Pages Functions OAuth API**。
 
-## 准备工作
+## 环境要求
 
-### 服务器要求
+- Node.js >= 22.12.0
+- npm >= 10
+- Nginx、Apache、Caddy 或其他静态服务器
 
-- Linux / Windows Server
-- Node.js 18+
-- Nginx（推荐）或其他 Web 服务器
+## 1. 构建前端
 
-### 构建项目
-
-```bash
-# 克隆项目
-git clone https://github.com/mengjian-github/starhub.git
-cd starhub
-
-# 安装依赖
-npm install
-
-# 构建
-npm run build
-```
-
----
-
-## 方式 1：Nginx + Node.js
-
-### 安装 Nginx
+将 OAuth API 地址注入构建：
 
 ```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install nginx
-
-# CentOS
-sudo yum install nginx
+npm ci
+VITE_API_BASE_URL=https://你的项目.pages.dev/api npm run build
 ```
 
-### 配置 Nginx
+构建结果位于 `dist/`。
 
-编辑 `/etc/nginx/sites-available/starhub`：
+## 2. Nginx 示例
 
 ```nginx
 server {
-    listen 80;
-    server_name your-domain.com;
-    
-    # 重定向到 HTTPS
-    return 301 https://$host$request_uri;
-}
-
-server {
     listen 443 ssl http2;
-    server_name your-domain.com;
+    server_name starhub.example.com;
 
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/starhub.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/starhub.example.com/privkey.pem;
 
     root /var/www/starhub/dist;
     index index.html;
 
-    # SPA 路由
     location / {
         try_files $uri $uri/ /index.html;
     }
 
-    # API 代理
-    location /api/ {
-        proxy_pass http://127.0.0.1:7001/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # 静态资源缓存
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
@@ -85,170 +43,43 @@ server {
 }
 ```
 
-启用配置：
+不需要在 Nginx 中代理已删除的旧 Node OAuth 服务。浏览器会直接访问构建时配置的 Cloudflare API 地址。
 
-```bash
-sudo ln -s /etc/nginx/sites-available/starhub /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+## 3. OAuth 配置
+
+GitHub OAuth App 的 Homepage URL 与 Authorization callback URL 都应指向自托管前端根地址，例如：
+
+```text
+https://starhub.example.com/
 ```
 
-### 配置后端服务
+Cloudflare Production Variables and Secrets 同步改为：
 
-创建 `.env` 文件：
-
-```env
-CLIENT_ID=your_client_id
-CLIENT_SECRET=your_client_secret
+```text
+ALLOWED_ORIGINS=https://starhub.example.com
+GITHUB_REDIRECT_URI=https://starhub.example.com/
 ```
 
-启动后端：
+修改后重新部署 Cloudflare Pages，并重新构建前端。
 
-```bash
-cd server
-node dev-server.js
-```
+## 4. 完全自建 OAuth 后端
 
----
+本仓库不再维护第二套 Node OAuth 服务。自行实现时必须兼容以下契约：
 
-## 方式 2：使用 PM2
+- `POST /api/oauth/token`；
+- JSON 请求体包含 `code`、`codeVerifier`、`redirectUri`；
+- 服务端执行 PKCE token 交换；
+- 严格校验 Origin 与 redirect URI；
+- Client Secret 只保存在服务端 Secret；
+- 响应使用 `Cache-Control: no-store`；
+- 错误响应不得泄露 Client Secret、authorization code 或 access token。
 
-PM2 可以管理 Node.js 进程，支持开机自启。
+可参考 `functions/api/oauth/token.ts` 的实现，但不要把该 TypeScript 文件直接当作普通 Node/PM2 脚本运行。
 
-### 安装 PM2
+## 5. 验证
 
-```bash
-npm i -g pm2
-```
-
-### 创建配置文件
-
-创建 `ecosystem.config.js`：
-
-```javascript
-module.exports = {
-  apps: [
-    {
-      name: 'starhub-backend',
-      script: 'server/dev-server.js',
-      cwd: '/var/www/starhub',
-      env: {
-        CLIENT_ID: 'your_client_id',
-        CLIENT_SECRET: 'your_client_secret'
-      },
-      instances: 1,
-      autorestart: true,
-      watch: false,
-      max_memory_restart: '500M'
-    }
-  ]
-}
-```
-
-### 启动服务
-
-```bash
-pm2 start ecosystem.config.js
-pm2 save
-pm2 startup
-```
-
-### PM2 常用命令
-
-```bash
-pm2 list          # 查看进程
-pm2 logs          # 查看日志
-pm2 restart all   # 重启所有
-pm2 stop all      # 停止所有
-```
-
----
-
-## 方式 3：使用 Systemd
-
-### 创建服务文件
-
-创建 `/etc/systemd/system/starhub.service`：
-
-```ini
-[Unit]
-Description=StarHub Backend
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/var/www/starhub/server
-ExecStart=/usr/bin/node dev-server.js
-Restart=on-failure
-Environment=CLIENT_ID=your_client_id
-Environment=CLIENT_SECRET=your_client_secret
-
-[Install]
-WantedBy=multi-user.target
-```
-
-### 启动服务
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl start starhub
-sudo systemctl enable starhub
-```
-
----
-
-## HTTPS 配置
-
-### 使用 Let's Encrypt
-
-```bash
-# 安装 Certbot
-sudo apt install certbot python3-certbot-nginx
-
-# 获取证书
-sudo certbot --nginx -d your-domain.com
-
-# 自动续期
-sudo certbot renew --dry-run
-```
-
----
-
-## 防火墙配置
-
-```bash
-# 允许 HTTP 和 HTTPS
-sudo ufw allow 80
-sudo ufw allow 443
-
-# 如果需要外部访问后端
-sudo ufw allow 7001
-```
-
----
-
-## 故障排除
-
-### Nginx 502 错误？
-
-1. 检查后端服务是否运行
-2. 确认代理地址正确
-3. 查看 Nginx 错误日志
-
-### 权限问题？
-
-```bash
-# 设置正确的文件权限
-sudo chown -R www-data:www-data /var/www/starhub
-sudo chmod -R 755 /var/www/starhub
-```
-
-### 端口被占用？
-
-```bash
-# 查看端口占用
-sudo lsof -i :7001
-sudo netstat -tulpn | grep 7001
-```
-
+1. 前端静态资源正常加载；
+2. OAuth 回调返回前端根路径；
+3. token 请求发往正确的 API 域名；
+4. Cloudflare 的 `ALLOWED_ORIGINS` 与自托管域名一致；
+5. 浏览器开发者工具中看不到 Client Secret。

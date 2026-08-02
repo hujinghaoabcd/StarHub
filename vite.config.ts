@@ -88,23 +88,23 @@ export default defineConfig({
       host: 'localhost', // HMR 使用 localhost
       port: 5173
     },
-    // 本地开发时，/api 请求转发到本地 OAuth 服务
+    // 本地开发时，/api 请求转发到 Wrangler Pages Functions
     proxy: {
       '/api': {
-        target: 'http://localhost:7001',
+        target: 'http://localhost:8788',
         changeOrigin: true,
         secure: false,
         timeout: 30000, // 30秒超时
         ws: false, // 禁用 WebSocket 代理
         configure: (proxy, _options) => {
           proxy.on('error', (err, _req, _res) => {
-            console.error('代理错误:', err.message)
+            console.error('API 代理错误:', err.message)
           })
           proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log(`代理请求: ${req.method} ${req.url}`)
+            console.log(`API 代理请求: ${req.method} ${req.url}`)
           })
           proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log(`代理响应: ${req.url} -> ${proxyRes.statusCode}`)
+            console.log(`API 代理响应: ${req.url} -> ${proxyRes.statusCode}`)
           })
         }
       }

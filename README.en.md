@@ -20,10 +20,10 @@
   <a href="https://github.com/hujinghaoabcd/StarHub/stargazers"><img src="https://img.shields.io/github/stars/hujinghaoabcd/StarHub?style=flat&logo=github" alt="GitHub Stars"></a>
   <a href="https://github.com/hujinghaoabcd/StarHub/blob/main/LICENSE"><img src="https://img.shields.io/github/license/hujinghaoabcd/StarHub?style=flat" alt="License"></a>
   <img src="https://img.shields.io/badge/version-1.0.0-blue?style=flat" alt="Version">
-  <img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen?style=flat&logo=node.js" alt="Node.js">
+  <img src="https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen?style=flat&logo=node.js" alt="Node.js">
   <img src="https://img.shields.io/badge/vue-3.4-4FC08D?style=flat&logo=vue.js" alt="Vue.js">
-  <img src="https://img.shields.io/badge/typescript-5.4-3178C6?style=flat&logo=typescript" alt="TypeScript">
-  <img src="https://img.shields.io/badge/vite-5.1-646CFF?style=flat&logo=vite" alt="Vite">
+  <img src="https://img.shields.io/badge/typescript-5.9-3178C6?style=flat&logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/vite-8.2-646CFF?style=flat&logo=vite" alt="Vite">
 </p>
 
 <p align="center">
@@ -175,8 +175,8 @@ If you have deployed StarHub, you can access it via:
 
 ### Requirements
 
-- **Node.js** >= 18.0.0
-- **npm** >= 8.0.0 or **yarn** >= 1.22.0
+- **Node.js** >= 22.12.0
+- **npm** >= 10.0.0
 
 ### Installation Steps
 
@@ -198,101 +198,98 @@ npm run dev
 
 ### GitHub OAuth Configuration
 
-StarHub requires GitHub OAuth to access your Star data. Follow these steps:
+StarHub uses the GitHub OAuth Web Flow. The browser creates and validates `state` and PKCE values, while a Cloudflare Pages Function exchanges the authorization code with the Client Secret on the server side.
 
-#### Step 1: Create GitHub OAuth App
+#### Step 1: Create a local GitHub OAuth App
 
-1. Visit [GitHub Developer Settings](https://github.com/settings/developers)
-2. Click **New OAuth App**
-3. Fill in application information:
-   - **Application name**: `StarHub` (or any name)
-   - **Homepage URL**: `http://localhost:5173`
-   - **Authorization callback URL**: `http://localhost:5173/`
-4. Click **Register application**
-5. Record the **Client ID**
-6. Click **Generate a new client secret** and record the **Client Secret**
+Create a separate OAuth App for local development:
 
-#### Step 2: Configure Project
-
-1. Copy the template in `src/config/oauth.ts` and update `CLIENT_ID`:
-
-```typescript
-export const GITHUB_OAUTH_CONFIG = {
-  CLIENT_ID: 'your_client_id_here'
-}
+```text
+Homepage URL: http://localhost:5173/
+Authorization callback URL: http://localhost:5173/
 ```
 
-2. Create `.env` file (for local development):
-
-```env
-CLIENT_ID=your_client_id
-CLIENT_SECRET=your_client_secret
-```
-
-#### Step 3: Start Local Development Server
+#### Step 2: Configure local variables
 
 ```bash
-# Start OAuth proxy server
-node server/dev-server.js
+cp .dev.vars.example .dev.vars
+```
 
-# Start frontend development server in another terminal
+The local `.dev.vars` file must contain at least:
+
+```env
+CLIENT_ID=your_local_client_id
+CLIENT_SECRET=your_local_client_secret
+ALLOWED_ORIGINS=http://localhost:5173
+GITHUB_REDIRECT_URI=http://localhost:5173/
+```
+
+Create an uncommitted `.env.local` file as well:
+
+```env
+VITE_GITHUB_CLIENT_ID=your_local_client_id
+```
+
+The value must exactly match `CLIENT_ID` in `.dev.vars`. Never put the Client Secret in a `VITE_*` variable or browser code.
+
+#### Step 3: Start local integration
+
+```bash
+# Terminal 1: Cloudflare Pages Functions on port 8788
+npm run cloudflare:dev
+
+# Terminal 2: Vite on port 5173, proxying /api to port 8788
 npm run dev
 ```
+
+See [Local OAuth Development](docs/development/local-oauth.md) and [Cloudflare Pages Functions OAuth Backend](docs/deploy/cloudflare.md).
 
 ---
 
 <a id="deployment"></a>
 ## 📦 Deployment Guide
 
-### Method 1: Cloudflare Pages (Recommended)
+### Method 1: GitHub Pages + Cloudflare Pages Functions (Recommended)
 
-Cloudflare Pages provides free hosting and supports Cloudflare Workers for OAuth handling.
+The production architecture is split by responsibility:
 
-#### 1. Build Project
+- GitHub Pages hosts the StarHub frontend and documentation;
+- Cloudflare Pages serves only `/api/health` and `/api/oauth/token`;
+- the Client Secret stays in an encrypted Cloudflare Secret.
+
+Cloudflare Pages settings:
+
+| Setting | Value |
+|---|---|
+| Build command | `npm run cloudflare:build` |
+| Build output directory | `cloudflare-dist` |
+| Node.js | `22` |
+
+Production Variables and Secrets:
+
+```text
+CLIENT_ID
+CLIENT_SECRET
+ALLOWED_ORIGINS=https://hujinghaoabcd.github.io
+GITHUB_REDIRECT_URI=https://hujinghaoabcd.github.io/StarHub/
+```
+
+GitHub Actions Variables:
+
+```text
+VITE_API_BASE_URL=https://your-project.pages.dev/api
+VITE_GITHUB_CLIENT_ID=your GitHub OAuth Client ID
+```
+
+See [Deployment Guide](docs/DEPLOYMENT.md) for the complete setup.
+
+### Method 2: Self-Hosted Frontend
 
 ```bash
-npm run build
+VITE_API_BASE_URL=https://your-project.pages.dev/api npm run build
 ```
 
-#### 2. Deploy to Cloudflare Pages
-
-1. Log in to [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. Go to **Pages** > **Create a project**
-3. Connect GitHub repository or upload `dist` directory directly
-4. Set build configuration:
-   - **Build command**: `npm run build`
-   - **Build output directory**: `dist`
-
-#### 3. Configure Cloudflare Workers
-
-OAuth token exchange logic is provided in `functions/api/getToken.ts`. Set environment variables in Cloudflare Dashboard:
-
-- `CLIENT_ID`: GitHub OAuth Client ID
-- `CLIENT_SECRET`: GitHub OAuth Client Secret
-
-#### 4. Update OAuth Callback URL
-
-In GitHub OAuth App settings, update the callback URL to your Cloudflare Pages domain:
-
-```
-https://your-project.pages.dev/#/login
-```
-
-
-### Method 2: Self-Hosting
-
-```bash
-# Build
-npm run build
-
-# Host dist directory with any static server
-# For example, use nginx, Apache, or Node.js static server
-
-# Preview production build
-npm run preview
-```
-
-> ⚠️ **Note**: Self-hosting requires handling OAuth token exchange backend logic yourself. Refer to `server/dev-server.js` or `functions/api/getToken.ts`.
+Serve `dist/` with Nginx, Apache, or another static server. Reusing the Cloudflare OAuth API is recommended. A custom backend must preserve the `POST /api/oauth/token` contract, PKCE, strict Origin checks, exact redirect URI validation, and server-side secret storage. See [Self-Hosting](docs/deploy/self-host.md).
 
 ---
 
@@ -473,12 +470,10 @@ StarHub/
 │   ├── guide/               # Usage guides
 │   ├── reference/           # Reference documentation
 │   └── troubleshooting/     # Troubleshooting
-├── server/                  # Local development server
-│   ├── dev-server.js        # OAuth proxy server
-│   └── package.json         # Server dependencies
 ├── functions/               # Workers
 │   ├── api/
-│   │   └── getToken.ts      # OAuth Token exchange
+│   │   └── oauth/
+│   │       └── token.ts      # OAuth Token exchange
 │   └── tsconfig.json        # TypeScript configuration
 ├── backups/                 # Backup files
 ├── package.json             # Project configuration
@@ -500,8 +495,8 @@ StarHub/
 
 1. Check if `CLIENT_ID` is configured correctly
 2. Confirm GitHub OAuth App callback URL matches current address
-3. Ensure `node server/dev-server.js` is running for local development
-4. Check if `CLIENT_SECRET` in `.env` file is correct
+3. Ensure `npm run cloudflare:dev` is running for local development
+4. Check that all OAuth values in `.dev.vars` are present
 
 ### AI Classification Failed
 

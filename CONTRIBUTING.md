@@ -39,7 +39,7 @@ npm install
 
 ```bash
 # 终端 1：启动 OAuth 代理
-node server/dev-server.js
+npm run cloudflare:dev
 
 # 终端 2：启动前端
 npm run dev
