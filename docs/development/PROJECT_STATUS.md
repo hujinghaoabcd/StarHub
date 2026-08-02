@@ -4,11 +4,9 @@
 
 - 阶段：第一阶段——稳定性与部署基础已完成
 - 基准分支：`main`
-- 基础 PR：#3，已 squash 合并
-- 状态 PR：#4，记录最终在线验证
-- Pages：已启用并成功发布
+- GitHub Pages：已启用并成功发布
 - 生产发布：仅 `main`
-- 已部署提交：`b406ede95eb3666bcf33d4b82bca576e112469f5`
+- 应用与文档由 GitHub Actions 自动构建、发布和验证
 
 ## 已完成
 
@@ -17,7 +15,7 @@
 - [x] Node.js 22、ESLint、类型检查和 CI 基线
 - [x] 非破坏性 Lint、`lint:fix`、`check` 与 `server:dev`
 - [x] 修复本地 OAuth 服务入口
-- [x] 最终 PR CI、Lint、类型检查和联合构建通过
+- [x] CI、Lint、类型检查和应用/文档联合构建通过
 
 ### 批次 2：应用与文档同域部署
 
@@ -31,14 +29,14 @@
 - [x] Pages 构建、artifact 上传和生产部署成功
 - [x] 公网冒烟测试通过
 - [x] 应用首页、文档首页、部署 SHA、基础路径和代表性静态资源均通过验证
-- [x] 临时公网诊断工作流已从最终变更中删除
+- [x] 临时诊断工作流未进入最终 `main`
 
 ## 在线地址
 
 - 应用：`https://hujinghaoabcd.github.io/StarHub/`
 - 文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
 
-## 生产验证
+## 首次完整生产验证
 
 ```text
 main CI run                   30747981390  PASS
@@ -46,10 +44,12 @@ main Pages deployment run     30747981393  PASS
 application page              PASS
 VitePress documentation       PASS
 deployment-info.json          PASS
-online commit SHA             b406ede95eb3666bcf33d4b82bca576e112469f5
+verified application commit   b406ede95eb3666bcf33d4b82bca576e112469f5
 application asset             /StarHub/assets/index-D_FEoJXh.js
 VitePress asset               /StarHub/docs/assets/style.9lQW86My.css
 ```
+
+最新在线提交以站点中的 `deployment-info.json` 为准；每次 `main` 发布后的自动冒烟测试都会验证其 SHA 与当前构建一致。
 
 ## 未完成
 
@@ -83,11 +83,10 @@ VitePress asset               /StarHub/docs/assets/style.9lQW86My.css
 
 ## 下一步
 
-1. 关闭本阶段 Pages 部署工作；
-2. 进入仓库同步正确性批次；
-3. 修复幽灵仓库和部分失败状态；
-4. 增加同步测试；
-5. 随后进行 OAuth 安全重构和 Worker 部署。
+1. 进入仓库同步正确性批次；
+2. 修复幽灵仓库和部分失败状态；
+3. 增加同步测试；
+4. 随后进行 OAuth 安全重构和 Worker 部署。
 
 ## 更新规则
 
