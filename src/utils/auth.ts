@@ -94,11 +94,11 @@ function isSessionValid(
   return now - session.createdAt < maxAgeMs
 }
 
-export function createAuthTokenManager(options: AuthTokenManagerOptions = {}) {
-  const sessionStorage = options.sessionStorage ?? null
-  const persistentStorage = options.persistentStorage ?? null
-  const now = options.now || Date.now
-  const maxAgeMs = options.maxAgeMs || AUTH_SESSION_MAX_AGE_MS
+export function createAuthTokenManager(config: AuthTokenManagerOptions = {}) {
+  const sessionStorage = config.sessionStorage ?? null
+  const persistentStorage = config.persistentStorage ?? null
+  const now = config.now || Date.now
+  const maxAgeMs = config.maxAgeMs || AUTH_SESSION_MAX_AGE_MS
   let memorySession: AuthSession | null = null
 
   const persistSession = (session: AuthSession) => {
@@ -199,10 +199,10 @@ export function createAuthTokenManager(options: AuthTokenManagerOptions = {}) {
       }
     },
 
-    clean(options: { notify?: boolean } = {}): void {
+    clean(cleanOptions: { notify?: boolean } = {}): void {
       removeStoredCredentials()
-      if (options.notify !== false) {
-        options.onLogout?.()
+      if (cleanOptions.notify !== false) {
+        config.onLogout?.()
       }
     },
 
@@ -212,17 +212,25 @@ export function createAuthTokenManager(options: AuthTokenManagerOptions = {}) {
   }
 }
 
-const browserSessionStorage =
-  typeof window === 'undefined' ? null : window.sessionStorage
-const browserPersistentStorage =
-  typeof window === 'undefined' ? null : window.localStorage
-
-function broadcastLogout() {
-  if (typeof window === 'undefined') return
+function getBrowserStorage(type: 'sessionStorage' | 'localStorage'): StorageLike | null {
+  if (typeof window === 'undefined') return null
 
   try {
-    window.localStorage.setItem(AUTH_LOGOUT_EVENT_KEY, String(Date.now()))
-    window.localStorage.removeItem(AUTH_LOGOUT_EVENT_KEY)
+    return window[type]
+  } catch {
+    return null
+  }
+}
+
+const browserSessionStorage = getBrowserStorage('sessionStorage')
+const browserPersistentStorage = getBrowserStorage('localStorage')
+
+function broadcastLogout() {
+  if (!browserPersistentStorage) return
+
+  try {
+    browserPersistentStorage.setItem(AUTH_LOGOUT_EVENT_KEY, String(Date.now()))
+    browserPersistentStorage.removeItem(AUTH_LOGOUT_EVENT_KEY)
   } catch {
     // Cross-tab notification is optional; local cleanup already succeeded.
   }
