@@ -5,18 +5,16 @@ import { GITHUB_OAUTH_CONFIG } from '@/config/oauth'
 import { openWindowCenter } from '@/utils'
 import { AuthToken } from '@/utils/auth'
 import {
+  getOAuthCallbackChannelName,
+  type OAuthCallbackMessage
+} from '@/utils/oauthCallback'
+import {
   clearOAuthRequest,
   consumeOAuthRequest,
   createOAuthRequest,
   getOAuthRedirectUri
 } from '@/utils/oauth'
 import { hasOAuthScope, parseOAuthScopes } from './oauthScopes'
-
-interface OAuthCallbackMessage {
-  type: 'starhub:oauth-callback'
-  code: string
-  state: string
-}
 
 export type OAuthPermissionErrorCode =
   | 'popup_blocked'
@@ -110,9 +108,13 @@ export async function authorizeGitHubScopes(
 
   return new Promise<Set<string>>((resolve, reject) => {
     let settled = false
+    let popupClosedAt: number | null = null
+    let callbackChannel: BroadcastChannel | null = null
 
     const cleanup = (closePopup: boolean) => {
       window.removeEventListener('message', handleMessage)
+      callbackChannel?.removeEventListener('message', handleChannelMessage)
+      callbackChannel?.close()
       window.clearInterval(popupTimer)
       window.clearTimeout(timeoutTimer)
 
@@ -136,21 +138,19 @@ export async function authorizeGitHubScopes(
       resolve(scopes)
     }
 
-    const handleMessage = async (
-      event: MessageEvent<OAuthCallbackMessage>
-    ) => {
+    const processCallback = async (message: OAuthCallbackMessage) => {
       if (
-        event.origin !== window.location.origin ||
-        event.source !== popup ||
-        event.data?.type !== 'starhub:oauth-callback'
+        settled ||
+        message?.type !== 'starhub:oauth-callback' ||
+        message.state !== state
       ) {
         return
       }
 
       try {
-        const codeVerifier = consumeOAuthRequest(event.data.state)
+        const codeVerifier = consumeOAuthRequest(message.state)
         const response = await authApi.getToken({
-          code: event.data.code,
+          code: message.code,
           codeVerifier,
           redirectUri
         })
@@ -184,16 +184,49 @@ export async function authorizeGitHubScopes(
       }
     }
 
-    const popupTimer = window.setInterval(() => {
-      if (popup.closed) {
-        fail(
-          new OAuthPermissionError(
-            'popup_closed',
-            'The GitHub authorization window was closed.'
-          )
-        )
+    const handleMessage = (event: MessageEvent<OAuthCallbackMessage>) => {
+      if (
+        event.origin !== window.location.origin ||
+        event.source !== popup
+      ) {
         return
       }
+
+      void processCallback(event.data)
+    }
+
+    const handleChannelMessage = (
+      event: MessageEvent<OAuthCallbackMessage>
+    ) => {
+      void processCallback(event.data)
+    }
+
+    if (typeof BroadcastChannel !== 'undefined') {
+      callbackChannel = new BroadcastChannel(
+        getOAuthCallbackChannelName(state)
+      )
+      callbackChannel.addEventListener('message', handleChannelMessage)
+    }
+
+    const popupTimer = window.setInterval(() => {
+      if (popup.closed) {
+        if (popupClosedAt === null) {
+          popupClosedAt = Date.now()
+          return
+        }
+
+        if (Date.now() - popupClosedAt >= 1_000) {
+          fail(
+            new OAuthPermissionError(
+              'popup_closed',
+              'The GitHub authorization window was closed.'
+            )
+          )
+        }
+        return
+      }
+
+      popupClosedAt = null
 
       try {
         const popupUrl = new URL(popup.location.href)
