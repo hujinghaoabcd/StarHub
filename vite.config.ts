@@ -35,6 +35,14 @@ const appBase = normalizeBase(process.env.VITE_BASE_PATH || '/')
 
 export default defineConfig({
   base: appBase,
+  // vue-i18n v9 defaults to Function-constructor message compilation unless
+  // JIT mode is enabled explicitly. JIT interprets message ASTs and remains
+  // compatible with a strict CSP that intentionally omits 'unsafe-eval'.
+  define: {
+    __INTLIFY_JIT_COMPILATION__: true,
+    __INTLIFY_DROP_MESSAGE_COMPILER__: false,
+    __VUE_I18N_LEGACY_API__: false
+  },
   plugins: [
     baseAwareVueRuntimeLinks(appBase),
     vue()
