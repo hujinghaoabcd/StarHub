@@ -11,7 +11,8 @@
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --ignore-path .gitignore",
     "lint:fix": "npm run lint -- --fix",
     "type-check": "vue-tsc --noEmit",
-    "check": "npm run lint && npm run type-check && npm run build",
+    "check": "npm run lint && npm run type-check && npm run pages:build",
+    "pages:build": "node scripts/build-pages.mjs",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
