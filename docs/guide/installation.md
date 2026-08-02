@@ -44,7 +44,7 @@ npm install --registry=https://registry.npmmirror.com
 
 **终端 1 - OAuth 代理服务器：**
 ```bash
-node server/dev-server.js
+npm run cloudflare:dev
 ```
 
 **终端 2 - 前端开发服务器：**
@@ -143,7 +143,7 @@ Run two terminals:
 
 **Terminal 1 - OAuth proxy server:**
 ```bash
-node server/dev-server.js
+npm run cloudflare:dev
 ```
 
 **Terminal 2 - Frontend dev server:**

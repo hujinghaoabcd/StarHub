@@ -36,12 +36,12 @@ GitHub OAuth App 的回调地址必须**完全匹配**：
 本地开发时，确保 OAuth 代理服务器正在运行：
 
 ```bash
-node server/dev-server.js
+npm run cloudflare:dev
 ```
 
 成功运行会显示：
 ```
-🚀 本地开发服务器运行在 http://localhost:7001
+🚀 Cloudflare Pages Functions 本地服务运行在 http://localhost:8788
 ```
 
 #### 检查配置文件
@@ -132,7 +132,7 @@ GitHub 授权成功，跳转回 StarHub 后页面一直显示加载状态。
 ```typescript
 proxy: {
   '/api': {
-    target: 'http://localhost:7001',
+    target: 'http://localhost:8788',
     changeOrigin: true
   }
 }

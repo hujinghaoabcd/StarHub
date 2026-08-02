@@ -229,11 +229,11 @@ CLIENT_ID=your_client_id
 CLIENT_SECRET=your_client_secret
 ```
 
-#### 第三步：启动本地开发服务器
+#### 第三步：启动Cloudflare Pages Functions 本地服务
 
 ```bash
 # 启动 OAuth 代理服务器
-node server/dev-server.js
+npm run cloudflare:dev
 
 # 在另一个终端启动前端开发服务器
 npm run dev
@@ -265,7 +265,7 @@ npm run build
 
 #### 3. 配置 Cloudflare Workers
 
-在 `functions/api/getToken.ts` 中已提供 OAuth token 交换逻辑。需要在 Cloudflare Dashboard 中设置环境变量：
+在 `functions/api/oauth/token.ts` 中已提供 OAuth token 交换逻辑。需要在 Cloudflare Dashboard 中设置环境变量：
 
 - `CLIENT_ID`: GitHub OAuth Client ID
 - `CLIENT_SECRET`: GitHub OAuth Client Secret
@@ -292,7 +292,7 @@ npm run build
 npm run preview
 ```
 
-> ⚠️ **注意**：自托管需要自行处理 OAuth token 交换的后端逻辑。可参考 `server/dev-server.js` 或 `functions/api/getToken.ts`。
+> ⚠️ **注意**：自托管需要自行处理 OAuth token 交换的后端逻辑。可参考 `functions/api/oauth/token.ts` 或 `functions/api/oauth/token.ts`。
 
 ---
 
@@ -473,12 +473,12 @@ StarHub/
 │   ├── guide/               # 使用指南
 │   ├── reference/           # 参考文档
 │   └── troubleshooting/     # 故障排除
-├── server/                  # 本地开发服务器
+├── server/                  # Cloudflare Pages Functions 本地服务
 │   ├── dev-server.js        # OAuth 代理服务器
 │   └── package.json         # 服务器依赖
 ├── functions/               # Workers
 │   ├── api/
-│   │   └── getToken.ts      # OAuth Token 交换
+│   │   └── oauth/token.ts      # OAuth Token 交换
 │   └── tsconfig.json        # TypeScript 配置
 ├── backups/                 # 备份文件
 ├── package.json             # 项目配置
@@ -533,7 +533,7 @@ fetch('/emergency-clear.js').then(r => r.text()).then(eval);
 
 1. 检查 `CLIENT_ID` 是否正确配置
 2. 确认 GitHub OAuth App 的回调地址与当前地址匹配
-3. 本地开发确保 `node server/dev-server.js` 正在运行
+3. 本地开发确保 `npm run cloudflare:dev` 正在运行
 4. 检查 `.env` 文件中的 `CLIENT_SECRET` 是否正确
 
 ### AI 分类失败

@@ -130,7 +130,7 @@ module.exports = {
   apps: [
     {
       name: 'starhub-backend',
-      script: 'server/dev-server.js',
+      script: 'functions/api/oauth/token.ts',
       cwd: '/var/www/starhub',
       env: {
         CLIENT_ID: 'your_client_id',

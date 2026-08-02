@@ -8,7 +8,7 @@
 starhub/
 ├── public/           # 静态资源（不经过构建）
 ├── src/              # 源代码
-├── server/           # 本地开发服务器
+├── server/           # Cloudflare Pages Functions 本地服务
 ├── functions/        # Cloudflare Workers
 ├── docs/             # 文档
 ├── package.json      # 项目配置
@@ -255,7 +255,7 @@ Cloudflare Workers 函数。
 ```
 functions/
 ├── api/
-│   └── getToken.ts  # OAuth Token 交换
+│   └── oauth/token.ts  # OAuth Token 交换
 └── tsconfig.json
 ```
 
