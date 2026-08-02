@@ -1,0 +1,45 @@
+name: Fix OAuth Preparation Generator
+
+on:
+  push:
+    branches:
+      - agent/fix-oauth-redirect-uri
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/fix-oauth-redirect-uri
+
+      - name: Patch generator and remove this workflow
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          workflow = Path('.github/workflows/apply-oauth-backend-fix.yml')
+          content = workflow.read_text(encoding='utf-8')
+          replacements = {
+              "payload = await request.json<TokenRequestBody>()": "payload = (await request.json()) as TokenRequestBody",
+              "const tokenData = await githubResponse.json<GitHubTokenResponse>()": "const tokenData = (await githubResponse.json()) as GitHubTokenResponse",
+              "vite_path.write_text(vite, encoding='utf-8')": "vite = vite.replace('let transformed = code.replace(', 'const transformed = code.replace(')\n          vite_path.write_text(vite, encoding='utf-8')"
+          }
+          for old, new in replacements.items():
+              if old not in content:
+                  raise SystemExit(f'Expected generator text not found: {old}')
+              content = content.replace(old, new)
+          workflow.write_text(content, encoding='utf-8')
+          PY
+
+          rm .github/workflows/fix-oauth-apply-generator.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "chore: fix OAuth preparation generator"
+          git push origin HEAD:agent/fix-oauth-redirect-uri
