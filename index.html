@@ -5,25 +5,17 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="description" content="StarHub - Professional GitHub Stars Management">
   <meta name="theme-color" content="#1a1a1a">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: http://localhost:* ws://localhost:*; worker-src 'self' blob:; manifest-src 'self'; media-src 'self'; frame-src 'none'; form-action 'self' https://github.com"
+  >
   <title>StarHub - GitHub Stars Manager</title>
-  <link rel="icon" href="/logo.svg" type="image/svg+xml">
+  <link rel="icon" href="%BASE_URL%logo.svg" type="image/svg+xml">
 </head>
 <body>
   <div id="app"></div>
-  <script>
-    // Initialize theme before Vue app loads
-    (function() {
-      const theme = localStorage.getItem('app-theme') || 'dark';
-      localStorage.setItem('app-theme', theme);
-      document.documentElement.setAttribute('data-theme', theme);
-      document.documentElement.classList.toggle('dark', theme === 'dark');
-      document.body.classList.toggle('dark', theme === 'dark');
-      const themeColor = theme === 'dark' ? '#1a1a1a' : '#ffffff';
-      const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.content = themeColor;
-    })();
-  </script>
+  <script src="%BASE_URL%theme-init.js"></script>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
-
