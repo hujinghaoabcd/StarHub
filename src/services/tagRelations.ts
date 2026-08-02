@@ -44,8 +44,10 @@ export function migrateLegacyTagRelations(
   legacyTags: readonly LegacyTagWithRelations[],
   existingRelations: readonly RepoTag[]
 ): RepoTag[] {
+  const validTagIds = new Set(legacyTags.map(tag => tag.id))
+
   return deduplicateRepoTags([
-    ...existingRelations,
+    ...existingRelations.filter(relation => validTagIds.has(relation.tagId)),
     ...legacyTags.flatMap(tag =>
       uniqueFiniteRepositoryIds(tag.repos || []).map(repositoryId => ({
         repoId: repositoryId,
