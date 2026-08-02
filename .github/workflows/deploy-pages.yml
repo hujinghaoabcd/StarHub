@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - agent/foundation-ci-sync
   pull_request:
     branches:
       - main
@@ -47,26 +46,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          if gh api "repos/${GITHUB_REPOSITORY}/pages" \
-            --jq '{status: .status, html_url: .html_url, build_type: .build_type, source: .source}'; then
-            echo "GitHub Pages is enabled for this repository."
-          else
-            echo "::warning::GitHub Pages is not enabled yet, or this workflow token cannot read the Pages configuration."
-          fi
+          gh api "repos/${GITHUB_REPOSITORY}/pages" \
+            --jq '{status: .status, html_url: .html_url, build_type: .build_type, source: .source}'
 
       - name: Configure GitHub Pages
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/configure-pages@v5
 
       - name: Upload GitHub Pages artifact
-        if: github.event_name != 'pull_request'
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
   deploy:
     name: Deploy Pages site
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -83,7 +78,7 @@ jobs:
 
   verify:
     name: Verify deployed Pages site
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: deploy
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -133,83 +128,12 @@ jobs:
           echo "Documentation URL: ${base_url}/docs/"
           echo "Application asset: ${application_asset}"
           echo "Documentation asset: ${documentation_asset}"
-          echo "Deployed commit: ${EXPECTED_SHA}"
+          echo "Verified commit: ${EXPECTED_SHA}"
           echo "GitHub Pages smoke test passed."
-
-  observe:
-    name: Verify live Pages deployment
-    if: github.event_name == 'pull_request'
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 8
-
-    steps:
-      - name: Wait for matching branch deployment and smoke test it
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          page_url="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.html_url')"
-          base_url="${page_url%/}"
-          curl_args=(--fail --silent --show-error --location)
-          matched=false
-
-          for attempt in $(seq 1 36); do
-            echo "Checking live deployment ${attempt}/36 for ${EXPECTED_SHA}"
-
-            if curl "${curl_args[@]}" \
-              "${base_url}/deployment-info.json?attempt=${attempt}" \
-              --output deployment-info.json; then
-              live_sha="$(jq -r '.commit // empty' deployment-info.json 2>/dev/null || true)"
-              echo "Live commit: ${live_sha:-not available}"
-
-              if [[ "${live_sha}" == "${EXPECTED_SHA}" ]]; then
-                matched=true
-                break
-              fi
-            fi
-
-            sleep 10
-          done
-
-          if [[ "${matched}" != "true" ]]; then
-            echo "::error::Live Pages deployment did not reach commit ${EXPECTED_SHA}."
-            exit 1
-          fi
-
-          curl "${curl_args[@]}" "${base_url}/" --output application.html
-          curl "${curl_args[@]}" "${base_url}/docs/" --output documentation.html
-
-          grep -q '<div id="app"></div>' application.html
-          grep -Eq '/StarHub/assets/[^"[:space:]]+\.(js|css)' application.html
-          grep -q 'StarHub' documentation.html
-          grep -q '/StarHub/docs/assets/' documentation.html
-          jq -e --arg sha "${EXPECTED_SHA}" \
-            '.appBase == "/StarHub/" and .docsBase == "/StarHub/docs/" and .commit == $sha' \
-            deployment-info.json
-
-          application_asset="$(grep -oE '/StarHub/assets/[^"[:space:]]+\.(js|css)' application.html | head -n 1)"
-          documentation_asset="$(grep -oE '/StarHub/docs/assets/[^"[:space:]]+\.(js|css)' documentation.html | head -n 1)"
-
-          test -n "${application_asset}"
-          test -n "${documentation_asset}"
-
-          curl "${curl_args[@]}" "${base_url}${application_asset#/StarHub}" --output /dev/null
-          curl "${curl_args[@]}" "${base_url}${documentation_asset#/StarHub}" --output /dev/null
-
-          echo "Application URL: ${base_url}/"
-          echo "Documentation URL: ${base_url}/docs/"
-          echo "Application asset: ${application_asset}"
-          echo "Documentation asset: ${documentation_asset}"
-          echo "Verified live commit: ${EXPECTED_SHA}"
-          echo "Live GitHub Pages verification passed."
 
   report:
     name: Report Pages status
-    if: ${{ always() && github.event_name != 'pull_request' }}
+    if: ${{ always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
     needs:
       - build
       - deploy
@@ -218,9 +142,10 @@ jobs:
     permissions:
       contents: read
       issues: write
+      pull-requests: read
 
     steps:
-      - name: Update pull request deployment comment
+      - name: Update associated pull request
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -228,18 +153,17 @@ jobs:
           DEPLOY_RESULT: ${{ needs.deploy.result }}
           VERIFY_RESULT: ${{ needs.verify.result }}
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
-          HEAD_BRANCH: ${{ github.ref_name }}
         shell: bash
         run: |
           pr_number="$(
-            gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls" \
-              -f state=open \
-              -f head="${GITHUB_REPOSITORY_OWNER}:${HEAD_BRANCH}" \
+            gh api \
+              -H 'Accept: application/vnd.github+json' \
+              "repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/pulls" \
               --jq '.[0].number // empty'
           )"
 
           if [[ -z "${pr_number}" ]]; then
-            echo "No open pull request found for ${HEAD_BRANCH}; skipping report."
+            echo "No pull request associated with ${GITHUB_SHA}; skipping report."
             exit 0
           fi
 
@@ -272,7 +196,6 @@ jobs:
           - 构建结果：\`${BUILD_RESULT}\`
           - 发布结果：\`${DEPLOY_RESULT}\`
           - 公网验证：\`${VERIFY_RESULT}\`
-          - 分支：\`${HEAD_BRANCH}\`
           - 提交：\`${GITHUB_SHA}\`
 
           > 登录仍依赖待部署的 OAuth 后端；当前 Pages 主要用于界面和文档预览。"
