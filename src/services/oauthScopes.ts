@@ -12,5 +12,19 @@ export function parseOAuthScopes(value: unknown): Set<string> {
 }
 
 export function hasOAuthScope(value: unknown, requiredScope: string): boolean {
-  return parseOAuthScopes(value).has(requiredScope)
+  const scopes = parseOAuthScopes(value)
+
+  if (scopes.has(requiredScope)) {
+    return true
+  }
+
+  if (requiredScope === 'public_repo' && scopes.has('repo')) {
+    return true
+  }
+
+  if (requiredScope === 'read:user' && scopes.has('user')) {
+    return true
+  }
+
+  return false
 }
