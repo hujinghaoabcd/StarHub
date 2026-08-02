@@ -1,9 +1,52 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
 
+function normalizeBase(base: string): string {
+  const withLeadingSlash = base.startsWith('/') ? base : `/${base}`
+  return withLeadingSlash.endsWith('/') ? withLeadingSlash : `${withLeadingSlash}/`
+}
+
+function baseAwareVuePublicPaths(base: string): Plugin {
+  return {
+    name: 'starhub-base-aware-public-paths',
+    enforce: 'pre',
+    transform(code, id) {
+      if (!id.endsWith('.vue')) {
+        return null
+      }
+
+      let transformed = code.replace(
+        /(\b(?:src|href)=["'])\/(?!\/)/g,
+        `$1${base}`
+      )
+
+      transformed = transformed.replace(
+        /(["'])\/docs\/\1/g,
+        `$1${base}docs/$1`
+      )
+
+      transformed = transformed.replace(
+        /location\.origin \+ ["']#\/login["']/g,
+        `location.origin + '${base}#/login'`
+      )
+
+      return transformed === code
+        ? null
+        : {
+            code: transformed,
+            map: null
+          }
+    }
+  }
+}
+
+const appBase = normalizeBase(process.env.VITE_BASE_PATH || '/')
+
 export default defineConfig({
+  base: appBase,
   plugins: [
+    baseAwareVuePublicPaths(appBase),
     vue()
     // VitePWA plugin commented out for now to avoid issues
     // VitePWA({
@@ -105,4 +148,3 @@ export default defineConfig({
     }
   }
 })
-
