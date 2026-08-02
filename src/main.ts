@@ -34,7 +34,7 @@ function bootstrapApplication() {
   }
 
   if (typeof window !== 'undefined') {
-    ;(window as any).__VUE_I18N__ = i18n
+    (window as any).__VUE_I18N__ = i18n
   }
 
   app.use(router)
