@@ -176,7 +176,7 @@ StarHub 内置 18 种专业分类，覆盖主流技术领域：
 ### 环境要求
 
 - **Node.js** >= 22.12.0
-- **npm** >= 8.0.0 或 **yarn** >= 1.22.0
+- **npm** >= 10.0.0
 
 ### 安装步骤
 
@@ -226,7 +226,13 @@ ALLOWED_ORIGINS=http://localhost:5173
 GITHUB_REDIRECT_URI=http://localhost:5173/
 ```
 
-Client Secret 只能放在未提交的 `.dev.vars` 或 Cloudflare 加密 Secret 中，不能写入 `VITE_*` 变量或前端代码。
+同时创建未提交的 `.env.local`：
+
+```env
+VITE_GITHUB_CLIENT_ID=your_local_client_id
+```
+
+`.env.local` 中的值必须与 `.dev.vars` 中的 `CLIENT_ID` 完全一致。Client Secret 只能放在未提交的 `.dev.vars` 或 Cloudflare 加密 Secret 中，不能写入 `VITE_*` 变量或前端代码。
 
 #### 第三步：启动本地联调
 

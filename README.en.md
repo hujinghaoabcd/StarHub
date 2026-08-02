@@ -176,7 +176,7 @@ If you have deployed StarHub, you can access it via:
 ### Requirements
 
 - **Node.js** >= 22.12.0
-- **npm** >= 8.0.0 or **yarn** >= 1.22.0
+- **npm** >= 10.0.0
 
 ### Installation Steps
 
@@ -224,7 +224,13 @@ ALLOWED_ORIGINS=http://localhost:5173
 GITHUB_REDIRECT_URI=http://localhost:5173/
 ```
 
-Never put the Client Secret in a `VITE_*` variable or browser code.
+Create an uncommitted `.env.local` file as well:
+
+```env
+VITE_GITHUB_CLIENT_ID=your_local_client_id
+```
+
+The value must exactly match `CLIENT_ID` in `.dev.vars`. Never put the Client Secret in a `VITE_*` variable or browser code.
 
 #### Step 3: Start local integration
 
