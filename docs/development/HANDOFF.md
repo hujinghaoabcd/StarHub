@@ -55,21 +55,9 @@ source.branch: main
 
 ## 5. 最终工作流
 
-Pull Request：
+Pull Request：安装依赖、构建应用与文档、读取 Pages 配置，不发布生产站点。
 
-- 安装依赖；
-- 构建应用与文档；
-- 读取 Pages 配置；
-- 不上传和部署生产站点。
-
-`main` 推送：
-
-- 构建联合产物；
-- 配置 Pages；
-- 上传 artifact；
-- 发布到 `github-pages` environment；
-- 验证应用首页、文档首页、部署 SHA、基础路径和实际资源；
-- 尝试将结果写回关联 PR。
+`main` 推送：构建联合产物、配置 Pages、上传 artifact、发布、验证页面、提交 SHA、资源路径和实际资源，再尝试回写关联 PR。
 
 ## 6. 当前验证结果
 
@@ -107,27 +95,11 @@ Verify deployed site      PENDING
 
 ## 8. 未完成与风险
 
-### 仓库同步
-
-- 取消 Star 后旧仓库仍可能残留；
-- 同步尚未区分完整成功、部分成功和失败；
-- 下一批优先处理。
-
-### OAuth 与后端
-
-- Cloudflare Worker 尚未部署；
-- 缺少 OAuth `state`；
-- 回调仍使用全局 opener 函数；
-- token 交换仍为 GET 风格；
-- GitHub token 仍在 localStorage；
-- 在线登录暂不属于生产可用。
-
-### 依赖与质量
-
-- 33 个依赖漏洞，其中 19 个 high；
-- 9 条 ESLint 警告；
-- 两个主要 chunk 超过 1 MB；
-- VitePress 存在高亮和 CSS nesting 警告；
+- 同步仍可能保留取消 Star 的旧仓库，下一批优先修复；
+- OAuth 后端尚未部署，登录暂不属于生产可用；
+- OAuth 缺少 `state`，回调、token 交换和本地存储仍需重构；
+- 依赖审计有 33 个漏洞，其中 19 个 high；
+- 存在 9 条 ESLint 警告、大 chunk 和 VitePress 警告；
 - 单元和 E2E 测试尚未建立。
 
 ## 9. 下一步
