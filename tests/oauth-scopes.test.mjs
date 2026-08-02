@@ -40,3 +40,9 @@ test('hasOAuthScope checks exact normalized scope names', () => {
     false
   )
 })
+
+test('broader GitHub scopes satisfy the narrower required scopes', () => {
+  assert.equal(oauthScopes.hasOAuthScope('repo', 'public_repo'), true)
+  assert.equal(oauthScopes.hasOAuthScope('user', 'read:user'), true)
+  assert.equal(oauthScopes.hasOAuthScope('public_repo', 'repo'), false)
+})
