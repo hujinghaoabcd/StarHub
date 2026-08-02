@@ -7,9 +7,9 @@ function normalizeBase(base: string): string {
   return withLeadingSlash.endsWith('/') ? withLeadingSlash : `${withLeadingSlash}/`
 }
 
-function baseAwareVuePublicPaths(base: string): Plugin {
+function baseAwareVueRuntimeLinks(base: string): Plugin {
   return {
-    name: 'starhub-base-aware-public-paths',
+    name: 'starhub-base-aware-runtime-links',
     enforce: 'pre',
     transform(code, id) {
       if (!id.endsWith('.vue')) {
@@ -17,11 +17,6 @@ function baseAwareVuePublicPaths(base: string): Plugin {
       }
 
       let transformed = code.replace(
-        /(\b(?:src|href)=["'])\/(?!\/)/g,
-        `$1${base}`
-      )
-
-      transformed = transformed.replace(
         /(["'])\/docs\/\1/g,
         `$1${base}docs/$1`
       )
@@ -46,7 +41,7 @@ const appBase = normalizeBase(process.env.VITE_BASE_PATH || '/')
 export default defineConfig({
   base: appBase,
   plugins: [
-    baseAwareVuePublicPaths(appBase),
+    baseAwareVueRuntimeLinks(appBase),
     vue()
     // VitePWA plugin commented out for now to avoid issues
     // VitePWA({
