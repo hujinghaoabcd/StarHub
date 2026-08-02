@@ -15,7 +15,8 @@
     "pages:build": "node scripts/build-pages.mjs",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "prepare": "node scripts/install-oauth-apply-hook.mjs"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
