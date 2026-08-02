@@ -1,5 +1,4 @@
-
-CLIENT_ID=Ov23liIm4iNdpnHwGLfp
-CLIENT_SECRET=replace_with_your_github_oauth_client_secret
-ALLOWED_ORIGINS=http://localhost:5173,https://hujinghaoabcd.github.io
+CLIENT_ID=replace_with_your_local_github_oauth_client_id
+CLIENT_SECRET=replace_with_your_local_github_oauth_client_secret
+ALLOWED_ORIGINS=http://localhost:5173
 GITHUB_REDIRECT_URI=http://localhost:5173/
