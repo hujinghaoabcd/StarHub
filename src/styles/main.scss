@@ -201,7 +201,7 @@ html[data-theme='dark'] {
 
 // Global Element Plus Theme Fixes
 [data-theme='dark'] {
-  :deep(.el-button) {
+  .el-button {
     &.is-plain {
       border-color: var(--el-color-primary);
       color: var(--el-color-primary);
@@ -241,7 +241,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-checkbox) {
+  .el-checkbox {
     .el-checkbox__label {
       color: var(--text-primary);
     }
@@ -252,7 +252,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-input__inner) {
+  .el-input__inner {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     border-color: var(--border);
@@ -262,7 +262,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-dropdown-menu) {
+  .el-dropdown-menu {
     background-color: var(--bg-secondary);
     border-color: var(--border);
     
@@ -281,7 +281,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-pagination) {
+  .el-pagination {
     .btn-prev,
     .btn-next,
     .number {
@@ -338,7 +338,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-select-dropdown) {
+  .el-select-dropdown {
     background-color: var(--bg-secondary) !important;
     border-color: var(--border) !important;
     
@@ -358,7 +358,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-table) {
+  .el-table {
     background-color: var(--bg-primary) !important;
     color: var(--text-primary) !important;
     
@@ -379,7 +379,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-card) {
+  .el-card {
     background-color: var(--bg-primary) !important;
     border-color: var(--border) !important;
     color: var(--text-primary) !important;
@@ -396,11 +396,11 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-form-item__label) {
+  .el-form-item__label {
     color: var(--text-primary) !important;
   }
   
-  :deep(.el-alert) {
+  .el-alert {
     background-color: var(--bg-tertiary) !important;
     border-color: var(--border) !important;
     color: var(--text-primary) !important;
@@ -414,7 +414,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-descriptions) {
+  .el-descriptions {
     .el-descriptions__label {
       color: var(--text-secondary) !important;
       background-color: var(--bg-tertiary) !important;
@@ -430,7 +430,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-dialog) {
+  .el-dialog {
     background-color: var(--bg-primary) !important;
     border-color: var(--border) !important;
     
@@ -465,7 +465,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-tooltip__popper) {
+  .el-tooltip__popper {
     background-color: var(--bg-secondary) !important;
     border-color: var(--border) !important;
     color: var(--text-primary) !important;
@@ -476,7 +476,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-popover) {
+  .el-popover {
     background-color: var(--bg-secondary) !important;
     border-color: var(--border) !important;
     color: var(--text-primary) !important;
@@ -487,7 +487,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-radio-group) {
+  .el-radio-group {
     .el-radio-button {
       .el-radio-button__inner {
         background-color: var(--bg-primary) !important;
@@ -509,7 +509,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-tag) {
+  .el-tag {
     background-color: var(--bg-tertiary) !important;
     border-color: var(--border) !important;
     color: var(--text-primary) !important;
@@ -520,7 +520,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-message-box) {
+  .el-message-box {
     background-color: var(--bg-primary) !important;
     border-color: var(--border) !important;
     
@@ -563,7 +563,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-notification) {
+  .el-notification {
     background-color: var(--bg-secondary) !important;
     border-color: var(--border) !important;
     
@@ -584,7 +584,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-message) {
+  .el-message {
     background-color: var(--bg-secondary) !important;
     border-color: var(--border) !important;
     color: var(--text-primary) !important;
@@ -597,7 +597,7 @@ html[data-theme='dark'] {
 
 // Extra dark theme overrides
 [data-theme='dark'] {
-  :deep(.el-dialog) {
+  .el-dialog {
     background-color: var(--bg-primary) !important;
     color: var(--text-primary) !important;
 
@@ -609,30 +609,30 @@ html[data-theme='dark'] {
     }
   }
 
-  :deep(.el-tooltip__popper),
-  :deep(.el-popover) {
+  .el-tooltip__popper,
+  .el-popover {
     background-color: var(--bg-secondary) !important;
     border-color: var(--border) !important;
     color: var(--text-primary) !important;
   }
 
-  :deep(.el-menu),
-  :deep(.el-dropdown-menu),
-  :deep(.el-select-dropdown) {
+  .el-menu,
+  .el-dropdown-menu,
+  .el-select-dropdown {
     background-color: var(--bg-secondary) !important;
     border-color: var(--border) !important;
     color: var(--text-primary) !important;
   }
 
-  :deep(.el-menu-item:hover),
-  :deep(.el-dropdown-menu__item:hover),
-  :deep(.el-select-dropdown__item:hover) {
+  .el-menu-item:hover,
+  .el-dropdown-menu__item:hover,
+  .el-select-dropdown__item:hover {
     background-color: var(--bg-tertiary) !important;
     color: var(--el-color-primary) !important;
   }
   
   // 分页选择器暗黑主题
-  :deep(.el-select) {
+  .el-select {
     .el-input__wrapper {
       background-color: var(--bg-tertiary) !important;
       box-shadow: 0 0 0 1px var(--border) inset !important;
@@ -647,7 +647,7 @@ html[data-theme='dark'] {
     }
   }
   
-  :deep(.el-select-dropdown__item) {
+  .el-select-dropdown__item {
     color: var(--text-primary) !important;
     
     &.is-selected {
@@ -656,8 +656,8 @@ html[data-theme='dark'] {
     }
   }
 
-  :deep(.el-menu-item.is-active),
-  :deep(.el-dropdown-menu__item.is-active) {
+  .el-menu-item.is-active,
+  .el-dropdown-menu__item.is-active {
     background-color: rgba(64, 158, 255, 0.15) !important;
     color: #409EFF !important;
   }
@@ -688,7 +688,7 @@ html[data-theme='dark'] {
   }
   
   // 折叠面板暗黑主题
-  :deep(.el-collapse) {
+  .el-collapse {
     border-color: var(--border) !important;
     
     .el-collapse-item__header {
@@ -1298,7 +1298,7 @@ body.dark {
 }
 
 [data-theme='light'] {
-  :deep(.el-button) {
+  .el-button {
     &.is-plain {
       border-color: var(--el-color-primary);
       color: var(--el-color-primary);
@@ -1326,13 +1326,13 @@ body.dark {
     }
   }
   
-  :deep(.el-checkbox) {
+  .el-checkbox {
     .el-checkbox__label {
       color: var(--text-primary);
     }
   }
   
-  :deep(.el-input__inner) {
+  .el-input__inner {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     border-color: var(--border);
@@ -1342,7 +1342,7 @@ body.dark {
     }
   }
   
-  :deep(.el-dropdown-menu) {
+  .el-dropdown-menu {
     background-color: var(--bg-secondary);
     border-color: var(--border);
     

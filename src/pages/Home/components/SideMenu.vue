@@ -530,7 +530,7 @@ const handleAutoClassify = async (reclassifyAll = false) => {
     const totalRepos = reposToClassify.length
     const totalBatches = Math.ceil(totalRepos / batchSize)
     let totalClassified = 0
-    let allCategoryMap = new Map<string, number[]>()
+    const allCategoryMap = new Map<string, number[]>()
     
     // 创建固定的通知句柄
     classifyNotificationHandle.value = null
@@ -665,7 +665,7 @@ const handleAutoClassify = async (reclassifyAll = false) => {
         duration: 0
       })
       
-      const batchCategoryMap = await classifyRepositories(
+      await classifyRepositories(
         batchWithReadme as any,
         // 进度回调
         (current, total) => {
@@ -703,7 +703,7 @@ const handleAutoClassify = async (reclassifyAll = false) => {
             const color = presetInfo?.color || CATEGORY_COLORS[cleanCategoryName] || CATEGORY_COLORS[categoryName] || '#9e9e9e'
             
             // 检查分类是否已存在（精确匹配名称）
-            let existingTag = tagStore.tags.find((t: any) => 
+            const existingTag = tagStore.tags.find((t: any) => 
               t.name === cleanCategoryName || t.name === categoryName
             )
             

@@ -28,7 +28,7 @@ declare module 'http-link-header' {
   export function format(links: Link[]): string
   
   export default {
-    parse: (linkHeader: string) => ParsedLink
+    parse: (_linkHeader: string) => ParsedLink
   }
 }
 
