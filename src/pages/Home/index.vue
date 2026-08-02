@@ -21,6 +21,10 @@
             @mousedown="startContentResize"
           ></div>
           <div class="detail-wrapper" v-if="selectedRepo">
+            <RepositoryOverview
+              :repo="selectedRepo"
+              @unstarred="handleRepoUnstarred"
+            />
             <DetailView
               :repo="selectedRepo"
               @close="handleCloseDetail"
@@ -42,6 +46,7 @@ import HomeLayout from '@/layouts/HomeLayout.vue'
 import SideMenu from './components/SideMenu.vue'
 import RepoList from './components/RepoList.vue'
 import DetailView from './components/DetailView.vue'
+import RepositoryOverview from './components/RepositoryOverview.vue'
 import EmptyState from './components/EmptyState.vue'
 import type { Repository } from '@/types'
 
@@ -89,6 +94,12 @@ const handleRepoClick = (repo: Repository) => {
 
 const handleCloseDetail = () => {
   selectedRepo.value = null
+}
+
+const handleRepoUnstarred = (repoId: number) => {
+  if (selectedRepo.value?.id === repoId) {
+    selectedRepo.value = null
+  }
 }
 
 onMounted(async () => {
@@ -184,8 +195,15 @@ onMounted(async () => {
 }
 
 .detail-wrapper {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   height: 100%;
+  min-width: 0;
   overflow: hidden;
+
+  :deep(.detail-view) {
+    min-height: 0;
+  }
 }
 </style>
