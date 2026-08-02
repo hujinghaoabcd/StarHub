@@ -40,13 +40,14 @@ test('toStoredTag removes the derived repos field', () => {
   })
 })
 
-test('migrateLegacyTagRelations unions legacy and existing memberships', () => {
+test('migrateLegacyTagRelations unions valid memberships and drops orphans', () => {
   assert.deepEqual(
     relations.migrateLegacyTagRelations(
       [tag('tag-1', [1, 2, 2]), tag('tag-2', [])],
       [
         { repoId: 2, tagId: 'tag-1' },
-        { repoId: 3, tagId: 'tag-2' }
+        { repoId: 3, tagId: 'tag-2' },
+        { repoId: 9, tagId: 'missing-tag' }
       ]
     ),
     [
