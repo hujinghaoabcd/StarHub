@@ -1,0 +1,54 @@
+name: Apply unstar sync hotfix
+
+on:
+  push:
+    branches:
+      - hotfix/unstar-button-sync-v3
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-unstar-sync-hotfix-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  hotfix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out hotfix branch
+        uses: actions/checkout@v6
+        with:
+          ref: hotfix/unstar-button-sync-v3
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Apply hotfix
+        run: node scripts/apply-unstar-sync-hotfix.mjs
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run full verification
+        run: npm run check
+
+      - name: Remove one-time files
+        run: |
+          rm scripts/apply-unstar-sync-hotfix.mjs
+          rm .github/workflows/apply-unstar-sync-hotfix.yml
+
+      - name: Commit hotfix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: keep unstar available during background sync"
+          git push origin HEAD:hotfix/unstar-button-sync-v3
