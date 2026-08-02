@@ -1,0 +1,157 @@
+name: Refine OAuth Callback
+
+on:
+  push:
+    branches:
+      - agent/fix-oauth-redirect-uri
+
+permissions:
+  contents: write
+
+jobs:
+  refine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/fix-oauth-redirect-uri
+
+      - name: Replace global opener callback with postMessage
+        shell: bash
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('src/pages/Login.vue')
+          content = path.read_text(encoding='utf-8')
+
+          if 'interface OAuthCallbackMessage' not in content:
+              marker = "} from '@/utils/oauth'\n"
+              addition = """
+
+          interface OAuthCallbackMessage {
+            type: 'starhub:oauth-callback'
+            code: string
+            state: string
+          }
+          """
+              if marker not in content:
+                  raise SystemExit('OAuth imports marker not found')
+              content = content.replace(marker, marker + addition, 1)
+
+          old_popup = """  if (
+            window.opener &&
+            typeof (window.opener as Window & {
+              oauthGetCodeCb?: (oauthCode: string, state: string) => void
+            }).oauthGetCodeCb === 'function'
+          ) {
+            ;(window.opener as Window & {
+              oauthGetCodeCb: (oauthCode: string, state: string) => void
+            }).oauthGetCodeCb(code, returnedState)
+            window.close()
+            return
+          }
+          """
+          new_popup = """  if (window.opener) {
+            const message: OAuthCallbackMessage = {
+              type: 'starhub:oauth-callback',
+              code,
+              state: returnedState
+            }
+            window.opener.postMessage(message, window.location.origin)
+            window.close()
+            return
+          }
+          """
+          if old_popup in content:
+              content = content.replace(old_popup, new_popup, 1)
+
+          old_opener = """    ;(window as Window & {
+              oauthGetCodeCb?: (oauthCode: string, returnedState: string) => void
+            }).oauthGetCodeCb = async (oauthCode, returnedState) => {
+              authWindow.close()
+              delete (window as Window & { oauthGetCodeCb?: unknown }).oauthGetCodeCb
+
+              try {
+                const codeVerifier = consumeOAuthRequest(returnedState)
+                await login(oauthCode, codeVerifier)
+              } catch {
+                clearOAuthRequest()
+                error.value = 'OAuth 状态校验失败，请重新发起登录。'
+                loading.value = false
+              }
+            }
+          """
+          new_opener = """    const handleOAuthMessage = async (
+              event: MessageEvent<OAuthCallbackMessage>
+            ) => {
+              if (
+                event.origin !== window.location.origin ||
+                event.source !== authWindow ||
+                event.data?.type !== 'starhub:oauth-callback'
+              ) {
+                return
+              }
+
+              window.removeEventListener('message', handleOAuthMessage)
+              window.clearInterval(popupClosedTimer)
+              authWindow.close()
+
+              try {
+                const codeVerifier = consumeOAuthRequest(event.data.state)
+                await login(event.data.code, codeVerifier)
+              } catch {
+                clearOAuthRequest()
+                error.value = 'OAuth 状态校验失败，请重新发起登录。'
+                loading.value = false
+              }
+            }
+
+            const popupClosedTimer = window.setInterval(() => {
+              if (!authWindow.closed) {
+                return
+              }
+              window.clearInterval(popupClosedTimer)
+              window.removeEventListener('message', handleOAuthMessage)
+              clearOAuthRequest()
+              loading.value = false
+            }, 500)
+
+            window.addEventListener('message', handleOAuthMessage)
+          """
+          if old_opener in content:
+              content = content.replace(old_opener, new_opener, 1)
+
+          if 'oauthGetCodeCb' in content:
+              raise SystemExit('Legacy global OAuth callback still exists')
+
+          path.write_text(content, encoding='utf-8')
+          PY
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Validate callback changes
+        run: |
+          npm ci
+          npm run lint
+          npm run type-check
+
+      - name: Commit callback changes
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo 'OAuth callback is already refined.'
+            exit 0
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/pages/Login.vue
+          git commit -m 'fix: secure OAuth callback messaging'
+          git push origin HEAD:agent/fix-oauth-redirect-uri
