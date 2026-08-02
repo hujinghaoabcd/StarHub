@@ -36,6 +36,7 @@ const repository = process.env.GITHUB_REPOSITORY || 'hujinghaoabcd/StarHub'
 const repositoryName = repository.split('/').filter(Boolean).at(-1) || 'StarHub'
 const appBase = normalizeBase(process.env.PAGES_BASE_PATH || `/${repositoryName}/`)
 const docsBase = `${appBase}docs/`
+const commit = process.env.GITHUB_SHA || null
 
 console.log(`Building StarHub application for ${appBase}`)
 runNpmScript('build', {
@@ -57,10 +58,11 @@ await cp(docsOutput, combinedDocsOutput, { recursive: true })
 await writeFile(path.join(appOutput, '.nojekyll'), '', 'utf8')
 await writeFile(
   path.join(appOutput, 'deployment-info.json'),
-  `${JSON.stringify({ appBase, docsBase }, null, 2)}\n`,
+  `${JSON.stringify({ appBase, docsBase, commit }, null, 2)}\n`,
   'utf8'
 )
 
 console.log('GitHub Pages bundle created successfully:')
 console.log(`- Application: dist/ -> ${appBase}`)
 console.log(`- Documentation: dist/docs/ -> ${docsBase}`)
+console.log(`- Commit: ${commit || 'local build'}`)
