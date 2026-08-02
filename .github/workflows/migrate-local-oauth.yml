@@ -1,0 +1,58 @@
+name: Migrate local OAuth workflow
+
+on:
+  push:
+    branches:
+      - agent/local-oauth-docs-hardening
+
+permissions:
+  contents: write
+
+concurrency:
+  group: migrate-local-oauth
+  cancel-in-progress: true
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/local-oauth-docs-hardening
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Apply one-time migration
+        run: node scripts/migrate-local-oauth.mjs
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run complete checks
+        run: npm run check
+
+      - name: Remove one-time migration files
+        run: |
+          rm -f scripts/migrate-local-oauth.mjs
+          rm -f .github/workflows/migrate-local-oauth.yml
+
+      - name: Commit migration result
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Migration produced no changes."
+            exit 0
+          fi
+          git commit -m "refactor: unify local OAuth development"
+          git push origin HEAD:agent/local-oauth-docs-hardening
