@@ -9,13 +9,12 @@ await writeFile(
   hookPath,
   `#!/usr/bin/env bash
 set -euo pipefail
-workflow='.github/workflows/apply-oauth-backend-fix.yml'
-if git diff --cached --name-status | grep -Eq '^D[[:space:]]+\\.github/workflows/apply-oauth-backend-fix\\.yml$'; then
-  git restore --source=HEAD --staged --worktree -- "$workflow"
+if ! git diff --cached --quiet -- .github/workflows; then
+  git restore --source=HEAD --staged --worktree -- .github/workflows
 fi
 `,
   'utf8'
 )
 await chmod(hookPath, 0o755)
 
-console.log('Installed temporary pre-commit protection for OAuth preparation workflow.')
+console.log('Installed temporary pre-commit protection for workflow files.')
