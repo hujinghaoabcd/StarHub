@@ -7,7 +7,7 @@ module.exports = {
   },
   extends: [
     'eslint:recommended',
-    'plugin:vue/vue3-recommended',
+    'plugin:vue/vue3-essential',
     '@vue/eslint-config-typescript/recommended'
   ],
   parserOptions: {
@@ -52,7 +52,10 @@ module.exports = {
   ],
   rules: {
     'no-console': 'off',
+    'no-extra-semi': 'warn',
+    'prefer-const': 'warn',
     'vue/multi-word-component-names': 'off',
+    'vue/no-v-html': 'off',
     '@typescript-eslint/no-explicit-any': 'off',
     '@typescript-eslint/no-unused-vars': [
       'warn',
