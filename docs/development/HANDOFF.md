@@ -6,250 +6,259 @@
 生产前端：https://hujinghaoabcd.github.io/StarHub/
 生产文档：https://hujinghaoabcd.github.io/StarHub/docs/
 OAuth API：https://starhub-oauth.pages.dev/api
-main：4bf20a5dc57776438a35be86b9a1dbc04514ab45
-开发分支：agent/session-auth-lifecycle
-Pull Request：#9
+main：ca85ce9291a446bcce367f181f5480629488915e
+开发分支：agent/local-oauth-docs-hardening
+Pull Request：#11
 ```
 
-PR #8 的标签关系单一真源改造已经合并。PR #9 将 GitHub access token 从长期浏览器持久化改为有界会话，并统一过期、401、退出和跨标签页清理。
+PR #10 已完成依赖升级、生产依赖审计和静态安全策略。PR #11 删除第二套旧 Node OAuth 服务，把本地开发、生产部署和文档统一到 Cloudflare Pages Functions。
 
-## 2. 会话策略
+## 2. 当前 OAuth 架构
 
-### 存储位置
-
-旧实现：
+### 生产
 
 ```text
-localStorage.github-token
-localStorage.app-token
-localStorage.starhub_user
+GitHub Pages
+  └─ Vue 前端与 VitePress 文档
+       └─ HTTPS POST 到 Cloudflare Pages API
+
+Cloudflare Pages Functions
+  ├─ GET  /api/health
+  └─ POST /api/oauth/token
+       └─ 服务端使用 GitHub Client Secret 交换 token
 ```
 
-新实现：
+### 本地
+
+```text
+http://localhost:5173  Vite 前端
+        │
+        └─ /api 代理
+              ↓
+http://localhost:8788  Wrangler Pages Functions
+```
+
+仓库不再维护独立的 Express/CORS/Dotenv OAuth 服务，也不再维护第二份服务端 `package-lock.json`。
+
+## 3. 本地配置
+
+### GitHub OAuth App
+
+为本地开发单独创建 OAuth App：
+
+```text
+Homepage URL: http://localhost:5173/
+Authorization callback URL: http://localhost:5173/
+```
+
+生产 App 继续使用：
+
+```text
+Homepage URL: https://hujinghaoabcd.github.io/StarHub/
+Authorization callback URL: https://hujinghaoabcd.github.io/StarHub/
+```
+
+GitHub OAuth App 只有一个 callback URL，因此本地与生产不要复用同一个 App。
+
+### Functions 变量
+
+```bash
+cp .dev.vars.example .dev.vars
+```
+
+```env
+CLIENT_ID=your_local_client_id
+CLIENT_SECRET=your_local_client_secret
+ALLOWED_ORIGINS=http://localhost:5173
+GITHUB_REDIRECT_URI=http://localhost:5173/
+```
+
+`.dev.vars` 被 Git 忽略。不要把 Client Secret 写入源码、Issue、日志、聊天记录或浏览器变量。
+
+### 浏览器变量
+
+创建未提交的 `.env.local`：
+
+```env
+VITE_GITHUB_CLIENT_ID=your_local_client_id
+```
+
+该值必须与 `.dev.vars` 中的 `CLIENT_ID` 完全一致。Client ID 可以公开，Client Secret 不能进入任何 `VITE_*` 变量。
+
+本地使用 Vite 代理，不需要 `VITE_API_BASE_URL`。
+
+## 4. 本地运行
+
+```bash
+npm ci
+
+# 终端 1
+npm run cloudflare:dev
+
+# 终端 2
+npm run dev
+```
+
+验证：
+
+```text
+Frontend: http://localhost:5173/
+Health:   http://localhost:8788/api/health
+```
+
+健康检查应返回 `configured: true`。
+
+## 5. Token 交换契约
+
+请求：
+
+```http
+POST /api/oauth/token
+Content-Type: application/json
+Origin: http://localhost:5173
+```
+
+```json
+{
+  "code": "github_authorization_code",
+  "codeVerifier": "pkce_verifier",
+  "redirectUri": "http://localhost:5173/"
+}
+```
+
+服务端必须：
+
+1. 校验 HTTP 方法；
+2. 校验 Origin 白名单；
+3. 校验 JSON 数据结构；
+4. 精确校验 redirect URI；
+5. 使用 PKCE `code_verifier`；
+6. 在服务端使用 Client Secret；
+7. 返回 `Cache-Control: no-store`；
+8. 不在错误响应或日志中泄露 code、token 和 Secret。
+
+实现文件：`functions/api/oauth/token.ts`。
+
+## 6. 会话策略
+
+GitHub access token 仍由浏览器在当前会话中使用：
 
 ```text
 sessionStorage.starhub-auth-session-v1
 sessionStorage.starhub_user
 ```
 
-长期 `localStorage` 不再保存 GitHub token 或用户资料。
+- 最长会话时间：12 小时；
+- 关闭标签页或浏览器后不依赖长期 token 自动登录；
+- GitHub 401、会话过期和手动退出统一清理；
+- 跨标签页退出通过不含 token 的事件同步；
+- `sessionStorage` 不是 HttpOnly，不能声称能够抵御 XSS。
 
-### 会话数据
+## 7. 自动验证
 
-```ts
-interface AuthSession {
-  version: 1
-  authorization: string
-  createdAt: number
-  lastUsedAt: number
-}
-```
-
-- `authorization` 保存完整 Authorization header 值；
-- 最长会话时间为 12 小时；
-- `lastUsedAt` 最多每 5 分钟写入一次，减少 Storage 写入；
-- `getSessionInfo()` 只返回时间信息，不返回 token。
-
-### 浏览器关闭行为
-
-`sessionStorage` 使会话限定在当前标签页会话。关闭标签页或浏览器后不再依赖长期 token 自动登录。
-
-浏览器禁用 Storage API 时，认证退化为当前页面内存会话；刷新后需要重新登录。
-
-## 3. 旧数据迁移
-
-第一次读取认证状态时：
-
-1. 检查版本化 sessionStorage 会话；
-2. 若不存在，读取旧 `localStorage.github-token`；
-3. 将旧 token 写入当前 sessionStorage 会话；
-4. 删除 `localStorage.github-token` 和 `localStorage.app-token`；
-5. 用户资料由 user store 同步迁移到 sessionStorage；
-6. 损坏或过期会话直接删除。
-
-这样升级时当前用户通常不需要立刻重新授权，但旧 token 不会继续长期保存。
-
-## 4. 会话期限执行
-
-新增：
+永久验证器：
 
 ```text
-src/utils/authLifecycle.ts
+scripts/verify-oauth-docs.mjs
 ```
 
-会话守护器在以下时机检查：
+它会检查：
 
-- 每 60 秒；
-- 浏览器窗口重新聚焦；
-- 页面从隐藏恢复为可见。
-
-过期后跳转：
-
-```text
-#/login?reason=session-expired
-```
-
-以下页面不被守护器打断：
-
-- 登录页；
-- 带 GitHub OAuth `code` 的回调页。
-
-## 5. GitHub 请求层
-
-`src/api/request.ts` 的行为：
-
-### 请求前
-
-- 获取有效会话 token；
-- 无 token 或已过期时不发送匿名 GitHub API 请求；
-- 清理会话并跳转登录页。
-
-### 响应后
-
-GitHub 返回 401 时：
-
-- 清理 token 和用户资料；
-- 只发起一次登录跳转；
-- 使用 `reason=unauthorized` 显示重新授权提示。
-
-403、网络错误和其他 API 错误不会被误判为 token 失效。
-
-## 6. 退出与跨标签页同步
-
-当前标签页退出：
-
-1. 删除当前会话 token；
-2. 删除当前用户资料缓存；
-3. 删除所有旧 localStorage 认证键；
-4. 通过非敏感 localStorage 事件广播退出；
-5. Pinia 用户状态清空并返回登录页。
-
-其他标签页收到广播后：
-
-1. 清理自己的 sessionStorage 会话；
-2. 不再次广播，避免循环；
-3. 跳转 `#/login?reason=logged-out`；
-4. 显示“登录已在另一个标签页退出”。
-
-广播内容只包含时间戳，不包含 token。
-
-## 7. 登录页提示
-
-登录页区分：
-
-```text
-session-expired  会话达到本地期限
-unauthorized     GitHub 拒绝当前凭据
-logged-out       其他标签页主动退出
-```
-
-OAuth `state` 和 PKCE 流程保持不变。
-
-## 8. 自动验证
-
-```text
-CI run                           30761611893  PASS
-Lint                                         PASS
-Frontend type-check                          PASS
-Unit tests                                   PASS，17 tests
-Cloudflare Functions type-check              PASS
-Application + docs build                     PASS
-Cloudflare bundle build                      PASS
-```
-
-新增 `tests/auth-session.test.mjs`，覆盖：
-
-1. 新 token 只进入 sessionStorage；
-2. 旧 localStorage token 自动迁移；
-3. 会话到期后拒绝并清理；
-4. 退出清理及通知；
-5. Storage API 被阻止时的内存回退；
-6. 会话时间信息不泄露 token。
+- `server/` 旧服务目录没有恢复；
+- Markdown 不包含旧接口、旧端口和旧服务路径；
+- Vite `/api` 代理指向 8788；
+- 本地文档包含四个 Functions 变量；
+- 本地文档包含 `.env.local` 与 `VITE_GITHUB_CLIENT_ID`；
+- `.dev.vars.example` 只允许本地显式 Origin；
+- 本地 Client ID 示例不复用生产配置。
 
 运行：
 
 ```bash
-npm run test:unit
+npm run oauth:verify
 npm run check
 ```
 
-## 9. 主要文件
+`npm run check` 还包含：
 
-- `src/utils/auth.ts`
-- `src/utils/authLifecycle.ts`
-- `src/api/request.ts`
-- `src/stores/user.ts`
-- `src/pages/Login.vue`
-- `src/main.ts`
-- `tests/auth-session.test.mjs`
-- `docs/development/PROJECT_STATUS.md`
-- `docs/development/HANDOFF.md`
+- Lint；
+- 前端类型检查；
+- 17 项单元测试；
+- Functions 类型检查；
+- GitHub Pages 应用与文档构建；
+- CSP/Referrer Policy 校验；
+- 生产依赖审计；
+- Cloudflare Pages bundle 构建。
 
-## 10. 合并后人工验收
+## 8. 主要修改文件
 
-### 旧登录迁移
+```text
+.dev.vars.example
+vite.config.ts
+package.json
+scripts/verify-oauth-docs.mjs
+docs/development/local-oauth.md
+docs/guide/oauth.md
+docs/guide/installation.md
+docs/deploy/cloudflare.md
+docs/deploy/self-host.md
+docs/DEPLOYMENT.md
+docs/troubleshooting/login.md
+README.md
+README.en.md
+```
 
-1. 使用旧生产版本保持登录；
-2. 打开新版本；
-3. 确认当前标签页仍能进入首页；
-4. DevTools → Application → Local Storage；
-5. 确认 `github-token`、`app-token`、`starhub_user` 已删除；
-6. Session Storage 中应存在版本化会话和用户资料。
+删除：
 
-### 刷新和关闭
+```text
+server/dev-server.js
+server/package.json
+server/package-lock.json
+```
 
-1. 登录后刷新当前标签页，确认仍登录；
-2. 关闭该标签页；
-3. 重新从地址栏打开 StarHub；
-4. 确认需要重新登录。
+## 9. 合并后人工验收
 
-### 手动退出
+### 本地 OAuth
 
-1. 登录后点击退出；
-2. 确认 token、用户资料和旧键全部删除；
-3. 确认返回登录页。
+1. 创建单独的本地 GitHub OAuth App；
+2. 配置 `.dev.vars` 与 `.env.local`；
+3. 启动 8788 Functions 和 5173 Vite；
+4. 确认 `/api/health` 返回 `configured: true`；
+5. 完成 GitHub 授权；
+6. 确认 Network 中是 `POST /api/oauth/token`；
+7. 确认授权后可以读取用户资料和 Stars；
+8. 确认 URL 中 `code`、`state` 被清理。
 
-### 跨标签页退出
+### 拒绝路径
 
-1. 从已登录标签页再打开一个 StarHub 标签页；
-2. 在其中一个标签页退出；
-3. 确认另一个标签页自动返回登录页；
-4. 确认显示跨标签页退出提示。
+1. 将 Origin 改为未授权地址，确认接口拒绝；
+2. 提交错误 redirect URI，确认接口拒绝；
+3. 重复使用同一个 GitHub code，确认失败且不泄露敏感信息；
+4. 缺少 PKCE verifier，确认返回通用错误。
 
-### 过期与 401
+### 生产回归
 
-1. 开发环境缩短 `maxAgeMs` 或写入过期会话；
-2. 确认一分钟内或窗口重新聚焦时返回登录页；
-3. 模拟 GitHub 401；
-4. 确认显示重新授权提示；
-5. 确认没有重复跳转循环。
+1. 打开 GitHub Pages；
+2. 完成生产 OAuth 登录；
+3. 同步 Stars；
+4. 刷新当前标签页；
+5. 退出并确认会话清理；
+6. 检查 Cloudflare 日志中没有 code、token 或 Secret。
 
-### OAuth 回归
+## 10. 已知风险与后续
 
-1. 测试弹窗登录；
-2. 测试浏览器阻止弹窗后的错误提示；
-3. 测试同页 OAuth callback；
-4. 确认 callback 不会被会话守护器提前重定向；
-5. 确认登录成功后能够读取用户和 Stars。
+- VitePress `2.0.0-alpha.17` 是预发布版本；
+- 真实 OAuth、弹窗和 Cloudflare 变量仍需人工验收；
+- 前端 token 仍存在同源 XSS 风险；
+- ESLint 有历史 warning；
+- 前端主 chunk 仍偏大。
 
-## 11. 安全边界
+后续优先级：
 
-本批解决的是“长期持久化”风险，不是彻底消除浏览器 token 风险。
+1. 完成 PR #11 合并与人工验收；
+2. 清理 ESLint warning；
+3. 增加 Playwright OAuth callback、IndexedDB 和跨标签页 E2E；
+4. 评估同站自定义域名与 HttpOnly Cookie/BFF；
+5. 拆分大体积 chunk。
 
-`sessionStorage` 仍可被成功执行的同源恶意脚本读取。因此：
-
-- 不应把 sessionStorage 描述为 HttpOnly；
-- 不应声称能够抵御 XSS；
-- 浏览器端加密 token 没有可信密钥边界，不采用伪加密；
-- 更高等级方案需要同站后端会话或 GitHub API BFF。
-
-## 12. 后续优先级
-
-1. PR #9 squash 合并并发布；
-2. 完成第 10 节生产验收；
-3. 审查前端 CSP、第三方依赖和 HTML 注入面；
-4. 审查 33 个 npm audit 漏洞；
-5. 清理 ESLint 警告和大体积 chunk；
-6. 评估自定义同站域名、HttpOnly Cookie 与 Cloudflare 会话存储。
-
-自动检查通过不能替代真实浏览器存储、跨标签页和 OAuth 回归验收。
+自动检查通过不能替代真实浏览器、GitHub OAuth 与 Cloudflare 生产行为验收。
