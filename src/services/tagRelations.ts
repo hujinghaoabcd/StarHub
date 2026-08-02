@@ -1,5 +1,9 @@
 import type { RepoTag, StoredTag, Tag } from '@/types'
 
+export interface LegacyTagWithRelations extends StoredTag {
+  repos?: number[]
+}
+
 function uniqueFiniteRepositoryIds(repositoryIds: readonly number[]): number[] {
   return Array.from(
     new Set(repositoryIds.filter(repositoryId => Number.isFinite(repositoryId)))
@@ -34,6 +38,21 @@ export function deduplicateRepoTags(
   }
 
   return Array.from(uniqueRelations.values())
+}
+
+export function migrateLegacyTagRelations(
+  legacyTags: readonly LegacyTagWithRelations[],
+  existingRelations: readonly RepoTag[]
+): RepoTag[] {
+  return deduplicateRepoTags([
+    ...existingRelations,
+    ...legacyTags.flatMap(tag =>
+      uniqueFiniteRepositoryIds(tag.repos || []).map(repositoryId => ({
+        repoId: repositoryId,
+        tagId: tag.id
+      }))
+    )
+  ])
 }
 
 export function buildRepoTagsFromTags(tags: readonly Tag[]): RepoTag[] {
