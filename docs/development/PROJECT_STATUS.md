@@ -91,3 +91,26 @@ VitePress asset               /StarHub/docs/assets/style.9lQW86My.css
 ## 更新规则
 
 每一批必须记录：已完成、未完成、修改文件、验证结果、已知风险和下一步。
+
+
+## OAuth 后端批次（代码准备完成，等待平台配置）
+
+### 已完成
+
+- [x] OAuth 回调改为应用根路径，不再使用 URL fragment
+- [x] 增加随机 state 校验
+- [x] 增加 PKCE S256
+- [x] token 交换改为 JSON POST
+- [x] Cloudflare Function 使用 POST 请求体调用 GitHub
+- [x] 增加严格 CORS、Origin 白名单和 redirect URI 校验
+- [x] 增加 `/api/health`
+- [x] 增加独立 Cloudflare 构建与类型检查
+- [x] 移除随机 appToken，登录状态以 GitHub token 为准
+
+### 等待用户完成
+
+- [ ] 在 Cloudflare Pages 连接 StarHub 仓库
+- [ ] 添加 CLIENT_SECRET 等 Production Variables and Secrets
+- [ ] 将 GitHub OAuth App 回调改为 `https://hujinghaoabcd.github.io/StarHub/`
+- [ ] 将 Cloudflare API 地址写入 GitHub Actions 变量 `VITE_API_BASE_URL`
+- [ ] 重新部署并完成真实 GitHub 登录验证

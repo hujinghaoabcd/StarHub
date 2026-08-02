@@ -21,11 +21,6 @@ function baseAwareVueRuntimeLinks(base: string): Plugin {
         `$1${base}docs/$1`
       )
 
-      transformed = transformed.replace(
-        /location\.origin \+ ["']#\/login["']/g,
-        `location.origin + '${base}#/login'`
-      )
-
       return transformed === code
         ? null
         : {

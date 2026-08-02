@@ -1,8 +1,9 @@
-import axios, { AxiosInstance } from 'axios'
 
-// 用于调用后端 API 的 axios 实例
+import axios, { AxiosInstance } from 'axios'
+import { GITHUB_OAUTH_CONFIG } from '@/config/oauth'
+
 const backendHttp: AxiosInstance = axios.create({
-  baseURL: '/api', // 通过 Vite proxy 转发到 localhost:7001
+  baseURL: GITHUB_OAUTH_CONFIG.API_BASE_URL || '/api',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json'
@@ -10,4 +11,3 @@ const backendHttp: AxiosInstance = axios.create({
 })
 
 export default backendHttp
-

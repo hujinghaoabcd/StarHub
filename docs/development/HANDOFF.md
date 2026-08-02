@@ -145,3 +145,12 @@ npm run pages:build
 ```
 
 后续每批必须更新已完成、未完成、验证、风险和交接文档，不得把构建成功误报为线上成功。
+
+
+## 10. OAuth 后端部署交接
+
+OAuth 安全代码与 Cloudflare Pages Functions 路由已准备完成，但平台项目和 Secret 尚未由用户创建。部署时严格按照 `docs/deploy/cloudflare.md` 操作。
+
+部署完成前，GitHub Pages 登录按钮会在缺少 `VITE_API_BASE_URL` 时直接提示后端未配置，不再把用户送入必然失败的授权流程。
+
+待获得 `*.pages.dev` 地址后，需要设置 GitHub Actions 变量并重新运行 Pages 部署；只有 `/api/health` 显示 `configured: true` 且真实 OAuth 登录成功后，才能将本批标记为生产完成。

@@ -193,7 +193,7 @@ server {
 |------|----------|----------|
 | Application name | StarHub Dev | StarHub |
 | Homepage URL | http://localhost:5173 | https://yourdomain.com |
-| Authorization callback URL | http://localhost:5173/#/login | https://yourdomain.com/#/login |
+| Authorization callback URL | http://localhost:5173/ | https://yourdomain.com/ |
 
 ### 获取凭证
 

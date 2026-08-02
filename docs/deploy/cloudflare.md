@@ -1,157 +1,138 @@
-# Cloudflare Pages 部署
 
-Cloudflare Pages 是推荐的部署方式，提供免费托管和全球 CDN 加速。
+# Cloudflare Pages Functions OAuth 后端
 
-## 优势
+StarHub 正式前端继续部署在 GitHub Pages：
 
-- ✅ **免费托管**：无需付费
-- ✅ **全球 CDN**：加速访问
-- ✅ **自动 HTTPS**：安全连接
-- ✅ **Workers 支持**：处理 OAuth
+- 应用：`https://hujinghaoabcd.github.io/StarHub/`
+- 文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
 
-## 部署步骤
+Cloudflare Pages 项目只承载 OAuth API，不重复承担正式前端托管。
 
-### 步骤 1：构建项目
+## 1. 创建 Cloudflare Pages 项目
 
-```bash
-npm install
-npm run build
+进入 Cloudflare Dashboard：
+
+`Workers & Pages → Create → Pages → Connect to Git`
+
+连接 GitHub 并选择 `hujinghaoabcd/StarHub`，使用以下构建设置：
+
+| 设置 | 值 |
+|---|---|
+| Production branch | `main` |
+| Build command | `npm run cloudflare:build` |
+| Build output directory | `cloudflare-dist` |
+| Root directory | `/` |
+| Node.js | `22` |
+
+`/functions` 必须位于仓库根目录。Cloudflare 会根据文件路径生成 API 路由：
+
+- `functions/api/health.ts` → `/api/health`
+- `functions/api/oauth/token.ts` → `/api/oauth/token`
+
+## 2. 配置 Variables and Secrets
+
+进入：
+
+`Workers & Pages → StarHub OAuth 项目 → Settings → Variables and Secrets`
+
+在 Production 环境添加：
+
+| 名称 | 值 | 类型 |
+|---|---|---|
+| `CLIENT_ID` | `Ov23liIm4iNdpnHwGLfp` | Text |
+| `CLIENT_SECRET` | GitHub OAuth App Client Secret | **Encrypt** |
+| `ALLOWED_ORIGINS` | `https://hujinghaoabcd.github.io` | Text |
+| `GITHUB_REDIRECT_URI` | `https://hujinghaoabcd.github.io/StarHub/` | Text |
+
+Secret 不得提交到仓库或粘贴到 issue、日志和聊天记录。
+
+保存变量后重新部署 Production。
+
+## 3. 配置 GitHub OAuth App
+
+GitHub 中进入：
+
+`Settings → Developer settings → OAuth Apps → StarHub`
+
+设置：
+
+```text
+Homepage URL:
+https://hujinghaoabcd.github.io/StarHub/
+
+Authorization callback URL:
+https://hujinghaoabcd.github.io/StarHub/
 ```
 
-构建完成后，`dist` 目录包含所有静态文件。
+回调地址不再使用 `#/login`。授权 code 和 state 会作为查询参数返回到应用根路径。
 
-### 步骤 2：创建 Cloudflare 账户
+## 4. 将 Cloudflare API 地址提供给 GitHub Pages
 
-1. 访问 [Cloudflare](https://dash.cloudflare.com/)
-2. 注册或登录账户
+Cloudflare 首次部署完成后会生成类似地址：
 
-### 步骤 3：创建 Pages 项目
+```text
+https://starhub-oauth.pages.dev
+```
 
-1. 进入 **Pages** 页面
-2. 点击 **Create a project**
-3. 选择 **Connect to Git**
-4. 连接你的 GitHub 账户
-5. 选择 starhub 仓库
+在 GitHub 仓库进入：
 
-### 步骤 4：配置构建设置
+`Settings → Secrets and variables → Actions → Variables`
 
-| 设置项 | 值 |
-|--------|-----|
-| Framework preset | Vue |
-| Build command | `npm run build` |
-| Build output directory | `dist` |
-| Root directory | `/` |
-| Node.js version | 18 |
+添加：
 
-点击 **Save and Deploy**。
+```text
+VITE_API_BASE_URL=https://你的项目.pages.dev/api
+VITE_GITHUB_CLIENT_ID=Ov23liIm4iNdpnHwGLfp
+```
 
-### 步骤 5：配置环境变量
+然后重新运行 `Deploy GitHub Pages`，或者向 `main` 推送新提交。
 
-部署完成后：
+## 5. 验证
 
-1. 进入项目 **Settings**
-2. 点击 **Environment variables**
-3. 添加以下变量：
+先访问：
 
-| 变量名 | 值 |
-|--------|-----|
-| `CLIENT_ID` | 你的 GitHub OAuth Client ID |
-| `CLIENT_SECRET` | 你的 GitHub OAuth Client Secret |
+```text
+https://你的项目.pages.dev/api/health
+```
 
-### 步骤 6：配置 Workers
+正确配置后应返回：
 
-项目中的 `functions/api/getToken.ts` 会自动被识别为 Cloudflare Workers 函数。
-
-确保文件内容正确：
-
-```typescript
-// functions/api/getToken.ts
-export async function onRequest(context) {
-  const { searchParams } = new URL(context.request.url)
-  const code = searchParams.get('code')
-  
-  if (!code) {
-    return new Response(JSON.stringify({ error: 'Missing code' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
-  
-  const response = await fetch(
-    `https://github.com/login/oauth/access_token?code=${code}&client_id=${context.env.CLIENT_ID}&client_secret=${context.env.CLIENT_SECRET}`,
-    {
-      method: 'POST',
-      headers: { Accept: 'application/json' }
-    }
-  )
-  
-  const data = await response.json()
-  
-  return new Response(JSON.stringify(data), {
-    headers: { 'Content-Type': 'application/json' }
-  })
+```json
+{
+  "status": "ok",
+  "service": "starhub-oauth",
+  "configured": true
 }
 ```
 
-### 步骤 7：更新 GitHub OAuth
+再打开 StarHub，点击“使用 GitHub 登录”，完成授权和仓库同步。
 
-在 GitHub OAuth App 设置中更新回调地址：
+## 6. 本地开发
 
+复制示例变量：
+
+```bash
+cp .dev.vars.example .dev.vars
 ```
-https://your-project.pages.dev/#/login
+
+将 `.dev.vars` 中的 `CLIENT_SECRET` 改为本地开发 OAuth App 的密钥，然后运行：
+
+```bash
+npm run cloudflare:dev
 ```
 
----
+Cloudflare Pages Functions 默认在 `http://localhost:8788` 启动。前端仍可通过现有本地代理或设置 `VITE_API_BASE_URL` 指向该地址进行联调。
 
-## 自定义域名
+## 安全措施
 
-### 添加域名
+当前实现包括：
 
-1. 进入项目 **Custom domains**
-2. 点击 **Set up a custom domain**
-3. 输入你的域名
-4. 按提示配置 DNS
-
-### DNS 配置
-
-如果域名托管在 Cloudflare：
-- 自动配置，无需手动操作
-
-如果域名在其他服务商：
-- 添加 CNAME 记录指向 `your-project.pages.dev`
-
-### 更新 OAuth 回调
-
-别忘了更新 GitHub OAuth 回调地址为新域名。
-
----
-
-## 自动部署
-
-连接 GitHub 后，每次推送代码会自动触发部署：
-
-- `main` 分支 → 生产环境
-- 其他分支 → 预览环境
-
----
-
-## 故障排除
-
-### 构建失败？
-
-1. 检查 Node.js 版本（需要 18+）
-2. 查看构建日志中的错误
-3. 本地运行 `npm run build` 确认无误
-
-### Workers 不工作？
-
-1. 确认 `functions/api/getToken.ts` 存在
-2. 检查环境变量是否配置
-3. 查看 Workers 日志
-
-### OAuth 失败？
-
-1. 确认回调地址完全匹配
-2. 检查 CLIENT_ID 和 CLIENT_SECRET
-3. 查看浏览器控制台错误
-
+- OAuth `state` 校验；
+- PKCE S256；
+- code 通过 JSON POST 发送；
+- GitHub token 交换使用 POST 请求体；
+- 严格 Origin 白名单和 CORS 预检；
+- redirect URI 精确校验；
+- 响应禁止缓存；
+- Client Secret 仅存在于 Cloudflare 加密 Secret；
+- 不生成伪造的随机应用 token。

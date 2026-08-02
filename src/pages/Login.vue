@@ -362,6 +362,12 @@ import { Link, Collection, Search, MagicStick, Reading } from '@element-plus/ico
 import { authApi } from '@/api/auth'
 import qs from 'query-string'
 import { GITHUB_OAUTH_CONFIG } from '@/config/oauth'
+import {
+  clearOAuthRequest,
+  consumeOAuthRequest,
+  createOAuthRequest,
+  getOAuthRedirectUri
+} from '@/utils/oauth'
 
 const { t, locale } = useI18n()
 const themeStore = useThemeStore()
@@ -382,28 +388,57 @@ const docsUrl = computed(() => {
   return '/docs/'
 })
 
-// 处理 OAuth 回调（当从 GitHub 重定向回来时）
-onMounted(() => {
+// 处理 OAuth 回调（GitHub 回到应用根路径并附带 code/state）
+onMounted(async () => {
   const query = qs.parse(location.search)
-  if (query.code && window.opener) {
-    // 如果是从 OAuth 窗口回调，调用父窗口的回调函数
-    const code = query.code as string
-    if ((window.opener as any).oauthGetCodeCb) {
-      ;(window.opener as any).oauthGetCodeCb(code)
-      window.close()
-    }
+  const code = typeof query.code === 'string' ? query.code : ''
+  const returnedState = typeof query.state === 'string' ? query.state : ''
+
+  if (!code) {
+    return
+  }
+
+  if (
+    window.opener &&
+    typeof (window.opener as Window & {
+      oauthGetCodeCb?: (oauthCode: string, state: string) => void
+    }).oauthGetCodeCb === 'function'
+  ) {
+    ;(window.opener as Window & {
+      oauthGetCodeCb: (oauthCode: string, state: string) => void
+    }).oauthGetCodeCb(code, returnedState)
+    window.close()
+    return
+  }
+
+  try {
+    const codeVerifier = consumeOAuthRequest(returnedState)
+    window.history.replaceState(
+      {},
+      document.title,
+      `${location.pathname}#/login`
+    )
+    await login(code, codeVerifier)
+  } catch {
+    clearOAuthRequest()
+    error.value = 'OAuth 状态校验失败，请重新发起登录。'
+    loading.value = false
   }
 })
 
 // 登录处理函数
-const login = async (code: string) => {
+const login = async (code: string, codeVerifier: string) => {
   try {
     loading.value = true
-    const res = await authApi.getToken(code)
-    const { token, token_type, access_token } = res.data
+    const res = await authApi.getToken({
+      code,
+      codeVerifier,
+      redirectUri: getOAuthRedirectUri()
+    })
+    const { token_type, access_token } = res.data
     const ghToken = `${token_type} ${access_token}`
     
-    AuthToken.setToken(token, ghToken)
+    AuthToken.setGithubToken(ghToken)
     
     const user = await githubApi.getLoginUser()
     userStore.setUser(user.data)
@@ -420,7 +455,7 @@ const login = async (code: string) => {
       const data = e.response.data
       
       if (status === 404) {
-        error.value = 'API 端点未找到。请确保 Cloudflare Workers 已部署，或使用本地开发服务器。\n\n错误详情：' + (data?.error || e.message)
+        error.value = 'API 端点未找到。请确保 Cloudflare Pages Functions 已部署，或使用本地开发服务器。\n\n错误详情：' + (data?.error || e.message)
       } else if (status === 500) {
         error.value = '服务器错误：' + (data?.error || 'OAuth token 交换失败')
       } else {
@@ -428,7 +463,7 @@ const login = async (code: string) => {
       }
     } else if (e.request) {
       // 网络错误
-      error.value = '无法连接到服务器。请检查：\n1. Cloudflare Workers 是否已部署\n2. 网络连接是否正常\n3. 是否使用了本地开发服务器'
+      error.value = '无法连接到服务器。请检查：\n1. Cloudflare Pages Functions 是否已部署\n2. 网络连接是否正常\n3. 是否使用了本地开发服务器'
     } else {
       // 其他错误
       error.value = t('login.error')
@@ -440,45 +475,63 @@ const login = async (code: string) => {
   }
 }
 
-const handleLogin = () => {
+const handleLogin = async () => {
   loading.value = true
   error.value = ''
 
-  // GitHub OAuth parameters（完全按照原项目的方式）
-  // 注意：GitHub OAuth 必须要有 Client ID，这是 GitHub 的安全要求
   const clientId = GITHUB_OAUTH_CONFIG.CLIENT_ID
-  
-  // 检查是否配置了 Client ID
-  if (!clientId || !clientId.trim()) {
+  if (!clientId) {
     error.value = t('login.configError')
     loading.value = false
     return
   }
 
-  // 使用 hash 路由作为回调地址（像原项目一样）
-  const params = {
-    client_id: clientId,
-    redirect_uri: location.origin + '#/login'
+  if (import.meta.env.PROD && !GITHUB_OAUTH_CONFIG.API_BASE_URL) {
+    error.value = 'OAuth 后端尚未配置。请先设置 GitHub Actions 变量 VITE_API_BASE_URL。'
+    loading.value = false
+    return
   }
-  const base = 'https://github.com/login/oauth/authorize?'
-  const url = base + qs.stringify(params)
-  
-  // Open OAuth window
-  const authWindow = openWindowCenter(url, 'authWindow', 600, 600)
 
-  // 设置回调处理函数（会被回调页面调用）
-  ;(window as any).oauthGetCodeCb = (code: string) => {
-    if (authWindow) authWindow.close()
-    delete (window as any).oauthGetCodeCb
-    
-    if (!code) {
-      console.error('github auth error')
-      error.value = t('login.error')
+  try {
+    const { state, codeChallenge } = await createOAuthRequest()
+    const params = {
+      client_id: clientId,
+      redirect_uri: getOAuthRedirectUri(),
+      state,
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+      scope: 'read:user'
+    }
+    const url =
+      'https://github.com/login/oauth/authorize?' + qs.stringify(params)
+    const authWindow = openWindowCenter(url, 'authWindow', 600, 700)
+
+    if (!authWindow) {
+      clearOAuthRequest()
+      error.value = '浏览器阻止了登录窗口，请允许弹出窗口后重试。'
       loading.value = false
       return
     }
-    
-    login(code)
+
+    ;(window as Window & {
+      oauthGetCodeCb?: (oauthCode: string, returnedState: string) => void
+    }).oauthGetCodeCb = async (oauthCode, returnedState) => {
+      authWindow.close()
+      delete (window as Window & { oauthGetCodeCb?: unknown }).oauthGetCodeCb
+
+      try {
+        const codeVerifier = consumeOAuthRequest(returnedState)
+        await login(oauthCode, codeVerifier)
+      } catch {
+        clearOAuthRequest()
+        error.value = 'OAuth 状态校验失败，请重新发起登录。'
+        loading.value = false
+      }
+    }
+  } catch {
+    clearOAuthRequest()
+    error.value = '无法初始化安全登录，请刷新页面后重试。'
+    loading.value = false
   }
 }
 
