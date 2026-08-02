@@ -43,7 +43,7 @@ jobs:
           vite@latest
           @vitejs/plugin-vue@latest
           vue-tsc@latest
-          typescript@latest
+          typescript@^5.9.0
           sass@latest
 
       - name: Run complete project checks
