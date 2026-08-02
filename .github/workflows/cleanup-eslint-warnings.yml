@@ -1,0 +1,107 @@
+name: Clean up ESLint warnings
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cleanup-eslint-warnings
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out cleanup branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/cleanup-eslint-warnings
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Apply exact warning fixes
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+
+          function replaceRequired(path, before, after) {
+            const source = fs.readFileSync(path, 'utf8')
+            if (!source.includes(before)) {
+              throw new Error(`Expected source not found in ${path}: ${before}`)
+            }
+            fs.writeFileSync(path, source.replace(before, after))
+          }
+
+          replaceRequired(
+            'src/layouts/HomeLayout.vue',
+            'let loading = ElMessage({',
+            'const loading = ElMessage({'
+          )
+
+          replaceRequired(
+            'src/pages/Home/components/RepoCard.vue',
+            `const emit = defineEmits<{\n  click: []\n  select: [selected: boolean]\n}>()`,
+            `defineEmits<{\n  click: []\n  select: [selected: boolean]\n}>()`
+          )
+
+          replaceRequired(
+            'src/pages/Home/components/SideMenu.vue',
+            'let allCategoryMap = new Map<string, number[]>()',
+            'const allCategoryMap = new Map<string, number[]>()'
+          )
+          replaceRequired(
+            'src/pages/Home/components/SideMenu.vue',
+            'const batchCategoryMap = await classifyRepositories(',
+            'await classifyRepositories('
+          )
+          replaceRequired(
+            'src/pages/Home/components/SideMenu.vue',
+            'let existingTag = tagStore.tags.find((t: any) =>',
+            'const existingTag = tagStore.tags.find((t: any) =>'
+          )
+
+          replaceRequired(
+            'src/pages/Settings/index.vue',
+            'let presets = categoryPresets.value',
+            'const presets = categoryPresets.value'
+          )
+
+          replaceRequired(
+            'src/types/element-plus.d.ts',
+            'parse: (linkHeader: string) => ParsedLink',
+            'parse: (_linkHeader: string) => ParsedLink'
+          )
+          NODE
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Require zero lint warnings
+        run: npm run lint
+
+      - name: Run complete checks
+        run: npm run check
+
+      - name: Remove one-time workflow
+        run: rm -f .github/workflows/cleanup-eslint-warnings.yml
+
+      - name: Commit cleanup
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: eliminate ESLint warnings"
+          git push origin HEAD:agent/cleanup-eslint-warnings
