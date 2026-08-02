@@ -1,13 +1,10 @@
 import Dexie, { Table } from 'dexie'
 import type { RepoTag, Repository, StoredTag } from '@/types'
 import {
-  deduplicateRepoTags,
-  toStoredTag
+  migrateLegacyTagRelations,
+  toStoredTag,
+  type LegacyTagWithRelations
 } from '@/services/tagRelations'
-
-interface LegacyStoredTag extends StoredTag {
-  repos?: number[]
-}
 
 /**
  * Shared IndexedDB database.
@@ -43,18 +40,12 @@ class StarHubDatabase extends Dexie {
       .upgrade(async transaction => {
         const tagsTable = transaction.table('tags')
         const relationsTable = transaction.table('repoTags')
-        const legacyTags = (await tagsTable.toArray()) as LegacyStoredTag[]
+        const legacyTags = (await tagsTable.toArray()) as LegacyTagWithRelations[]
         const existingRelations = (await relationsTable.toArray()) as RepoTag[]
-
-        const migratedRelations = deduplicateRepoTags([
-          ...existingRelations,
-          ...legacyTags.flatMap(tag =>
-            (tag.repos || []).map(repositoryId => ({
-              repoId: repositoryId,
-              tagId: tag.id
-            }))
-          )
-        ])
+        const migratedRelations = migrateLegacyTagRelations(
+          legacyTags,
+          existingRelations
+        )
         const storedTags = legacyTags.map(tag => toStoredTag(tag))
 
         await tagsTable.clear()
