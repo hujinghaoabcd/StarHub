@@ -1,0 +1,28 @@
+name: Diagnose OAuth Callback Refinement
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect callback workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${HEAD_SHA}&per_page=50")"
+          echo "${runs}" | jq -r '.workflow_runs[] | [.id, .name, .event, .status, (.conclusion // "pending")] | @tsv'
+          run_id="$(echo "${runs}" | jq -r '.workflow_runs[] | select(.name == "Refine OAuth Callback") | .id' | head -n 1)"
+          test -n "${run_id}"
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}/jobs" \
+            --jq '.jobs[] | {id, name, status, conclusion, steps: [.steps[] | {name, status, conclusion}]}'
