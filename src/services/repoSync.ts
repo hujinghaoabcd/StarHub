@@ -56,6 +56,11 @@ export function sanitizeRepository(value: unknown): Repository {
         ? undefined
         : String(repo.description),
     html_url: String(repo.html_url),
+    homepage:
+      repo.homepage === null || repo.homepage === undefined || repo.homepage === ''
+        ? undefined
+        : String(repo.homepage),
+    has_pages: Boolean(repo.has_pages),
     language:
       repo.language === null || repo.language === undefined
         ? undefined
