@@ -8,7 +8,7 @@
 
 | 依赖 | 最低版本 | 推荐版本 |
 |------|----------|----------|
-| Node.js | 18.0.0 | 20.x LTS |
+| Node.js | 22.12.0 | 22.x LTS |
 | npm | 8.0.0 | 10.x |
 | 现代浏览器 | Chrome 90+ / Firefox 88+ / Edge 90+ | 最新版本 |
 
@@ -44,7 +44,7 @@ npm install --registry=https://registry.npmmirror.com
 
 **终端 1 - OAuth 代理服务器：**
 ```bash
-node server/dev-server.js
+npm run cloudflare:dev
 ```
 
 **终端 2 - 前端开发服务器：**
@@ -60,7 +60,8 @@ npm run dev
 
 | 命令 | 说明 |
 |------|------|
-| `npm run dev` | 启动开发服务器 |
+| `npm run cloudflare:dev` | 启动本地 OAuth Functions（8788） |
+| `npm run dev` | 启动 Vite 前端（5173） |
 | `npm run build` | 构建生产版本 |
 | `npm run preview` | 预览生产构建 |
 | `npm run lint` | 运行代码检查 |
@@ -85,7 +86,6 @@ starhub/
 │   ├── styles/      # 全局样式
 │   ├── types/       # 类型定义
 │   └── utils/       # 工具函数
-├── server/          # 开发服务器
 ├── functions/       # Cloudflare Workers
 └── docs/            # 文档
 ```
@@ -107,7 +107,7 @@ Make sure your system meets these prerequisites:
 
 | Dependency | Minimum | Recommended |
 |------------|---------|-------------|
-| Node.js | 18.0.0 | 20.x LTS |
+| Node.js | 22.12.0 | 22.x LTS |
 | npm | 8.0.0 | 10.x |
 | Modern Browser | Chrome 90+ / Firefox 88+ / Edge 90+ | Latest |
 
@@ -143,7 +143,7 @@ Run two terminals:
 
 **Terminal 1 - OAuth proxy server:**
 ```bash
-node server/dev-server.js
+npm run cloudflare:dev
 ```
 
 **Terminal 2 - Frontend dev server:**
@@ -159,7 +159,8 @@ Visit: http://localhost:5173
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start dev server |
+| `npm run cloudflare:dev` | Start local OAuth Functions (8788) |
+| `npm run dev` | Start the Vite frontend (5173) |
 | `npm run build` | Build for production |
 | `npm run preview` | Preview production build |
 | `npm run lint` | Run lint |
@@ -184,7 +185,6 @@ starhub/
 │   ├── styles/      # Global styles
 │   ├── types/       # Type definitions
 │   └── utils/       # Utilities
-├── server/          # Dev server
 ├── functions/       # Cloudflare Workers
 └── docs/            # Documentation
 ```

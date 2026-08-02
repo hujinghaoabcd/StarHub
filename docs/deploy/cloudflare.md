@@ -121,7 +121,7 @@ cp .dev.vars.example .dev.vars
 npm run cloudflare:dev
 ```
 
-Cloudflare Pages Functions 默认在 `http://localhost:8788` 启动。前端仍可通过现有本地代理或设置 `VITE_API_BASE_URL` 指向该地址进行联调。
+Cloudflare Pages Functions 默认在 `http://localhost:8788` 启动。另一个终端运行 `npm run dev` 后，Vite 会将 `/api` 请求代理到该地址。
 
 ## 安全措施
 

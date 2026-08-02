@@ -36,6 +36,16 @@ Authorization callback URL: http://localhost:5173/
 
 本地 Function 变量放在未提交的 `.dev.vars` 中，可从 `.dev.vars.example` 复制。
 
+```bash
+# 终端 1：OAuth Functions，端口 8788
+npm run cloudflare:dev
+
+# 终端 2：Vite 前端，端口 5173
+npm run dev
+```
+
+Vite 会把 `/api` 请求代理到 `http://localhost:8788`。
+
 ## 必需配置
 
 Cloudflare Production Variables and Secrets：

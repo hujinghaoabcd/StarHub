@@ -9,7 +9,7 @@
 **A:** 检查以下几点：
 
 1. **回调地址匹配**：确保 GitHub OAuth App 的回调地址与当前 URL 完全一致
-2. **后端服务运行**：本地开发需确保 `node server/dev-server.js` 正在运行
+2. **后端服务运行**：本地开发需确保 `npm run cloudflare:dev` 正在运行
 3. **Client ID 正确**：检查 `src/config/oauth.ts` 中的配置
 
 ### Q: 登录成功但看不到仓库？

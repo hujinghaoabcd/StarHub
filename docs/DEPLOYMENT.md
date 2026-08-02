@@ -1,244 +1,92 @@
 # 部署指南
 
-本文档详细说明 StarHub 的各种部署方式。
-
-## 目录
-
-- [环境要求](#环境要求)
-- [Cloudflare Pages 部署（推荐）](#cloudflare-pages-部署推荐)
-- [自托管部署](#自托管部署)
-- [GitHub OAuth 配置](#github-oauth-配置)
-
----
+StarHub 的推荐生产架构是：**GitHub Pages 承载前端，Cloudflare Pages Functions 承载 OAuth API**。两者职责分离，避免在浏览器或静态托管平台暴露 GitHub Client Secret。
 
 ## 环境要求
 
-- Node.js >= 18.0.0
-- npm >= 8.0.0
+- Node.js >= 22.12.0
+- npm >= 10
 
----
+## 1. 部署 OAuth API 到 Cloudflare Pages
 
-## Cloudflare Pages 部署（推荐）
+连接本仓库并使用以下设置：
 
-Cloudflare Pages 提供免费托管，并且可以使用 Cloudflare Workers 处理 OAuth token 交换，是最推荐的部署方式。
-
-### 步骤 1：构建项目
-
-```bash
-npm install
-npm run build
-```
-
-### 步骤 2：创建 Cloudflare Pages 项目
-
-1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. 进入 **Pages** > **Create a project**
-3. 选择 **Connect to Git** 连接 GitHub 仓库
-
-### 步骤 3：配置构建设置
-
-| 设置项 | 值 |
-|--------|-----|
-| Framework preset | Vue |
-| Build command | `npm run build` |
-| Build output directory | `dist` |
+| 设置 | 值 |
+|---|---|
+| Production branch | `main` |
+| Build command | `npm run cloudflare:build` |
+| Build output directory | `cloudflare-dist` |
 | Root directory | `/` |
-| Node.js version | 18 |
+| Node.js | `22` |
 
-### 步骤 4：配置环境变量
+Cloudflare 会从仓库根目录的 `functions/` 自动生成：
 
-在 **Settings** > **Environment variables** 中添加：
+- `GET /api/health`
+- `POST /api/oauth/token`
 
-| 变量名 | 说明 |
-|--------|------|
-| `CLIENT_ID` | GitHub OAuth App 的 Client ID |
-| `CLIENT_SECRET` | GitHub OAuth App 的 Client Secret |
+### Production Variables and Secrets
 
-### 步骤 5：配置 Functions
+| 名称 | 类型 | 示例或说明 |
+|---|---|---|
+| `CLIENT_ID` | Text | GitHub OAuth Client ID |
+| `CLIENT_SECRET` | Encrypt | GitHub OAuth Client Secret |
+| `ALLOWED_ORIGINS` | Text | `https://hujinghaoabcd.github.io` |
+| `GITHUB_REDIRECT_URI` | Text | `https://hujinghaoabcd.github.io/StarHub/` |
 
-项目中的 `functions/api/getToken.ts` 会自动被识别为 Cloudflare Workers 函数，处理 OAuth token 交换。
+保存后重新部署，并先访问 `https://你的项目.pages.dev/api/health` 验证配置。
 
-### 步骤 6：更新 GitHub OAuth 回调地址
+## 2. 配置 GitHub OAuth App
 
-在 GitHub OAuth App 设置中更新回调地址：
+生产 OAuth App：
 
+```text
+Homepage URL: https://hujinghaoabcd.github.io/StarHub/
+Authorization callback URL: https://hujinghaoabcd.github.io/StarHub/
 ```
-https://your-project.pages.dev/#/login
+
+回调地址必须包含 `/StarHub/`，不要使用 `#/login`。
+
+## 3. 将 API 地址注入 GitHub Pages 构建
+
+在仓库的 Actions Variables 中添加：
+
+```text
+VITE_API_BASE_URL=https://你的项目.pages.dev/api
+VITE_GITHUB_CLIENT_ID=你的 GitHub OAuth Client ID
 ```
 
-### 自定义域名
+重新运行 `Deploy GitHub Pages`。正式前端仍位于：
 
-1. 在 **Custom domains** 中添加你的域名
-2. 配置 DNS 记录（Cloudflare 会提供说明）
-3. 更新 GitHub OAuth 回调地址
+- 应用：`https://hujinghaoabcd.github.io/StarHub/`
+- 文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
 
+## 4. 本地开发
 
-
----
-
-## 自托管部署
-
-### 使用 Node.js 静态服务器
+详见 [本地 OAuth 开发](development/local-oauth.md)。核心命令为：
 
 ```bash
-# 安装 serve
-npm i -g serve
+# 终端 1
+npm run cloudflare:dev
 
-# 构建
-npm run build
-
-# 启动静态服务器
-serve -s dist -l 3000
+# 终端 2
+npm run dev
 ```
 
-### 使用 PM2
+## 5. 自托管前端
+
+StarHub 前端是静态应用，可构建后交给任意静态服务器：
 
 ```bash
-# 安装 PM2
-npm i -g pm2
-
-# 创建 ecosystem.config.js
+VITE_API_BASE_URL=https://你的项目.pages.dev/api npm run build
 ```
 
-```javascript
-// ecosystem.config.js
-module.exports = {
-  apps: [
-    {
-      name: 'starhub-frontend',
-      script: 'npx',
-      args: 'serve -s dist -l 3000',
-      cwd: '/path/to/starhub'
-    },
-    {
-      name: 'starhub-backend',
-      script: 'server/dev-server.js',
-      cwd: '/path/to/starhub',
-      env: {
-        CLIENT_ID: 'your_client_id',
-        CLIENT_SECRET: 'your_client_secret'
-      }
-    }
-  ]
-}
-```
+部署 `dist/` 即可。推荐继续复用 Cloudflare OAuth API，不要将 Client Secret 放入前端或 Nginx 静态配置。完整说明见 [自托管部署](deploy/self-host.md)。
 
-```bash
-# 启动
-pm2 start ecosystem.config.js
+## 6. 验证清单
 
-# 查看状态
-pm2 status
-
-# 设置开机自启
-pm2 startup
-pm2 save
-```
-
-### 使用 Nginx 反向代理
-
-```nginx
-server {
-    listen 80;
-    server_name starhub.yourdomain.com;
-
-    # 重定向到 HTTPS
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name starhub.yourdomain.com;
-
-    ssl_certificate /etc/letsencrypt/live/starhub.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/starhub.yourdomain.com/privkey.pem;
-
-    root /var/www/starhub/dist;
-    index index.html;
-
-    # SPA 路由
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    # API 代理
-    location /api/ {
-        proxy_pass http://127.0.0.1:7001/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # 静态资源缓存
-    location /assets/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-}
-```
-
----
-
-## GitHub OAuth 配置
-
-### 创建 OAuth App
-
-1. 访问 [GitHub Developer Settings](https://github.com/settings/developers)
-2. 点击 **New OAuth App**
-3. 填写信息：
-
-| 字段 | 本地开发 | 生产环境 |
-|------|----------|----------|
-| Application name | StarHub Dev | StarHub |
-| Homepage URL | http://localhost:5173 | https://yourdomain.com |
-| Authorization callback URL | http://localhost:5173/ | https://yourdomain.com/ |
-
-### 获取凭证
-
-1. 创建后记录 **Client ID**
-2. 点击 **Generate a new client secret**
-3. 记录 **Client Secret**（只显示一次）
-
-### 权限说明
-
-StarHub 仅需要以下权限：
-
-- `read:user` - 读取用户基本信息
-- `public_repo` - 访问公开仓库（获取 Star 列表）
-
-### 安全注意事项
-
-⚠️ **永远不要将 Client Secret 暴露在前端代码中！**
-
-- Client Secret 必须存储在后端环境变量中
-- 使用服务端函数（Cloudflare Workers）处理 token 交换
-- 定期轮换 Client Secret
-
----
-
-## 故障排除
-
-### OAuth 登录失败
-
-1. 检查回调地址是否完全匹配（包括协议、端口、路径）
-2. 确认 Client ID 和 Client Secret 正确
-3. 检查后端服务是否正常运行
-
-### 页面白屏
-
-1. 检查浏览器控制台错误
-2. 确认构建产物完整
-3. 检查 nginx/服务器配置
-
-### API 404
-
-1. 确认 API 代理配置正确
-2. 检查后端服务端口
-3. 查看后端日志
-
----
-
-如有问题，请提交 [GitHub Issue](https://github.com/hujinghaoabcd/StarHub/issues)。
-
+1. `/api/health` 返回 `configured: true`；
+2. GitHub OAuth 回调精确匹配前端根地址；
+3. 浏览器请求 `POST /api/oauth/token`，而不是旧的 GET 接口；
+4. 生产环境只允许配置的 Origin；
+5. 登录完成后 URL 中不残留 `code` 与 `state`；
+6. Client Secret 不出现在仓库、构建产物、浏览器存储或日志中。

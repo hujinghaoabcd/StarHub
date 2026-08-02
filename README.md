@@ -20,10 +20,10 @@
   <a href="https://github.com/hujinghaoabcd/StarHub/stargazers"><img src="https://img.shields.io/github/stars/hujinghaoabcd/StarHub?style=flat&logo=github" alt="GitHub Stars"></a>
   <a href="https://github.com/hujinghaoabcd/StarHub/blob/main/LICENSE"><img src="https://img.shields.io/github/license/hujinghaoabcd/StarHub?style=flat" alt="License"></a>
   <img src="https://img.shields.io/badge/version-1.0.0-blue?style=flat" alt="Version">
-  <img src="https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen?style=flat&logo=node.js" alt="Node.js">
+  <img src="https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen?style=flat&logo=node.js" alt="Node.js">
   <img src="https://img.shields.io/badge/vue-3.4-4FC08D?style=flat&logo=vue.js" alt="Vue.js">
-  <img src="https://img.shields.io/badge/typescript-5.4-3178C6?style=flat&logo=typescript" alt="TypeScript">
-  <img src="https://img.shields.io/badge/vite-5.1-646CFF?style=flat&logo=vite" alt="Vite">
+  <img src="https://img.shields.io/badge/typescript-5.9-3178C6?style=flat&logo=typescript" alt="TypeScript">
+  <img src="https://img.shields.io/badge/vite-8.2-646CFF?style=flat&logo=vite" alt="Vite">
 </p>
 
 <p align="center">
@@ -175,7 +175,7 @@ StarHub 内置 18 种专业分类，覆盖主流技术领域：
 
 ### 环境要求
 
-- **Node.js** >= 18.0.0
+- **Node.js** >= 22.12.0
 - **npm** >= 8.0.0 或 **yarn** >= 1.22.0
 
 ### 安装步骤
@@ -198,101 +198,94 @@ npm run dev
 
 ### GitHub OAuth 配置
 
-StarHub 需要通过 GitHub OAuth 获取你的 Star 数据。请按以下步骤配置：
+StarHub 使用 GitHub OAuth Web Flow。浏览器生成并校验 `state` 与 PKCE，Cloudflare Pages Function 在服务端使用 Client Secret 兑换访问令牌。
 
-#### 第一步：创建 GitHub OAuth App
+#### 第一步：创建本地 GitHub OAuth App
 
-1. 访问 [GitHub Developer Settings](https://github.com/settings/developers)
-2. 点击 **New OAuth App**
-3. 填写应用信息：
-   - **Application name**: `StarHub`（或任意名称）
-   - **Homepage URL**: `http://localhost:5173`
-   - **Authorization callback URL**: `http://localhost:5173/`
-4. 点击 **Register application**
-5. 记录 **Client ID**
-6. 点击 **Generate a new client secret**，记录 **Client Secret**
+在 GitHub Developer Settings 中创建一个仅用于本地开发的 OAuth App：
 
-#### 第二步：配置项目
-
-1. 复制 `src/config/oauth.ts` 中的模板，更新 `CLIENT_ID`：
-
-```typescript
-export const GITHUB_OAUTH_CONFIG = {
-  CLIENT_ID: 'your_client_id_here'
-}
+```text
+Homepage URL: http://localhost:5173/
+Authorization callback URL: http://localhost:5173/
 ```
 
-2. 创建 `.env` 文件（本地开发用）：
+#### 第二步：配置本地变量
 
-```env
-CLIENT_ID=your_client_id
-CLIENT_SECRET=your_client_secret
-```
-
-#### 第三步：启动本地开发服务器
+复制示例文件：
 
 ```bash
-# 启动 OAuth 代理服务器
-node server/dev-server.js
+cp .dev.vars.example .dev.vars
+```
 
-# 在另一个终端启动前端开发服务器
+确认 `.dev.vars` 至少包含：
+
+```env
+CLIENT_ID=your_local_client_id
+CLIENT_SECRET=your_local_client_secret
+ALLOWED_ORIGINS=http://localhost:5173
+GITHUB_REDIRECT_URI=http://localhost:5173/
+```
+
+Client Secret 只能放在未提交的 `.dev.vars` 或 Cloudflare 加密 Secret 中，不能写入 `VITE_*` 变量或前端代码。
+
+#### 第三步：启动本地联调
+
+```bash
+# 终端 1：Cloudflare Pages Functions，监听 8788
+npm run cloudflare:dev
+
+# 终端 2：Vite 前端，监听 5173，并将 /api 代理到 8788
 npm run dev
 ```
+
+详细说明见 [本地 OAuth 开发](docs/development/local-oauth.md) 和 [Cloudflare Pages Functions OAuth 后端](docs/deploy/cloudflare.md)。
 
 ---
 
 <a id="部署指南"></a>
 ## 📦 部署指南
 
-### 方式一：Cloudflare Pages（推荐）
+### 方式一：GitHub Pages + Cloudflare Pages Functions（推荐）
 
-Cloudflare Pages 提供免费托管，并支持 Cloudflare Workers 处理 OAuth。
+正式架构采用前后端分离：
 
-#### 1. 构建项目
+- GitHub Pages 托管 StarHub 前端与文档；
+- Cloudflare Pages 项目只承载 `/api/health` 与 `/api/oauth/token`；
+- Client Secret 只保存在 Cloudflare 加密 Secret 中。
+
+Cloudflare Pages 使用：
+
+| 设置 | 值 |
+|---|---|
+| Build command | `npm run cloudflare:build` |
+| Build output directory | `cloudflare-dist` |
+| Node.js | `22` |
+
+Production Variables and Secrets：
+
+```text
+CLIENT_ID
+CLIENT_SECRET
+ALLOWED_ORIGINS=https://hujinghaoabcd.github.io
+GITHUB_REDIRECT_URI=https://hujinghaoabcd.github.io/StarHub/
+```
+
+GitHub Actions Variables：
+
+```text
+VITE_API_BASE_URL=https://你的项目.pages.dev/api
+VITE_GITHUB_CLIENT_ID=你的 GitHub OAuth Client ID
+```
+
+完整步骤见 [部署指南](docs/DEPLOYMENT.md)。
+
+### 方式二：自托管前端
 
 ```bash
-npm run build
+VITE_API_BASE_URL=https://你的项目.pages.dev/api npm run build
 ```
 
-#### 2. 部署到 Cloudflare Pages
-
-1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com/)
-2. 进入 **Pages** > **Create a project**
-3. 连接 GitHub 仓库或直接上传 `dist` 目录
-4. 设置构建配置：
-   - **Build command**: `npm run build`
-   - **Build output directory**: `dist`
-
-#### 3. 配置 Cloudflare Workers
-
-在 `functions/api/getToken.ts` 中已提供 OAuth token 交换逻辑。需要在 Cloudflare Dashboard 中设置环境变量：
-
-- `CLIENT_ID`: GitHub OAuth Client ID
-- `CLIENT_SECRET`: GitHub OAuth Client Secret
-
-#### 4. 更新 OAuth 回调地址
-
-在 GitHub OAuth App 设置中，将回调地址更新为你的 Cloudflare Pages 域名：
-
-```
-https://your-project.pages.dev/#/login
-```
-
-
-### 方式二：自托管
-
-```bash
-# 构建
-npm run build
-
-# 使用任意静态服务器托管 dist 目录
-# 例如使用 nginx、Apache 或 Node.js 静态服务器
-
-# 预览生产构建
-npm run preview
-```
-
-> ⚠️ **注意**：自托管需要自行处理 OAuth token 交换的后端逻辑。可参考 `server/dev-server.js` 或 `functions/api/getToken.ts`。
+将 `dist/` 交给 Nginx、Apache 或其他静态服务器即可。推荐继续复用 Cloudflare OAuth API；若自行实现后端，必须保持 `POST /api/oauth/token`、PKCE、Origin 白名单、回调地址精确校验和服务端 Secret 存储等安全约束。详见 [自托管部署](docs/deploy/self-host.md)。
 
 ---
 
@@ -473,12 +466,10 @@ StarHub/
 │   ├── guide/               # 使用指南
 │   ├── reference/           # 参考文档
 │   └── troubleshooting/     # 故障排除
-├── server/                  # 本地开发服务器
-│   ├── dev-server.js        # OAuth 代理服务器
-│   └── package.json         # 服务器依赖
 ├── functions/               # Workers
 │   ├── api/
-│   │   └── getToken.ts      # OAuth Token 交换
+│   │   └── oauth/
+│   │       └── token.ts      # OAuth Token 交换
 │   └── tsconfig.json        # TypeScript 配置
 ├── backups/                 # 备份文件
 ├── package.json             # 项目配置
@@ -533,8 +524,8 @@ fetch('/emergency-clear.js').then(r => r.text()).then(eval);
 
 1. 检查 `CLIENT_ID` 是否正确配置
 2. 确认 GitHub OAuth App 的回调地址与当前地址匹配
-3. 本地开发确保 `node server/dev-server.js` 正在运行
-4. 检查 `.env` 文件中的 `CLIENT_SECRET` 是否正确
+3. 本地开发确保 `npm run cloudflare:dev` 正在运行
+4. 检查 `.dev.vars` 中的 OAuth 变量是否完整
 
 ### AI 分类失败
 
