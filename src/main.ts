@@ -37,7 +37,7 @@ if (themeStore.language !== i18n.global.locale.value) {
 
 // Make i18n available globally for theme store
 if (typeof window !== 'undefined') {
-  ;(window as any).__VUE_I18N__ = i18n
+  (window as any).__VUE_I18N__ = i18n
 }
 
 app.use(router)
