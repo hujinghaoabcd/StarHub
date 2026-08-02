@@ -1,0 +1,68 @@
+name: Dependency audit report
+
+on:
+  push:
+    branches:
+      - agent/dependency-security-hardening
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate full and production audit reports
+        shell: bash
+        run: |
+          npm audit --json > audit-full.json || true
+          npm audit --omit=dev --json > audit-production.json || true
+          node <<'NODE'
+          const fs = require('node:fs')
+
+          function summarize(path, label) {
+            const audit = JSON.parse(fs.readFileSync(path, 'utf8'))
+            const vulnerabilities = Object.entries(audit.vulnerabilities || {})
+              .map(([name, value]) => ({
+                name,
+                severity: value.severity,
+                direct: Boolean(value.isDirect),
+                range: value.range,
+                effects: value.effects || [],
+                fixAvailable: value.fixAvailable,
+                advisories: (value.via || [])
+                  .filter(item => typeof item !== 'string')
+                  .map(item => ({
+                    source: item.source,
+                    severity: item.severity,
+                    title: item.title,
+                    range: item.range
+                  }))
+              }))
+              .sort((a, b) => {
+                const order = { critical: 4, high: 3, moderate: 2, low: 1, info: 0 }
+                return (order[b.severity] || 0) - (order[a.severity] || 0) || a.name.localeCompare(b.name)
+              })
+
+            console.log(`\n===== ${label} =====`)
+            console.log(JSON.stringify({
+              metadata: audit.metadata,
+              vulnerabilities
+            }, null, 2))
+          }
+
+          summarize('audit-full.json', 'FULL AUDIT')
+          summarize('audit-production.json', 'PRODUCTION AUDIT')
+          NODE
