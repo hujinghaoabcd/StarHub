@@ -1,0 +1,83 @@
+name: Finalize local OAuth quick start
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: finalize-local-oauth-readme
+  cancel-in-progress: true
+
+jobs:
+  finalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out documentation branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/local-oauth-docs-hardening
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Complete README local OAuth configuration
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs')
+
+          function update(path, transform) {
+            const source = fs.readFileSync(path, 'utf8')
+            const result = transform(source)
+            if (result === source) {
+              throw new Error(`Expected README content was not found in ${path}`)
+            }
+            fs.writeFileSync(path, result)
+          }
+
+          update('README.md', (source) => source
+            .replace(
+              'Client Secret 只能放在未提交的 `.dev.vars` 或 Cloudflare 加密 Secret 中，不能写入 `VITE_*` 变量或前端代码。',
+              `同时创建未提交的 \`.env.local\`：\n\n\`\`\`env\nVITE_GITHUB_CLIENT_ID=your_local_client_id\n\`\`\`\n\n\`.env.local\` 中的值必须与 \`.dev.vars\` 中的 \`CLIENT_ID\` 完全一致。Client Secret 只能放在未提交的 \`.dev.vars\` 或 Cloudflare 加密 Secret 中，不能写入 \`VITE_*\` 变量或前端代码。`
+            )
+            .replace('- **npm** >= 8.0.0 或 **yarn** >= 1.22.0', '- **npm** >= 10.0.0')
+          )
+
+          update('README.en.md', (source) => source
+            .replace(
+              'Never put the Client Secret in a `VITE_*` variable or browser code.',
+              `Create an uncommitted \`.env.local\` file as well:\n\n\`\`\`env\nVITE_GITHUB_CLIENT_ID=your_local_client_id\n\`\`\`\n\nThe value must exactly match \`CLIENT_ID\` in \`.dev.vars\`. Never put the Client Secret in a \`VITE_*\` variable or browser code.`
+            )
+            .replace('- **npm** >= 8.0.0 or **yarn** >= 1.22.0', '- **npm** >= 10.0.0')
+          )
+          NODE
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify OAuth docs and documentation build
+        run: |
+          npm run oauth:verify
+          npm run docs:build
+
+      - name: Remove one-time workflow
+        run: rm -f .github/workflows/finalize-local-oauth-readme.yml
+
+      - name: Commit README corrections
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md README.en.md .github/workflows/finalize-local-oauth-readme.yml
+          git commit -m "docs: complete local OAuth quick start"
+          git push origin HEAD:agent/local-oauth-docs-hardening
