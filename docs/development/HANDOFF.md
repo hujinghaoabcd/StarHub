@@ -5,35 +5,23 @@
 - 交接日期：2026-08-02
 - 当前分支：`agent/foundation-ci-sync`
 - 基准分支：`main`
-- 草稿 PR：`#3 chore: establish CI baseline and development handoff`
-- 当前阶段：工程基础、CI 基线、Pages 组合构建与部署工作流已完成
-- 当前阻塞：仓库尚未首次启用 GitHub Pages
+- PR：`#3 chore: establish CI and GitHub Pages deployment foundation`
+- 当前阶段：工程基础、CI 基线和 Pages 生产流程已完成
+- 当前动作：完成 PR 验证后合并到 `main`，触发首次正式部署
 - 状态文档：`docs/development/PROJECT_STATUS.md`
 
-## 2. 已完成批次
+## 2. 本阶段已完成
 
-### 批次 1：工程基础与 CI 基线
+### 工程基础
 
-已完成：
-
-- 统一 Node.js 22；
-- 建立 Vue、TypeScript、Node.js、Cloudflare Functions 的 ESLint 配置；
-- 将 lint 改为非破坏性检查；
-- 建立 `lint:fix`、`type-check`、`check`；
+- Node.js 22 `.nvmrc`；
+- Vue、TypeScript、Node.js、Cloudflare Functions ESLint 基线；
+- 非破坏性 `lint`、`lint:fix`、`type-check`、`check`；
 - 修复本地 OAuth 服务入口；
-- 建立 GitHub Actions CI；
-- 建立持续更新的状态和交接文档。
+- GitHub Actions CI；
+- 持续维护的状态和交接文档。
 
-验证结果：
-
-```text
-npm ci             PASS
-npm run lint       PASS，9 条非阻断警告
-npm run type-check PASS
-npm run build      PASS
-```
-
-### 批次 2：应用预览与文档同域部署
+### Pages 联合构建
 
 目标地址：
 
@@ -42,44 +30,13 @@ npm run build      PASS
 文档：https://hujinghaoabcd.github.io/StarHub/docs/
 ```
 
-已完成：
-
-- Vite 应用支持可配置基础路径，生产目标为 `/StarHub/`；
-- VitePress 文档支持可配置基础路径，生产目标为 `/StarHub/docs/`；
-- 登录页文档链接在生产环境指向同域文档目录；
-- OAuth 回调地址保留项目路径前缀；
-- 新增 `scripts/build-pages.mjs`；
-- 新增 `npm run pages:build`；
-- 应用构建输出到 `dist/`；
-- 文档构建输出合并到 `dist/docs/`；
-- 生成 `.nojekyll`；
-- 生成 `deployment-info.json`；
-- CI 改为验证完整 Pages 组合产物；
-- 新增 GitHub Pages 构建、上传与部署工作流；
-- PR 只做构建验证，分支推送才执行生产发布；
-- 修复 push 与 pull_request 工作流可能互相取消的并发组问题；
-- Pages 状态评论写入改为非阻断，避免仓库 Actions 写权限限制把构建标红；
-- 增加 Pages 配置探测步骤。
-
-## 3. Pages 构建结构
-
 统一命令：
 
 ```bash
 npm run pages:build
 ```
 
-该命令执行：
-
-1. 设置应用基础路径 `/StarHub/`；
-2. 构建 Vue 应用；
-3. 设置文档基础路径 `/StarHub/docs/`；
-4. 构建 VitePress 文档；
-5. 将文档复制到 `dist/docs/`；
-6. 写入 `dist/.nojekyll`；
-7. 写入 `dist/deployment-info.json`。
-
-最终结构：
+联合产物：
 
 ```text
 dist/
@@ -94,7 +51,17 @@ dist/
     └── ...
 ```
 
-## 4. Pages 工作流
+`deployment-info.json` 包含：
+
+```json
+{
+  "appBase": "/StarHub/",
+  "docsBase": "/StarHub/docs/",
+  "commit": "<GITHUB_SHA>"
+}
+```
+
+### Pages 工作流
 
 文件：
 
@@ -102,106 +69,81 @@ dist/
 .github/workflows/deploy-pages.yml
 ```
 
-工作流事件：
+当前标准流程：
 
-- 推送到 `main`；
-- 推送到 `agent/foundation-ci-sync`；
-- 面向 `main` 的 Pull Request；
-- 手动运行。
+- Pull Request：构建应用和文档、读取 Pages 配置，不执行生产发布；
+- `main` 推送：构建、配置 Pages、上传 artifact、部署、执行公网冒烟测试；
+- 手动运行：只有选择 `main` 时才允许生产部署；
+- 生产结果会尝试回写到关联 PR。
 
-PR 事件：
+公网冒烟测试会验证：
 
-- 构建应用与文档；
-- 检查组合产物；
-- 读取 Pages 配置；
-- 不上传生产 artifact；
-- 不执行生产部署。
+1. 应用首页返回成功；
+2. 文档首页返回成功；
+3. `deployment-info.json` 存在；
+4. 线上提交 SHA 与当前 `main` 提交一致；
+5. 应用资源使用 `/StarHub/assets/`；
+6. 文档资源使用 `/StarHub/docs/assets/`；
+7. 分别请求一个应用和文档 JS/CSS 资源。
 
-push 或手动事件：
+## 3. 本轮诊断结论
 
-- 构建组合产物；
-- `actions/configure-pages@v5`；
-- `actions/upload-pages-artifact@v4`；
-- `actions/deploy-pages@v4`；
-- 将环境地址记录到 `github-pages` environment。
-
-## 5. 验证结果
-
-最新 PR 验证已通过：
+Pages 已成功启用，API 返回：
 
 ```text
-Install dependencies                 PASS
-Build application and documentation PASS
-Inspect GitHub Pages configuration   PASS（探测命令正常执行）
-Configure GitHub Pages               SKIPPED（PR 事件设计如此）
-Upload GitHub Pages artifact         SKIPPED（PR 事件设计如此）
-Deploy Pages site                    SKIPPED（PR 事件设计如此）
+build_type: workflow
+html_url: https://hujinghaoabcd.github.io/StarHub/
+source.branch: main
 ```
 
-联合构建输出确认：
+开发分支生产尝试的结果：
 
 ```text
-Application:   dist/      -> /StarHub/
-Documentation: dist/docs/ -> /StarHub/docs/
+Build Pages bundle           PASS
+Configure GitHub Pages       PASS
+Upload GitHub Pages artifact PASS
+Deploy Pages site            FAIL（未分配 runner，无执行步骤）
 ```
 
-曾出现一次失败：Vite 预处理插件把 `/logo.svg` 提前改成 `/StarHub/logo.svg`，Rollup 将其误判为源码模块。现已删除静态资源改写，让 Vite 原生处理 `public` 资源；随后联合构建通过。
-
-## 6. 当前阻塞：Pages 尚未启用
-
-Pages 探测请求：
+公网轮询在 6 分钟内持续得到：
 
 ```text
-GET /repos/hujinghaoabcd/StarHub/pages
+/StarHub/deployment-info.json → HTTP 404
 ```
 
-结果：
+结合 Pages 配置中的 `source.branch: main`，结论是 `github-pages` 环境不允许开发分支执行生产部署。该行为不是构建错误，也不是资源路径错误。
+
+处理结果：
+
+- 删除开发分支生产发布触发；
+- 生产部署只允许 `main`；
+- PR 保留联合构建和 Pages 配置检查；
+- 删除临时诊断工作流；
+- 修复结果回写所需的 `pull-requests: read` 权限；
+- 合并后通过 commit-associated PR API 回写部署结果。
+
+## 4. 当前验证结果
+
+已通过：
 
 ```text
-HTTP 404 Not Found
+npm ci                    PASS
+npm run lint              PASS，9 条非阻断警告
+npm run type-check        PASS
+npm run pages:build       PASS
+Pages 配置读取            PASS
+Pages artifact 上传       PASS（开发分支诊断运行）
 ```
 
-工作流令牌在日志中显示具备：
+待合并后验证：
 
 ```text
-Pages: write
-Contents: read
+Deploy Pages site         PENDING ON MAIN
+Verify deployed site      PENDING ON MAIN
+应用与文档公网地址        PENDING ON MAIN
 ```
 
-因此当前结论是：仓库尚未创建 GitHub Pages 站点，而不是应用或文档构建失败。
-
-创建 Pages 站点要求同时具备：
-
-- Pages repository permission：write；
-- Administration repository permission：write。
-
-Actions 的 `GITHUB_TOKEN` 不具备仓库 Administration 写权限，不能自动完成首次启用。
-
-### 唯一一次人工操作
-
-仓库管理员打开：
-
-```text
-StarHub → Settings → Pages
-```
-
-将：
-
-```text
-Build and deployment → Source
-```
-
-设置为：
-
-```text
-GitHub Actions
-```
-
-首次启用后，重新运行 `Deploy GitHub Pages`，后续提交即可自动部署。
-
-## 7. 修改文件
-
-本 PR 当前涉及：
+## 5. 本阶段主要修改文件
 
 - `.eslintrc.cjs`
 - `.github/workflows/ci.yml`
@@ -216,67 +158,58 @@ GitHub Actions
 - `docs/development/PROJECT_STATUS.md`
 - `docs/development/HANDOFF.md`
 
-## 8. 已知风险与未完成项
+临时的 `.github/workflows/pages-diagnostics.yml` 已用于定位 push 运行并删除，不属于最终方案。
 
-### 在线部署
+## 6. 已知风险与未完成项
 
-- Pages 尚未首次启用；
-- 在线地址尚不能访问；
-- 尚未执行浏览器级路由和静态资源验证；
-- Pages 启用后应同时检查应用和文档。
+### 在线功能
 
-### OAuth 与生产后端
+- Pages 上线后主要提供界面与文档预览；
+- GitHub OAuth 后端尚未部署；
+- `/api/getToken` 在线环境暂不可用；
+- GitHub 登录不能视为生产可用。
 
-- GitHub Pages 只能托管静态前端；
-- `/api/getToken` 仍需要 Cloudflare Worker 或其他后端；
-- OAuth 缺少 `state`；
+### OAuth 安全
+
+- 缺少 `state`；
 - 回调仍使用 `window.opener` 全局函数；
-- token 交换仍使用 GET 风格参数；
+- token 交换仍是 GET 风格；
 - GitHub token 仍存入 localStorage；
 - 随机 `appToken` 无实际认证作用。
 
-因此，即使 Pages 启用，当前在线地址也主要用于界面与文档预览，GitHub 登录暂不能视为生产可用。
+### 仓库同步
 
-### 构建与依赖
+- 当前同步仍会保留已经取消 Star 的旧仓库；
+- 尚未区分完整成功、部分成功和失败；
+- 下一批必须优先处理。
+
+### 依赖与质量
 
 - `npm audit`：33 个漏洞，其中 19 个 high；
 - ESLint：9 条非阻断警告；
-- Element Plus 和 libs chunk 均超过 1 MB；
-- 文档存在 `env` 语言回退提示；
-- 文档存在 CSS nesting 兼容性警告。
+- Element Plus 与 libs chunk 超过 1 MB；
+- VitePress 存在 `env` 高亮回退和 CSS nesting 警告；
+- 单元测试和 E2E 测试尚未建立。
 
-### 仓库同步
+## 7. 下一步执行顺序
 
-当前同步仍会保留取消 Star 的旧仓库，尚未处理。
-
-### 标签模型
-
-`Tag.repos` 和 `repoTags` 仍是双轨模型，尚未迁移。
-
-## 9. 下一步执行顺序
-
-1. 管理员在 Settings → Pages 中启用 GitHub Actions；
-2. 重新运行 `Deploy GitHub Pages`；
-3. 验证应用 `/StarHub/`；
-4. 验证文档 `/StarHub/docs/`；
-5. 检查 logo、截图、CSS、JS、Hash Router 和文档导航；
-6. 更新本交接文档与状态文档；
-7. 提取仓库同步纯函数并增加测试；
-8. 修复取消 Star 后仍残留的问题；
+1. 等待 PR #3 最后一轮 CI；
+2. 将 PR 标记为 Ready；
+3. 合并到 `main`；
+4. 检查 `main` 的 Pages 构建、部署和公网冒烟测试；
+5. 确认应用与文档在线地址；
+6. 更新最终部署状态；
+7. 建立同步合并函数与测试；
+8. 修复取消 Star 后仍残留的幽灵仓库；
 9. 开始 OAuth 安全重构；
 10. 部署 Cloudflare Worker 后端。
 
-## 10. 本地复现命令
+## 8. 本地复现命令
 
 ```bash
 nvm use
 npm ci
 npm run check
-```
-
-只构建 Pages 组合产物：
-
-```bash
 npm run pages:build
 ```
 
@@ -292,20 +225,12 @@ npm run server:dev
 npm run dev
 ```
 
-OAuth 服务需要：
-
-```text
-CLIENT_ID=...
-CLIENT_SECRET=...
-```
-
-## 11. 交接要求
+## 9. 交接要求
 
 后续每一批工作完成前必须：
 
-- 更新 `PROJECT_STATUS.md` 的已完成与未完成清单；
-- 更新本交接文档中的当前分支、修改文件、验证和下一步；
-- 在 PR 描述中同步说明验证结果；
-- 不把未经验证的高风险修改直接合并到 `main`；
-- 不通过关闭质量检查来掩盖真实问题；
-- 不把“构建成功”误报为“线上已经可访问”。
+- 更新 `PROJECT_STATUS.md` 的已完成与未完成；
+- 更新本交接文档的修改、验证、风险和下一步；
+- 不把“构建成功”误报为“线上成功”；
+- 不绕过 CI 或关闭真实质量检查；
+- 生产 Pages 只从 `main` 发布。
