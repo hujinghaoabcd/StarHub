@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { githubApi } from '@/api/github'
 import { getPageFromLinkStr } from '@/utils'
 import { useTagStore } from './tag'
+import { runDataMutation } from '@/services/dataMutationQueue'
 import {
   buildRepositorySnapshot,
   calculateRepositoryChanges,
@@ -289,23 +290,25 @@ export const useRepoStore = defineStore('repo', {
           remoteRepositories.map(repository => repository.id)
         )
 
-        await db.transaction('rw', db.repos, db.repoTags, async () => {
-          const storedRelations = await db.repoTags.toArray()
-          const prunedRelations = pruneRepoTagsForRepositories(
-            storedRelations,
-            validRepositoryIds
-          )
+        await runDataMutation(() =>
+          db.transaction('rw', db.repos, db.repoTags, async () => {
+            const storedRelations = await db.repoTags.toArray()
+            const prunedRelations = pruneRepoTagsForRepositories(
+              storedRelations,
+              validRepositoryIds
+            )
 
-          await db.repos.clear()
-          if (remoteRepositories.length > 0) {
-            await db.repos.bulkAdd(remoteRepositories)
-          }
+            await db.repos.clear()
+            if (remoteRepositories.length > 0) {
+              await db.repos.bulkAdd(remoteRepositories)
+            }
 
-          await db.repoTags.clear()
-          if (prunedRelations.repoTags.length > 0) {
-            await db.repoTags.bulkAdd(prunedRelations.repoTags)
-          }
-        })
+            await db.repoTags.clear()
+            if (prunedRelations.repoTags.length > 0) {
+              await db.repoTags.bulkAdd(prunedRelations.repoTags)
+            }
+          })
+        )
 
         if (!isCurrentSync()) {
           return cancelledResult(
@@ -427,8 +430,22 @@ export const useRepoStore = defineStore('repo', {
       this.$state.syncProgress = { ...EMPTY_PROGRESS }
 
       const tagStore = useTagStore()
-      await tagStore.replaceAllTags([])
-      await db.repos.clear()
+      await runDataMutation(() =>
+        db.transaction(
+          'rw',
+          db.repos,
+          db.tags,
+          db.repoTags,
+          async () => {
+            await db.repos.clear()
+            await db.tags.clear()
+            await db.repoTags.clear()
+          }
+        )
+      )
+      tagStore.$state.tags = []
+      tagStore.$state.loading = false
+      tagStore.$state.isMutating = false
 
       const result = await this.loadRepos(true)
       if (result.status !== 'success') {
