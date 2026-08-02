@@ -67,10 +67,10 @@
       </div>
 
       <div v-if="repo.private" class="permission-note">
-        当前 OAuth 配置不申请私有仓库写权限，因此不能在 StarHub 中取消私有仓库的 Star。
+        StarHub 不申请私有仓库的 repo 权限，因此不能在此取消私有仓库的 Star。
       </div>
       <div v-else class="permission-note">
-        取消 Star 会同步修改 GitHub 账户，并从本地列表和标签关系中移除该项目。
+        日常登录保持只读。首次取消 Star 时会单独请求 public_repo；GitHub 的该作用域同时包含更广的公开仓库写权限，授权前会再次说明。
       </div>
     </div>
   </section>
@@ -81,6 +81,11 @@ import { computed, ref, watch } from 'vue'
 import { isAxiosError } from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { githubApi } from '@/api/github'
+import {
+  authorizeGitHubScopes,
+  currentTokenHasScope,
+  OAuthPermissionError
+} from '@/services/oauthPermission'
 import { useRepoStore } from '@/stores/repo'
 import type { Repository, RepositoryPagesSite } from '@/types'
 
@@ -159,6 +164,85 @@ async function loadRepositoryLinks() {
   }
 }
 
+function permissionErrorMessage(error: OAuthPermissionError): string {
+  switch (error.code) {
+    case 'popup_blocked':
+      return '浏览器阻止了 GitHub 授权窗口，请允许弹出窗口后重试。'
+    case 'popup_closed':
+      return '授权窗口已关闭，未修改当前 GitHub 权限。'
+    case 'authorization_denied':
+      return '你取消了 GitHub 权限授权，仓库仍保持 Star。'
+    case 'authorization_timeout':
+      return 'GitHub 授权超时，请重新操作。'
+    case 'scope_not_granted':
+      return 'GitHub 未授予 public_repo 权限，无法在应用内取消 Star。'
+    case 'invalid_callback':
+    default:
+      return 'GitHub 权限授权失败，请稍后重试。'
+  }
+}
+
+async function requestPublicRepoPermission(): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(
+      'GitHub OAuth App 没有“仅修改 Star”的独立作用域。取消公开仓库的 Star 需要 public_repo，它同时允许对公开仓库执行更广泛的读写操作。StarHub 只会在此功能中调用取消 Star 接口，且不会申请私有仓库 repo 权限。是否继续授权？',
+      '需要公开仓库权限',
+      {
+        confirmButtonText: '前往 GitHub 授权',
+        cancelButtonText: '取消',
+        type: 'warning',
+        distinguishCancelAndClose: true
+      }
+    )
+  } catch {
+    return false
+  }
+
+  try {
+    await authorizeGitHubScopes(['read:user', 'public_repo'])
+    ElMessage.success('公开仓库 Star 操作权限已更新')
+    return true
+  } catch (error) {
+    if (error instanceof OAuthPermissionError) {
+      ElMessage.error(permissionErrorMessage(error))
+    } else {
+      ElMessage.error('GitHub 权限授权失败，请稍后重试。')
+    }
+    return false
+  }
+}
+
+async function unstarWithRequiredPermission(): Promise<boolean> {
+  let permissionUpgraded = false
+
+  try {
+    const hasPermission = await currentTokenHasScope('public_repo')
+    if (hasPermission === false) {
+      permissionUpgraded = await requestPublicRepoPermission()
+      if (!permissionUpgraded) return false
+    }
+  } catch (error) {
+    console.warn('Could not inspect current GitHub OAuth scopes:', error)
+  }
+
+  try {
+    await repoStore.unstarRepository(props.repo)
+    return true
+  } catch (error) {
+    const status = isAxiosError(error) ? error.response?.status : undefined
+
+    if (status === 403 && !permissionUpgraded) {
+      const granted = await requestPublicRepoPermission()
+      if (!granted) return false
+
+      await repoStore.unstarRepository(props.repo)
+      return true
+    }
+
+    throw error
+  }
+}
+
 async function handleUnstar() {
   if (repoStore.isSyncing) {
     ElMessage.warning('仓库正在同步，请等待同步完成后再取消 Star。')
@@ -167,7 +251,7 @@ async function handleUnstar() {
 
   try {
     await ElMessageBox.confirm(
-      `确定取消 ${props.repo.full_name} 的 Star 吗？此操作会同时修改你的 GitHub 账户。`,
+      `确定取消 ${props.repo.full_name} 的 Star 吗？远端成功后，该项目也会从本地列表和标签关系中移除。`,
       '确认取消 Star',
       {
         confirmButtonText: '取消 Star',
@@ -183,23 +267,23 @@ async function handleUnstar() {
   unstarLoading.value = true
 
   try {
-    await repoStore.unstarRepository(props.repo)
+    const completed = await unstarWithRequiredPermission()
+    if (!completed) return
+
     ElMessage.success(`已取消 ${props.repo.full_name} 的 Star`)
     emit('unstarred', props.repo.id)
   } catch (error) {
     const status = isAxiosError(error) ? error.response?.status : undefined
 
-    if (status === 403 || status === 404) {
-      await ElMessageBox.alert(
-        '当前 GitHub 会话可能没有 public_repo 权限，或该仓库不可访问。请退出 StarHub 后重新使用 GitHub 登录并确认公开仓库权限。',
-        '无法取消 Star',
-        {
-          confirmButtonText: '我知道了',
-          type: 'error'
-        }
-      )
+    if (status === 404) {
+      ElMessage.error('仓库不存在、已不可访问，或当前账户无权操作。')
+    } else if (
+      error instanceof Error &&
+      error.message === 'remote_unstar_succeeded_local_refresh_failed'
+    ) {
+      ElMessage.warning('GitHub 已取消 Star，但本地刷新失败；请刷新页面重新同步。')
     } else {
-      ElMessage.error('取消 Star 失败，远端和本地数据均未主动删除。')
+      ElMessage.error('取消 Star 失败，仓库仍保留在当前列表中。')
     }
 
     console.error('Failed to unstar repository:', error)
