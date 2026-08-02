@@ -1,4 +1,4 @@
-import axios, { type AxiosResponse } from 'axios'
+import axios, { isAxiosError, type AxiosResponse } from 'axios'
 import qs from 'query-string'
 import http from './request'
 import type { User, Repository, RepositoryPagesSite } from '@/types'
@@ -57,12 +57,22 @@ export const githubApi = {
     return http.get(`/repos/${owner}/${repo}`)
   },
 
-  // Public Pages metadata does not need the user's OAuth token.
-  getRepositoryPages(
+  // Prefer the authenticated rate limit. Public repositories can fall back to
+  // an anonymous request when the current OAuth scope cannot read Pages data.
+  async getRepositoryPages(
     owner: string,
     repo: string
   ): Promise<AxiosResponse<RepositoryPagesSite>> {
-    return publicGithubHttp.get(`/repos/${owner}/${repo}/pages`)
+    try {
+      return await http.get(`/repos/${owner}/${repo}/pages`)
+    } catch (error) {
+      const status = isAxiosError(error) ? error.response?.status : undefined
+      if (status !== 403 && status !== 404) {
+        throw error
+      }
+
+      return publicGithubHttp.get(`/repos/${owner}/${repo}/pages`)
+    }
   },
 
   // Remove a star for the authenticated user
