@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - agent/foundation-ci-sync
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -13,7 +16,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: github-pages
+  group: github-pages-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -39,15 +42,18 @@ jobs:
         run: npm run pages:build
 
       - name: Configure GitHub Pages
+        if: github.event_name != 'pull_request'
         uses: actions/configure-pages@v5
 
       - name: Upload GitHub Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
   deploy:
     name: Deploy Pages site
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -63,7 +69,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
   report:
-    name: Report deployment status
+    name: Report Pages status
     if: always()
     needs:
       - build
@@ -74,42 +80,69 @@ jobs:
       issues: write
 
     steps:
-      - name: Update pull request deployment comment
+      - name: Update pull request status comment
         env:
           GH_TOKEN: ${{ github.token }}
           BUILD_RESULT: ${{ needs.build.result }}
           DEPLOY_RESULT: ${{ needs.deploy.result }}
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_BRANCH: ${{ github.head_ref || github.ref_name }}
         shell: bash
         run: |
-          pr_number="$(
-            gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls" \
-              -f state=open \
-              -f head="${GITHUB_REPOSITORY_OWNER}:${GITHUB_REF_NAME}" \
-              --jq '.[0].number // empty'
-          )"
+          pr_number="${EVENT_PR_NUMBER}"
+          if [[ -z "${pr_number}" ]]; then
+            pr_number="$(
+              gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls" \
+                -f state=open \
+                -f head="${GITHUB_REPOSITORY_OWNER}:${HEAD_BRANCH}" \
+                --jq '.[0].number // empty'
+            )"
+          fi
 
           if [[ -z "${pr_number}" ]]; then
-            echo "No open pull request found for ${GITHUB_REF_NAME}; skipping report."
+            echo "No open pull request found for ${HEAD_BRANCH}; skipping report."
             exit 0
           fi
 
-          marker='<!-- starhub-pages-status -->'
-          if [[ "${BUILD_RESULT}" == "success" && "${DEPLOY_RESULT}" == "success" ]]; then
-            summary='✅ GitHub Pages 部署成功'
-            application_url="${PAGE_URL}"
-            documentation_url="${PAGE_URL%/}/docs/"
-          elif [[ "${BUILD_RESULT}" != "success" ]]; then
-            summary='❌ GitHub Pages 构建失败'
-            application_url='尚未生成'
-            documentation_url='尚未生成'
-          else
-            summary='⚠️ 构建成功，但 GitHub Pages 发布失败或被跳过'
-            application_url='尚不可访问'
-            documentation_url='尚不可访问'
-          fi
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            marker='<!-- starhub-pages-validation -->'
+            if [[ "${BUILD_RESULT}" == "success" ]]; then
+              summary='✅ GitHub Pages 组合产物验证成功'
+            else
+              summary='❌ GitHub Pages 组合产物验证失败'
+            fi
 
-          body="${marker}
+            body="${marker}
+          ## Pages 构建验证
+
+          ${summary}
+
+          - 应用目标路径：\`/StarHub/\`
+          - 文档目标路径：\`/StarHub/docs/\`
+          - 构建结果：\`${BUILD_RESULT}\`
+          - 分支：\`${HEAD_BRANCH}\`
+          - 提交：\`${GITHUB_SHA}\`
+
+          > PR 事件只验证组合产物，不执行生产发布。真正的在线地址由同一提交的 push 工作流发布。"
+          else
+            marker='<!-- starhub-pages-deployment -->'
+            if [[ "${BUILD_RESULT}" == "success" && "${DEPLOY_RESULT}" == "success" ]]; then
+              summary='✅ GitHub Pages 部署成功'
+              application_url="${PAGE_URL}"
+              documentation_url="${PAGE_URL%/}/docs/"
+            elif [[ "${BUILD_RESULT}" != "success" ]]; then
+              summary='❌ GitHub Pages 构建失败'
+              application_url='尚未生成'
+              documentation_url='尚未生成'
+            else
+              summary='⚠️ 构建成功，但 GitHub Pages 发布失败或被跳过'
+              application_url='尚不可访问'
+              documentation_url='尚不可访问'
+            fi
+
+            body="${marker}
           ## 在线部署状态
 
           ${summary}
@@ -118,10 +151,11 @@ jobs:
           - 项目文档：${documentation_url}
           - 构建结果：\`${BUILD_RESULT}\`
           - 发布结果：\`${DEPLOY_RESULT}\`
-          - 分支：\`${GITHUB_REF_NAME}\`
+          - 分支：\`${HEAD_BRANCH}\`
           - 提交：\`${GITHUB_SHA}\`
 
           > 登录仍依赖待部署的 OAuth 后端；当前 Pages 主要用于界面和文档预览。"
+          fi
 
           payload_file="$(mktemp)"
           jq -n --arg body "${body}" '{ body: $body }' > "${payload_file}"
@@ -136,10 +170,10 @@ jobs:
             gh api --method PATCH \
               "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" \
               --input "${payload_file}" >/dev/null
-            echo "Updated deployment status comment ${comment_id}."
+            echo "Updated Pages status comment ${comment_id}."
           else
             gh api --method POST \
               "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/comments" \
               --input "${payload_file}" >/dev/null
-            echo "Created deployment status comment."
+            echo "Created Pages status comment."
           fi
