@@ -12,48 +12,38 @@
 
 ## 2. 本阶段已完成
 
-### 工程基础
-
-- Node.js 22 `.nvmrc`；
-- Vue、TypeScript、Node.js、Cloudflare Functions ESLint 基线；
-- 非破坏性 `lint`、`lint:fix`、`type-check`、`check`；
+- 统一 Node.js 22；
+- 建立 Vue、TypeScript、Node.js、Cloudflare Functions ESLint 基线；
+- 建立非破坏性 Lint、类型检查、构建和 CI；
 - 修复本地 OAuth 服务入口；
-- GitHub Actions CI；
-- 持续维护的状态和交接文档。
+- 配置 Vite `/StarHub/` 和 VitePress `/StarHub/docs/`；
+- 统一构建应用与文档到 `dist/`；
+- 生成 `.nojekyll` 与带构建 SHA 的 `deployment-info.json`；
+- 建立 Pages 构建、上传、部署和公网冒烟测试；
+- 启用 GitHub Pages，确认 `build_type: workflow`；
+- 诊断并修复开发分支无法进入 `github-pages` 生产环境的问题；
+- 最终生产策略改为 PR 构建验证、`main` 推送生产发布；
+- 删除临时诊断工作流。
 
-### Pages 联合构建
-
-目标地址：
+## 3. 目标地址
 
 ```text
 应用：https://hujinghaoabcd.github.io/StarHub/
 文档：https://hujinghaoabcd.github.io/StarHub/docs/
 ```
 
-统一命令：
+## 4. 部署诊断结论
 
-```bash
-npm run pages:build
+开发分支诊断运行：
+
+```text
+Build Pages bundle           PASS
+Configure GitHub Pages       PASS
+Upload GitHub Pages artifact PASS
+Deploy Pages site            FAIL（未分配 runner）
 ```
 
-最终产物将应用放在 `dist/`，文档放在 `dist/docs/`，并生成 `.nojekyll` 和记录提交 SHA 的 `deployment-info.json`。
-
-### Pages 工作流
-
-文件：`.github/workflows/deploy-pages.yml`。
-
-当前标准流程：
-
-- Pull Request：构建应用和文档、读取 Pages 配置，不执行生产发布；
-- `main` 推送：构建、配置 Pages、上传 artifact、部署、执行公网冒烟测试；
-- 手动运行：仅当所选 ref 为 `main` 时进入生产部署；
-- 生产结果尝试回写到关联 PR。
-
-公网冒烟测试验证应用首页、文档首页、部署元数据、线上提交 SHA、应用与文档资源路径，以及实际 JS/CSS 资源请求。
-
-## 3. 本轮诊断结论
-
-Pages 已启用，API 返回：
+Pages API：
 
 ```text
 build_type: workflow
@@ -61,28 +51,27 @@ html_url: https://hujinghaoabcd.github.io/StarHub/
 source.branch: main
 ```
 
-开发分支生产尝试：
+因此生产 Pages 只允许从 `main` 发布。此前 `/StarHub/deployment-info.json` 连续 6 分钟返回 404，是因为开发分支未产生部署，而不是应用构建或资源路径失败。
 
-```text
-Build Pages bundle           PASS
-Configure GitHub Pages       PASS
-Upload GitHub Pages artifact PASS
-Deploy Pages site            FAIL（未分配 runner，无执行步骤）
-```
+## 5. 最终工作流
 
-同时，公网 `deployment-info.json` 在 6 分钟轮询中持续返回 HTTP 404。结论是生产环境拒绝非 `main` 分支发布，而不是构建或资源路径失败。
+Pull Request：
 
-处理结果：
+- 安装依赖；
+- 构建应用与文档；
+- 读取 Pages 配置；
+- 不上传和部署生产站点。
 
-- 生产部署只监听 `main`；
-- PR 保留联合构建与配置检查；
-- 删除临时诊断工作流；
-- 部署结果回写增加 `pull-requests: read`；
-- 合并后通过关联 PR API 回写部署状态。
+`main` 推送：
 
-## 4. 当前验证结果
+- 构建联合产物；
+- 配置 Pages；
+- 上传 artifact；
+- 发布到 `github-pages` environment；
+- 验证应用首页、文档首页、部署 SHA、基础路径和实际资源；
+- 尝试将结果写回关联 PR。
 
-已通过：
+## 6. 当前验证结果
 
 ```text
 npm ci                    PASS
@@ -101,7 +90,7 @@ Verify deployed site      PENDING
 应用与文档公网地址        PENDING
 ```
 
-## 5. 本阶段主要修改文件
+## 7. 修改文件
 
 - `.eslintrc.cjs`
 - `.github/workflows/ci.yml`
@@ -116,52 +105,41 @@ Verify deployed site      PENDING
 - `docs/development/PROJECT_STATUS.md`
 - `docs/development/HANDOFF.md`
 
-临时诊断工作流已删除。
-
-## 6. 已知风险与未完成项
-
-### 在线功能
-
-- Pages 上线后主要提供界面和文档预览；
-- GitHub OAuth 后端尚未部署；
-- `/api/getToken` 在线环境暂不可用；
-- GitHub 登录不能视为生产可用。
-
-### OAuth 安全
-
-- 缺少 `state`；
-- 回调仍使用 `window.opener` 全局函数；
-- token 交换仍为 GET 风格；
-- GitHub token 仍存入 localStorage；
-- 随机 `appToken` 无实际认证作用。
+## 8. 未完成与风险
 
 ### 仓库同步
 
-- 当前同步仍会保留已经取消 Star 的旧仓库；
-- 尚未区分完整成功、部分成功和失败；
+- 取消 Star 后旧仓库仍可能残留；
+- 同步尚未区分完整成功、部分成功和失败；
 - 下一批优先处理。
+
+### OAuth 与后端
+
+- Cloudflare Worker 尚未部署；
+- 缺少 OAuth `state`；
+- 回调仍使用全局 opener 函数；
+- token 交换仍为 GET 风格；
+- GitHub token 仍在 localStorage；
+- 在线登录暂不属于生产可用。
 
 ### 依赖与质量
 
-- `npm audit`：33 个漏洞，其中 19 个 high；
-- ESLint：9 条非阻断警告；
-- Element Plus 与 libs chunk 超过 1 MB；
-- VitePress 存在 `env` 高亮回退和 CSS nesting 警告；
-- 单元测试和 E2E 测试尚未建立。
+- 33 个依赖漏洞，其中 19 个 high；
+- 9 条 ESLint 警告；
+- 两个主要 chunk 超过 1 MB；
+- VitePress 存在高亮和 CSS nesting 警告；
+- 单元和 E2E 测试尚未建立。
 
-## 7. 下一步执行顺序
+## 9. 下一步
 
-1. 等待 PR #3 最后一轮 CI；
-2. 将 PR 标记为 Ready；
-3. 合并到 `main`；
-4. 检查 `main` 的 Pages 构建、部署和公网冒烟测试；
-5. 确认应用与文档在线地址；
-6. 建立同步合并函数与测试；
-7. 修复取消 Star 后仍残留的幽灵仓库；
-8. 开始 OAuth 安全重构；
-9. 部署 Cloudflare Worker 后端。
+1. 等待 PR #3 最终 CI；
+2. 标记 Ready 并合并到 `main`；
+3. 验证生产部署与公网冒烟测试；
+4. 更新最终在线状态；
+5. 修复同步幽灵仓库并增加测试；
+6. 进入 OAuth 安全和 Worker 后端。
 
-## 8. 本地复现命令
+## 10. 本地复现
 
 ```bash
 nvm use
@@ -170,6 +148,4 @@ npm run check
 npm run pages:build
 ```
 
-## 9. 交接要求
-
-后续每批必须更新已完成、未完成、修改、验证、风险和下一步；不得把构建成功误报为线上成功；生产 Pages 只从 `main` 发布。
+后续每批必须更新已完成、未完成、验证、风险和交接文档，不得把构建成功误报为线上成功。
