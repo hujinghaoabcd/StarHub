@@ -1,0 +1,70 @@
+name: Remove unused dependencies
+
+on:
+  push:
+    branches:
+      - agent/dependency-security-hardening
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: remove-unused-dependencies
+  cancel-in-progress: true
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out dependency branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/dependency-security-hardening
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Remove unused root dependencies
+        run: npm uninstall vite-plugin-pwa cors dotenv express md5
+
+      - name: Run complete project checks
+        run: npm run check
+
+      - name: Report remaining audits
+        shell: bash
+        run: |
+          npm audit --json > audit-full.json || true
+          npm audit --omit=dev --json > audit-production.json || true
+          node <<'NODE'
+          const fs = require('node:fs')
+          for (const [path, label] of [
+            ['audit-full.json', 'full'],
+            ['audit-production.json', 'production']
+          ]) {
+            const audit = JSON.parse(fs.readFileSync(path, 'utf8'))
+            console.log(label, JSON.stringify(audit.metadata?.vulnerabilities || {}))
+          }
+          NODE
+
+      - name: Commit dependency cleanup
+        shell: bash
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "Unused dependencies are already absent."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: remove unused dependencies"
+          git push origin HEAD:agent/dependency-security-hardening
