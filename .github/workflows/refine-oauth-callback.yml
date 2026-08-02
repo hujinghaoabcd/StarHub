@@ -42,20 +42,14 @@ jobs:
                   raise SystemExit('OAuth imports marker not found')
               content = content.replace(marker, marker + addition, 1)
 
-          old_popup = """  if (
-            window.opener &&
-            typeof (window.opener as Window & {
-              oauthGetCodeCb?: (oauthCode: string, state: string) => void
-            }).oauthGetCodeCb === 'function'
-          ) {
-            ;(window.opener as Window & {
-              oauthGetCodeCb: (oauthCode: string, state: string) => void
-            }).oauthGetCodeCb(code, returnedState)
-            window.close()
-            return
-          }
-          """
-          new_popup = """  if (window.opener) {
+          popup_start = content.find("  if (\n    window.opener &&")
+          if popup_start >= 0:
+              popup_end = content.find("\n\n  try {", popup_start)
+              if popup_end < 0:
+                  raise SystemExit('OAuth popup callback end not found')
+              content = (
+                  content[:popup_start]
+                  + """  if (window.opener) {
             const message: OAuthCallbackMessage = {
               type: 'starhub:oauth-callback',
               code,
@@ -64,28 +58,18 @@ jobs:
             window.opener.postMessage(message, window.location.origin)
             window.close()
             return
-          }
-          """
-          if old_popup in content:
-              content = content.replace(old_popup, new_popup, 1)
+          }"""
+                  + content[popup_end:]
+              )
 
-          old_opener = """    ;(window as Window & {
-              oauthGetCodeCb?: (oauthCode: string, returnedState: string) => void
-            }).oauthGetCodeCb = async (oauthCode, returnedState) => {
-              authWindow.close()
-              delete (window as Window & { oauthGetCodeCb?: unknown }).oauthGetCodeCb
-
-              try {
-                const codeVerifier = consumeOAuthRequest(returnedState)
-                await login(oauthCode, codeVerifier)
-              } catch {
-                clearOAuthRequest()
-                error.value = 'OAuth 状态校验失败，请重新发起登录。'
-                loading.value = false
-              }
-            }
-          """
-          new_opener = """    const handleOAuthMessage = async (
+          opener_start = content.find("    ;(window as Window & {")
+          if opener_start >= 0:
+              opener_end = content.find("  } catch {", opener_start)
+              if opener_end < 0:
+                  raise SystemExit('OAuth opener callback end not found')
+              content = (
+                  content[:opener_start]
+                  + """    const handleOAuthMessage = async (
               event: MessageEvent<OAuthCallbackMessage>
             ) => {
               if (
@@ -122,11 +106,15 @@ jobs:
 
             window.addEventListener('message', handleOAuthMessage)
           """
-          if old_opener in content:
-              content = content.replace(old_opener, new_opener, 1)
+                  + content[opener_end:]
+              )
 
           if 'oauthGetCodeCb' in content:
               raise SystemExit('Legacy global OAuth callback still exists')
+          if "postMessage(message, window.location.origin)" not in content:
+              raise SystemExit('Secure popup message was not installed')
+          if "event.source !== authWindow" not in content:
+              raise SystemExit('OAuth message source validation was not installed')
 
           path.write_text(content, encoding='utf-8')
           PY
