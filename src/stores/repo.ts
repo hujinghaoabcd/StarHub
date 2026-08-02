@@ -441,6 +441,27 @@ export const useRepoStore = defineStore('repo', {
       this.$state.currentPage = 1
     },
 
+    cancelRepositorySync(
+      message = 'Repository sync was cancelled for a user action.'
+    ): boolean {
+      if (!this.$state.isSyncing) return false
+
+      const result = cancelledResult(
+        this.$state.repos.length,
+        this.$state.syncProgress.current,
+        this.$state.syncProgress.total,
+        this.$state.syncProgress.count,
+        message
+      )
+
+      this.$state.currentSyncId = 0
+      this.$state.isSyncing = false
+      this.$state.isFetching = false
+      this.$state.syncStatus = 'cancelled'
+      this.$state.lastSyncResult = result
+      return true
+    },
+
     async removeRepository(repoId: number) {
       await runDataMutation(() =>
         db.transaction('rw', db.repos, db.repoTags, async () => {
@@ -462,9 +483,9 @@ export const useRepoStore = defineStore('repo', {
     },
 
     async unstarRepository(repository: Repository) {
-      if (this.$state.isSyncing) {
-        throw new Error('Repository synchronization is in progress.')
-      }
+      this.cancelRepositorySync(
+        'Repository sync was cancelled before removing a star.'
+      )
 
       const [owner, name] = repository.full_name.split('/')
       if (!owner || !name) {

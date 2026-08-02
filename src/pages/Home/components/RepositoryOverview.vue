@@ -13,7 +13,7 @@
           plain
           size="small"
           :loading="unstarLoading"
-          :disabled="repo.private || repoStore.isSyncing"
+          :disabled="repo.private"
           @click="handleUnstar"
         >
           取消 Star
@@ -244,11 +244,6 @@ async function unstarWithRequiredPermission(): Promise<boolean> {
 }
 
 async function handleUnstar() {
-  if (repoStore.isSyncing) {
-    ElMessage.warning('仓库正在同步，请等待同步完成后再取消 Star。')
-    return
-  }
-
   try {
     await ElMessageBox.confirm(
       `确定取消 ${props.repo.full_name} 的 Star 吗？远端成功后，该项目也会从本地列表和标签关系中移除。`,
@@ -262,6 +257,13 @@ async function handleUnstar() {
     )
   } catch {
     return
+  }
+
+  if (repoStore.isSyncing) {
+    repoStore.cancelRepositorySync(
+      'Repository sync was cancelled before removing a star.'
+    )
+    ElMessage.info('已暂停后台同步，正在取消 Star。')
   }
 
   unstarLoading.value = true
