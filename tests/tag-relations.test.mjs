@@ -40,6 +40,23 @@ test('toStoredTag removes the derived repos field', () => {
   })
 })
 
+test('migrateLegacyTagRelations unions legacy and existing memberships', () => {
+  assert.deepEqual(
+    relations.migrateLegacyTagRelations(
+      [tag('tag-1', [1, 2, 2]), tag('tag-2', [])],
+      [
+        { repoId: 2, tagId: 'tag-1' },
+        { repoId: 3, tagId: 'tag-2' }
+      ]
+    ),
+    [
+      { repoId: 2, tagId: 'tag-1' },
+      { repoId: 3, tagId: 'tag-2' },
+      { repoId: 1, tagId: 'tag-1' }
+    ]
+  )
+})
+
 test('buildRepoTagsFromTags deduplicates memberships', () => {
   assert.deepEqual(
     relations.buildRepoTagsFromTags([
