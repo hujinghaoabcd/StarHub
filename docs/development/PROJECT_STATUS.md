@@ -3,127 +3,117 @@
 ## 当前概况
 
 - 基准分支：`main`
-- 当前阶段：OAuth 安全代码与 Cloudflare Pages Functions 部署准备
+- 开发分支：`agent/repo-sync-correctness`
+- 当前 PR：`#7 fix: make repository synchronization atomic`
+- 当前阶段：仓库同步正确性修复
 - GitHub Pages：已启用并成功发布
-- 前端生产发布：仅 `main`
-- OAuth 后端代码：已完成并通过 CI
-- Cloudflare 平台项目：尚未创建
-- 真实 GitHub 登录：尚未完成生产验证
+- Cloudflare Pages OAuth：用户已完成平台部署与前端地址接通
+- OAuth 真实登录：需要继续保留人工生产验收记录
+- 当前同步批次：代码完成并通过 CI，尚未合并到 `main`
 
 ## 已完成
 
 ### 批次 1：工程与 CI 基线
 
 - [x] Node.js 22、ESLint、类型检查和 CI 基线
-- [x] 非破坏性 Lint、`lint:fix`、`check` 与 `server:dev`
 - [x] GitHub Actions CI
 - [x] 应用与文档联合构建
 
-### 批次 2：GitHub Pages 同域部署
+### 批次 2：GitHub Pages 部署
 
 - [x] 应用基础路径 `/StarHub/`
 - [x] 文档基础路径 `/StarHub/docs/`
-- [x] 生成 `.nojekyll`
-- [x] 生成带构建 SHA 的 `deployment-info.json`
-- [x] Pages 构建、artifact 上传、生产发布和公网冒烟测试
-- [x] 应用首页、文档首页、部署 SHA 和代表性静态资源验证
+- [x] `.nojekyll` 与部署 SHA
+- [x] 生产发布和公网冒烟测试
 
-### 批次 3：OAuth 安全代码
+### 批次 3：OAuth 安全与 Cloudflare Pages Functions
 
-- [x] OAuth 回调改为应用根路径，不再依赖 URL fragment
-- [x] 生产回调固定为 `https://hujinghaoabcd.github.io/StarHub/`
-- [x] 增加加密随机 `state` 并在回调时校验
-- [x] 增加 PKCE S256
-- [x] 弹窗回调改为 `postMessage`
-- [x] 校验消息来源域名、来源窗口和消息类型
-- [x] code 通过 JSON POST 发送给后端
-- [x] GitHub token 交换使用表单 POST 请求体
-- [x] 增加严格 Origin 白名单与 CORS 预检
-- [x] 增加 redirect URI 精确校验
-- [x] 增加 `Cache-Control: no-store` 与 `nosniff`
-- [x] 删除无实际认证意义的随机 `appToken`
-- [x] 401 跳转保留 GitHub Pages `/StarHub/` 基础路径
+- [x] OAuth `state` 校验与 PKCE S256
+- [x] `postMessage` 安全回调
+- [x] JSON POST token 交换
+- [x] 严格 CORS、Origin 与 redirect URI 校验
+- [x] `GET /api/health`
+- [x] Cloudflare Pages Functions 独立构建和类型检查
+- [x] GitHub Pages 读取 `VITE_API_BASE_URL` 与 `VITE_GITHUB_CLIENT_ID`
+- [x] 用户完成 Cloudflare Pages 部署
 
-### 批次 4：Cloudflare Pages Functions 工程化
+### 批次 4：仓库同步正确性（PR #7）
 
-- [x] 新增 `POST /api/oauth/token`
-- [x] 新增 `OPTIONS /api/oauth/token`
-- [x] 新增 `GET /api/health`
-- [x] 新增 Functions 独立 TypeScript 配置
-- [x] 新增 `npm run cloudflare:type-check`
-- [x] 新增 `npm run cloudflare:build`
-- [x] 新增最小 `cloudflare-dist` 输出与 `_routes.json`
-- [x] CI 同时验证前端、文档和 Functions
-- [x] Pages 构建读取 `VITE_API_BASE_URL` 与 `VITE_GITHUB_CLIENT_ID`
-- [x] 增加 `.dev.vars.example`
-- [x] 增加 Cloudflare 部署与 OAuth 配置文档
+- [x] 远端 Stars 作为完整快照，不再以本地仓库作为合并底稿
+- [x] 取消 Star 的仓库能够从本地快照删除
+- [x] 全部分页成功后才提交 IndexedDB
+- [x] 仓库、`tags.repos` 和 `repoTags` 在同一 Dexie 事务中更新
+- [x] 分页失败时保留上一次完整本地快照
+- [x] 区分 `success`、`partial`、`error`、`cancelled`
+- [x] 首页每次进入都会执行后台同步
+- [x] 同步结果显示新增、更新、移除或失败页
+- [x] 提取纯函数：快照构建、差异计算、标签引用清理
+- [x] 增加 Node 内置单元测试
+- [x] CI 增加同步测试步骤
 
 ## 当前验证
 
 ```text
-CI run                         30750815713  PASS
-Pages PR build run             30750815708  PASS
-npm ci                                      PASS
-npm run lint                               PASS，8 条既有非阻断警告
-npm run type-check                         PASS
-npm run cloudflare:type-check              PASS
-npm run pages:build                         PASS
-npm run cloudflare:build                    PASS
-Pages 配置读取                              PASS
+PR                              #7
+Branch                          agent/repo-sync-correctness
+CI run                          30759484185  PASS
+npm ci                                        PASS
+npm run lint                                 PASS，8 条非阻断警告
+npm run type-check                           PASS
+npm run test:sync                            PASS，4 tests
+npm run cloudflare:type-check                PASS
+npm run pages:build                          PASS
+npm run cloudflare:build                     PASS
 ```
 
-当前验证只证明代码与构建产物正确，不代表 Cloudflare 服务已经上线，也不代表真实 OAuth 登录已经成功。
+CI 证明代码、类型、纯函数测试和构建通过；真实 GitHub 账户下的取消 Star、超多分页和网络中断仍需要浏览器人工验收。
 
 ## 在线地址
 
 - 应用：`https://hujinghaoabcd.github.io/StarHub/`
 - 文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
+- OAuth API：`https://starhub-oauth.pages.dev/api`
 
-## 等待用户完成的生产配置
+## 本批修改文件
 
-- [ ] 在 Cloudflare Pages 连接 `hujinghaoabcd/StarHub`
-- [ ] Build command 设置为 `npm run cloudflare:build`
-- [ ] Build output directory 设置为 `cloudflare-dist`
-- [ ] 添加 `CLIENT_ID`
-- [ ] 添加加密 Secret `CLIENT_SECRET`
-- [ ] 添加 `ALLOWED_ORIGINS=https://hujinghaoabcd.github.io`
-- [ ] 添加 `GITHUB_REDIRECT_URI=https://hujinghaoabcd.github.io/StarHub/`
-- [ ] 将 GitHub OAuth App Homepage 与 callback 更新为生产地址
-- [ ] 将 Cloudflare API 地址写入 GitHub Actions 变量 `VITE_API_BASE_URL`
-- [ ] 重新发布 GitHub Pages
-- [ ] 验证 `/api/health` 返回 `configured: true`
-- [ ] 完成真实授权、用户信息读取和 Star 列表同步
+- `src/services/repoSync.ts`
+- `src/stores/repo.ts`
+- `src/pages/Home/index.vue`
+- `tests/repo-sync.test.mjs`
+- `package.json`
+- `.github/workflows/ci.yml`
+- `docs/development/PROJECT_STATUS.md`
+- `docs/development/HANDOFF.md`
 
-## 后续未完成
+## 尚未完成
 
-### P0：仓库同步正确性
+### 当前 PR 验收
 
-- [ ] 修复取消 Star 后本地仍保留旧仓库的问题
-- [ ] 提取可测试的同步结果合并函数
-- [ ] 区分完整成功、部分成功和失败
-- [ ] 远程分页全部成功后再原子更新 IndexedDB
-- [ ] 增加同步单元测试
+- [ ] 使用真实账户取消一个 Star 后重新进入 StarHub，确认本地仓库被移除
+- [ ] 模拟分页请求失败，确认旧完整快照不被覆盖
+- [ ] 确认被移除仓库的标签引用同时清理
+- [ ] 通过人工验收后将 PR #7 标记 Ready 并合并
 
-### P1：令牌存储与数据模型
+### P1：数据模型
 
-- [ ] 评估比 localStorage 更安全的 GitHub token 生命周期方案
 - [ ] 统一 `tags.repos` 与 `repoTags` 双轨标签模型
+- [ ] 评估同步期间并发编辑标签的交互限制
+- [ ] 评估更安全的 GitHub token 生命周期和存储方案
 
 ### P1：依赖与质量
 
 - [ ] 审查 33 个依赖漏洞：2 low、12 moderate、19 high
 - [ ] 清理 8 条 ESLint 警告
 - [ ] 处理两个超过 1 MB 的主要 chunk
-- [ ] 处理 VitePress 高亮和 CSS nesting 警告
-- [ ] 增加 Vitest、Vue Test Utils 和 Playwright
+- [ ] 增加浏览器级 E2E 测试
 
 ## 下一步
 
-1. 完成 Cloudflare Pages 平台配置；
-2. 验证健康检查和完整 OAuth 登录；
-3. 在生产验证成功后更新本文件；
-4. 随后进入仓库同步正确性批次。
+1. 对 PR #7 做真实账户人工同步验收；
+2. 验收通过后合并到 `main`；
+3. 验证 GitHub Pages 生产发布；
+4. 再进入标签数据模型统一批次。
 
 ## 更新规则
 
-每一批必须记录：已完成、未完成、修改文件、验证结果、已知风险和下一步。构建成功不得表述为线上部署成功。
+每一批必须记录：已完成、未完成、修改文件、验证结果、已知风险和下一步。构建成功不得表述为线上行为已经完成人工验证。
