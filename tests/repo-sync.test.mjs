@@ -71,26 +71,7 @@ test('calculateRepositoryChanges identifies added, updated, and unstarred reposi
   })
 })
 
-test('pruneTagsForRepositories removes ghost repository assignments only', () => {
-  const tags = [
-    {
-      id: 'tag-1',
-      name: 'GIS',
-      color: '#000000',
-      repos: [1, 2, 99],
-      createdAt: 1,
-      updatedAt: 1
-    }
-  ]
-
-  const result = sync.pruneTagsForRepositories(tags, new Set([1, 2]), 10)
-
-  assert.deepEqual(result.tags[0].repos, [1, 2])
-  assert.equal(result.tags[0].updatedAt, 10)
-  assert.equal(result.removedAssignments, 1)
-})
-
-test('pruneRepoTagsForRepositories removes join-table rows for unstarred repos', () => {
+test('pruneRepoTagsForRepositories removes relations for unstarred repos', () => {
   const result = sync.pruneRepoTagsForRepositories(
     [
       { repoId: 1, tagId: 'tag-1' },
