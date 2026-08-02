@@ -1,5 +1,6 @@
 const LEGACY_APP_TOKEN_KEY = 'app-token'
 const LEGACY_GITHUB_TOKEN_KEY = 'github-token'
+const USER_PROFILE_KEY = 'starhub_user'
 const AUTH_SESSION_KEY = 'starhub-auth-session-v1'
 const AUTH_LOGOUT_EVENT_KEY = 'starhub-auth-logout'
 
@@ -98,7 +99,7 @@ export function createAuthTokenManager(config: AuthTokenManagerOptions = {}) {
   const sessionStorage = config.sessionStorage ?? null
   const persistentStorage = config.persistentStorage ?? null
   const now = config.now || Date.now
-  const maxAgeMs = config.maxAgeMs || AUTH_SESSION_MAX_AGE_MS
+  const maxAgeMs = config.maxAgeMs ?? AUTH_SESSION_MAX_AGE_MS
   let memorySession: AuthSession | null = null
 
   const persistSession = (session: AuthSession) => {
@@ -111,8 +112,10 @@ export function createAuthTokenManager(config: AuthTokenManagerOptions = {}) {
     safeRemove(sessionStorage, AUTH_SESSION_KEY)
     safeRemove(sessionStorage, LEGACY_APP_TOKEN_KEY)
     safeRemove(sessionStorage, LEGACY_GITHUB_TOKEN_KEY)
+    safeRemove(sessionStorage, USER_PROFILE_KEY)
     safeRemove(persistentStorage, LEGACY_APP_TOKEN_KEY)
     safeRemove(persistentStorage, LEGACY_GITHUB_TOKEN_KEY)
+    safeRemove(persistentStorage, USER_PROFILE_KEY)
   }
 
   const migrateLegacyToken = (): AuthSession | null => {
