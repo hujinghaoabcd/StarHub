@@ -6,186 +6,166 @@
 生产前端：https://hujinghaoabcd.github.io/StarHub/
 生产文档：https://hujinghaoabcd.github.io/StarHub/docs/
 OAuth API：https://starhub-oauth.pages.dev/api
-main：6d1771d5bcafa5f645033c22dee6285871c5778e
-开发分支：agent/repo-links-unstar-pagination
-Pull Request：#14
+main：32c23b2d30d854329c13f41159a278e02468011a
+开发分支：agent/first-priority-cleanup
+Pull Request：#16
 ```
 
-当前批次实现用户优先提出的项目链接、应用内取消 Star、全局升降序排序和最大 1000 条分页。
+PR #16 处理第一优先级质量问题：全局样式作用域错误、7 条 ESLint warning、零 warning 质量门和状态文档更新。
 
-## 2. 项目链接
+## 2. 全局样式修复
 
-详情页新增 `RepositoryOverview.vue`，展示：
+### 原问题
+
+`src/styles/main.scss` 是全局 SCSS，但其中大量使用 Vue 单文件组件专用的：
+
+```scss
+:deep(.el-button)
+```
+
+Vite 8 的 Lightning CSS 会把它视为未知伪类，并在构建中连续产生警告。由于该文件不是 `<style scoped>`，这些选择器不需要也不应该使用 `:deep()`。
+
+### 当前处理
+
+全局样式中的：
+
+```scss
+:deep(.selector)
+```
+
+全部规范化为：
+
+```scss
+.selector
+```
+
+组件内部 `<style scoped>` 中的 `:deep()` 保持不变，因为那是合法用法。
+
+新增 `tests/global-style-scope.test.mjs`，验证全局样式不得再次包含 `:deep(`。
+
+## 3. ESLint 零 warning
+
+修复原有 7 条 warning：
 
 ```text
-GitHub repository html_url
-GitHub About homepage
-GitHub Pages actual html_url
+src/layouts/HomeLayout.vue
+  loading: let → const
+
+src/pages/Home/components/RepoCard.vue
+  删除未使用的 defineEmits 返回值
+
+src/pages/Home/components/SideMenu.vue
+  allCategoryMap: let → const
+  删除未使用的 batchCategoryMap 返回值
+  existingTag: let → const
+
+src/pages/Settings/index.vue
+  presets: let → const
+
+src/types/element-plus.d.ts
+  linkHeader → _linkHeader
 ```
 
-数据来源：
-
-- Stars 同步快照保存 `homepage` 和 `has_pages`；
-- 打开详情时重新读取仓库详情，避免长期缓存过时；
-- `has_pages=true` 时调用 Pages API；
-- 优先使用当前认证请求的额度；
-- 403 或 404 时，对公开仓库使用匿名 Pages API 回退；
-- 任何 URL 都必须通过 `http:` / `https:` 校验后才能渲染为链接。
-
-未配置 About 或 Pages 时显示明确的未配置状态，不拼接推测网址。
-
-## 3. 全局排序与分页
-
-排序状态位于 `useRepoStore`：
+`package.json` 中的 lint 脚本现在要求：
 
 ```text
-sortBy: updated | stars | created | name
-sortOrder: asc | desc
+--max-warnings=0
 ```
 
-执行顺序：
+以后任何新增 ESLint warning 都会直接导致 CI 失败。
+
+## 4. 自动验证
+
+一次性修改工作流已经通过完整 `npm run check`：
 
 ```text
-repos
-→ filterType / tag / language / search
-→ sortRepositories(allFilteredRepos)
-→ slice(currentPage, pageSize)
+依赖安装                         PASS
+Lint，0 warnings                 PASS
+前端 TypeScript                  PASS
+单元测试                         PASS
+Cloudflare Functions TypeScript  PASS
+OAuth 文档验证                   PASS
+应用与 VitePress 文档构建        PASS
+CSP bundle 扫描                  PASS
+静态安全验证                     PASS
+生产依赖审计                     PASS，0 vulnerabilities
+Cloudflare Pages bundle          PASS
 ```
 
-这解决了旧实现只对当前页数组排序的问题。分页大小为：
+一次性工作流已从分支中自删除，不会进入正式代码。
 
-```text
-50, 100, 200, 500, 1000
-```
+## 5. 取消 Star 当前行为
 
-分页控件在有结果时始终显示，因此选择 1000 后即使只剩一页，也能继续切换其他大小。
+PR #15 已合并到 `main`。公开仓库的“取消 Star”按钮不再因为后台同步而禁用。
 
-## 4. 取消 Star 数据流
+执行流程：
 
-入口：详情顶部的“取消 Star”按钮。
+1. 用户点击并二次确认；
+2. 若 Stars 后台同步仍在运行，先使旧同步失效；
+3. 默认只读 token 缺少权限时，显示 `public_repo` 风险说明；
+4. 用户同意后通过 PKCE popup 请求权限；
+5. 自动重试 GitHub `DELETE /user/starred/{owner}/{repo}`；
+6. 远端成功后删除 IndexedDB `repos` 与 `repoTags`；
+7. 重新加载标签并关闭详情。
 
-流程：
+私有仓库仍禁用，因为应用没有申请范围更大的 `repo` 权限。
 
-1. 仓库同步期间拒绝操作；
-2. 用户确认取消具体仓库的 Star；
-3. 检查当前 token 的 `X-OAuth-Scopes`；
-4. 已有 `public_repo` 或 `repo` 时直接调用 GitHub；
-5. 权限不足时显示作用域风险说明；
-6. 用户同意后通过 PKCE popup 请求 `read:user public_repo`；
-7. token 交换成功后替换当前 12 小时会话 token；
-8. 自动重试 `DELETE /user/starred/{owner}/{repo}`；
-9. 远端成功后，在共享数据写队列中删除 `repos` 和相关 `repoTags`；
-10. 重新加载标签视图并关闭被删除仓库的详情。
+## 6. 必须完成的生产人工验收
 
-私有仓库按钮禁用，因为本批不申请 `repo` 权限。
+自动测试无法真实操作用户 GitHub 账户，因此 PR #16 发布后执行：
 
-## 5. OAuth 权限策略
+1. 使用生产站点登录；
+2. 在同步过程中打开一个公开测试仓库；
+3. 确认“取消 Star”可点击；
+4. 确认出现 `public_repo` 权限说明；
+5. 完成 GitHub 授权；
+6. 确认操作自动重试并成功；
+7. 打开 GitHub 仓库页面确认 Star 已取消；
+8. 在开发者工具 IndexedDB 中确认 `repos` 和 `repoTags` 已清理；
+9. 刷新 StarHub，确认仓库不再出现；
+10. 另测一次拒绝授权，确认远端和本地均不变化。
 
-日常登录仍使用：
+## 7. 已知风险
 
-```text
-read:user
-```
+### 同步取消并非网络级中止
 
-只有主动使用取消 Star 时才请求：
+当前通过变更 `currentSyncId` 让旧同步结果失效，但已发出的分页请求仍会完成并消耗 GitHub API 配额。后续应接入 `AbortController` 或 Axios cancellation。
 
-```text
-read:user public_repo
-```
+### 1000 条列表性能
 
-原因：GitHub OAuth App 没有只针对 Star 写操作的独立经典作用域。界面必须明确说明 `public_repo` 还包含更广泛的公开仓库读写能力。
+目前最多一次渲染 1000 个 `RepoCard`，尚未接入虚拟滚动。低性能设备可能出现卡顿。
 
-作用域包含关系：
+### 前端 token
 
-```text
-repo        ⇒ public_repo
-user        ⇒ read:user
-public_repo ⇏ repo
-```
+Token 已从长期 `localStorage` 改为最长 12 小时的 `sessionStorage`，但成功执行的同源恶意脚本仍可读取。长期方案应考虑同站 BFF 和 HttpOnly Cookie。
 
-## 6. 主要文件
+### 依赖维护线
 
-```text
-src/types/index.ts
-src/api/github.ts
-src/services/repoSync.ts
-src/services/repositoryView.ts
-src/services/oauthScopes.ts
-src/services/oauthPermission.ts
-src/stores/repo.ts
-src/pages/Home/index.vue
-src/pages/Home/components/RepoList.vue
-src/pages/Home/components/RepositoryOverview.vue
-tests/repository-view.test.mjs
-tests/oauth-scopes.test.mjs
-docs/development/PRIORITY_FEATURE_BATCH.md
-```
+- `vue-i18n` 9 已结束主维护；
+- ESLint 8 已结束主维护；
+- VitePress 2 当前使用 alpha 版本。
 
-## 7. 自动验证
+## 8. 后续优先级
 
-本批新增测试覆盖：
+### 下一批
 
-- 全量 Star 数排序后再分页；
-- 更新时间和创建时间升降序；
-- 不区分大小写的项目名称排序；
-- 1000 条分页大小；
-- OAuth scope 多种分隔符；
-- 空值处理；
-- 精确权限；
-- `repo` 与 `user` 的上位作用域包含关系。
+1. 接入 `vue-virtual-scroller`，保证 1000 条列表流畅；
+2. 增加 Playwright E2E，覆盖登录、分页、排序、详情和取消 Star；
+3. 为 Stars 同步加入真正的网络取消。
 
-第一轮 CI 和 Pages PR 构建已全绿。最终修正后的头提交还需再次通过：
+### 随后
 
-```text
-Lint
-Frontend TypeScript
-25 项单元测试
-Functions TypeScript
-OAuth 文档校验
-应用与文档构建
-CSP bundle 扫描
-静态安全策略
-生产依赖审计
-Cloudflare bundle
-GitHub Pages PR build
-```
+1. 拆分超过 1 MB 的公共依赖与 Element Plus chunk；
+2. 缓存 About/Pages 查询并处理 API 限流；
+3. 升级 vue-i18n 与 ESLint；
+4. 清理已合并分支和备份文件；
+5. 建立 GitHub Issues 跟踪剩余技术债。
 
-## 8. 人工验收
+## 9. 合并前检查
 
-### 项目链接
-
-- [ ] 打开有 About Website 的仓库，确认 URL 完全一致；
-- [ ] 打开启用 GitHub Pages 的公开仓库，确认显示实际 `html_url`；
-- [ ] 未配置时显示“未配置”，不出现错误猜测链接。
-
-### 排序
-
-- [ ] 将分页设为 50，选择 Star 数降序；
-- [ ] 翻到第二页，确认仍是全量列表的连续排序；
-- [ ] 分别验证更新时间、创建时间、名称的升序和降序；
-- [ ] 切换到 1000，再切回 50，分页控件始终可用。
-
-### 取消 Star
-
-- [ ] 使用默认只读会话点击取消 Star；
-- [ ] 确认出现 `public_repo` 风险说明；
-- [ ] 完成 GitHub 授权后操作自动重试；
-- [ ] GitHub 页面中 Star 状态已取消；
-- [ ] StarHub 列表、IndexedDB `repos` 和 `repoTags` 同时删除；
-- [ ] 刷新或重新同步后仓库不会重新出现；
-- [ ] 拒绝权限或关闭 popup 时仓库保持不变。
-
-## 9. 已知风险
-
-- 自动测试不能替代真实 GitHub OAuth popup 和写操作；
-- `public_repo` 权限范围较宽，必须坚持按需申请和清晰说明；
-- 匿名 Pages 回退受 GitHub 未认证速率限制；
-- 远端取消成功但本地存储失败属于极端部分成功状态，应通过刷新同步恢复；
-- 当前仍缺少 Playwright 浏览器级 E2E。
-
-## 10. 下一步
-
-1. 完成 PR #14 最终 CI；
-2. squash 合并到 `main`；
-3. 生产发布后完成上述人工验收；
-4. 返回 ESLint 零 warning 和 E2E 批次。
+- [ ] PR #16 最终 CI 成功；
+- [ ] GitHub Pages PR 构建成功；
+- [ ] PR 文件中没有一次性工作流；
+- [ ] 全局 `main.scss` 不含 `:deep(`；
+- [ ] Lint 输出为 0 warning；
+- [ ] squash 合并到 `main`。
