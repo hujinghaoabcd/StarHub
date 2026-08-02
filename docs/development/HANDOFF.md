@@ -16,7 +16,8 @@
 - 联合构建、`.nojekyll` 和带 SHA 的部署元数据；
 - Pages 构建、上传、发布和公网验证流程；
 - 开发分支生产部署限制诊断；
-- 临时诊断工作流删除。
+- 临时诊断工作流删除；
+- 最终 PR CI、类型检查与联合构建通过。
 
 ## 验证
 
@@ -26,7 +27,7 @@ npm run lint              PASS，9 条警告
 npm run type-check        PASS
 npm run pages:build       PASS
 Pages 配置读取            PASS
-Pages artifact 上传       PASS（诊断运行）
+PR Pages 构建             PASS
 正式部署                  PENDING ON MAIN
 ```
 
@@ -44,4 +45,4 @@ Pages artifact 上传       PASS（诊断运行）
 
 ## 下一步
 
-完成 PR CI、合并、验证 Pages，随后进入同步修复。
+合并 PR、验证 Pages，随后进入同步修复。
