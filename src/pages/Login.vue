@@ -369,6 +369,13 @@ import {
   getOAuthRedirectUri
 } from '@/utils/oauth'
 
+
+interface OAuthCallbackMessage {
+  type: 'starhub:oauth-callback'
+  code: string
+  state: string
+}
+
 const { t, locale } = useI18n()
 const themeStore = useThemeStore()
 const currentLanguage = computed(() => themeStore.language)
@@ -398,18 +405,16 @@ onMounted(async () => {
     return
   }
 
-  if (
-    window.opener &&
-    typeof (window.opener as Window & {
-      oauthGetCodeCb?: (oauthCode: string, state: string) => void
-    }).oauthGetCodeCb === 'function'
-  ) {
-    ;(window.opener as Window & {
-      oauthGetCodeCb: (oauthCode: string, state: string) => void
-    }).oauthGetCodeCb(code, returnedState)
-    window.close()
-    return
+  if (window.opener) {
+  const message: OAuthCallbackMessage = {
+    type: 'starhub:oauth-callback',
+    code,
+    state: returnedState
   }
+  window.opener.postMessage(message, window.location.origin)
+  window.close()
+  return
+}
 
   try {
     const codeVerifier = consumeOAuthRequest(returnedState)
@@ -513,21 +518,42 @@ const handleLogin = async () => {
       return
     }
 
-    ;(window as Window & {
-      oauthGetCodeCb?: (oauthCode: string, returnedState: string) => void
-    }).oauthGetCodeCb = async (oauthCode, returnedState) => {
-      authWindow.close()
-      delete (window as Window & { oauthGetCodeCb?: unknown }).oauthGetCodeCb
-
-      try {
-        const codeVerifier = consumeOAuthRequest(returnedState)
-        await login(oauthCode, codeVerifier)
-      } catch {
-        clearOAuthRequest()
-        error.value = 'OAuth 状态校验失败，请重新发起登录。'
-        loading.value = false
-      }
+    const handleOAuthMessage = async (
+    event: MessageEvent<OAuthCallbackMessage>
+  ) => {
+    if (
+      event.origin !== window.location.origin ||
+      event.source !== authWindow ||
+      event.data?.type !== 'starhub:oauth-callback'
+    ) {
+      return
     }
+
+    window.removeEventListener('message', handleOAuthMessage)
+    window.clearInterval(popupClosedTimer)
+    authWindow.close()
+
+    try {
+      const codeVerifier = consumeOAuthRequest(event.data.state)
+      await login(event.data.code, codeVerifier)
+    } catch {
+      clearOAuthRequest()
+      error.value = 'OAuth 状态校验失败，请重新发起登录。'
+      loading.value = false
+    }
+  }
+
+  const popupClosedTimer = window.setInterval(() => {
+    if (!authWindow.closed) {
+      return
+    }
+    window.clearInterval(popupClosedTimer)
+    window.removeEventListener('message', handleOAuthMessage)
+    clearOAuthRequest()
+    loading.value = false
+  }, 500)
+
+  window.addEventListener('message', handleOAuthMessage)
   } catch {
     clearOAuthRequest()
     error.value = '无法初始化安全登录，请刷新页面后重试。'
