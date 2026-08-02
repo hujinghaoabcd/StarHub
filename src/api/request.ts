@@ -10,34 +10,26 @@ const http: AxiosInstance = axios.create({
   }
 })
 
-// Request interceptor
 http.interceptors.request.use(
   (config) => {
     const token = AuthToken.getGithubToken()
     if (token) {
-      // 原项目存储的 token 已经是完整格式（如 "token ghp_xxxxx"），直接使用
       config.headers.Authorization = token
     }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// Response interceptor
 http.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response
-  },
+  (response: AxiosResponse) => response,
   (error) => {
     if (error.response?.status === 401) {
       AuthToken.clean()
-      window.location.href = '/#/login'
+      window.location.href = `${import.meta.env.BASE_URL}#/login`
     }
     return Promise.reject(error)
   }
 )
 
 export default http
-
