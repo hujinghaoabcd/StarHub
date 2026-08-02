@@ -6,225 +6,256 @@
 生产前端：https://hujinghaoabcd.github.io/StarHub/
 生产文档：https://hujinghaoabcd.github.io/StarHub/docs/
 OAuth API：https://starhub-oauth.pages.dev/api
-开发分支：agent/repo-sync-correctness
-Pull Request：#7
+main 同步修复：909b99e23eef4aafef6af8109be786e9ba8e12f8
+开发分支：agent/tag-relations-single-source
+Pull Request：#8
 ```
 
-用户已经完成 Cloudflare Pages OAuth 后端部署，并开始仓库同步正确性批次。PR #7 已完成代码实现和自动验证，但尚未合并到 `main`。
+PR #7 的仓库同步正确性修复已经合并到 `main`。PR #8 将标签关系统一到单一持久化真源，已经通过自动检查，尚未完成生产浏览器迁移验收。
 
-## 2. 本批目标
+## 2. 数据模型
 
-修复以下问题：
-
-1. 用户取消 GitHub Star 后，本地 IndexedDB 仍保留旧仓库；
-2. 分页中途失败时，旧实现仍把不完整结果写入数据库；
-3. 同步只能表现为“结束”，无法区分完整成功、部分失败和失败；
-4. 同步过程中频繁 `bulkPut`，无法保证完整快照原子替换；
-5. 标签中可能继续引用已经取消 Star 的仓库。
-
-## 3. 已完成实现
-
-### 完整远端快照
-
-`src/stores/repo.ts` 不再使用本地仓库初始化远端合并 Map。GitHub 返回的所有 Stars 页面共同构成唯一远端快照。
-
-这意味着：
-
-- 远端新增 Star → 本地新增；
-- 远端仓库信息变化 → 本地更新；
-- 远端取消 Star → 本地删除；
-- 本地旧仓库不会因为历史缓存重新混入远端快照。
-
-### 分页失败保护
-
-剩余页面使用批量 `Promise.allSettled` 获取。任一页面失败时：
-
-- 同步结果标记为 `partial`；
-- 记录失败页码；
-- 不清空、不替换 IndexedDB；
-- 页面继续使用上一次完整本地快照；
-- 用户收到“保留上一次完整数据”的警告。
-
-第一页或数据库操作失败时标记为 `error`。主动取消时标记为 `cancelled`。
-
-### 原子数据库更新
-
-只有全部 GitHub 分页成功后，才执行 Dexie 写事务：
+### 持久化模型
 
 ```text
 repos
-+ tags.repos
-+ repoTags
+  id → Repository
+
+tags
+  id → StoredTag
+  只保存 name、color、emoji、createdAt、updatedAt
+
+repoTags
+  [repoId + tagId] → RepoTag
+  保存全部仓库—标签关系
 ```
 
-同一事务中完成：
+`tags` 表不再保存 `repos` 数组。`repoTags` 是唯一关系真源。
 
-1. 清空旧仓库；
-2. 写入完整远端快照；
-3. 删除标签中不存在的仓库 ID；
-4. 删除 `repoTags` 中不存在仓库的关联行。
+### UI 模型
 
-事务失败时不会留下半套仓库快照。
+现有组件继续使用：
 
-### 同步结果模型
+```ts
+interface Tag extends StoredTag {
+  repos: number[]
+}
+```
+
+这里的 `repos` 由 `hydrateTags(storedTags, repoTags)` 在内存中派生，不会写回 `tags` 表。
+
+## 3. IndexedDB v3 迁移
+
+`src/db/index.ts` 将数据库升级到版本 3。
+
+升级时执行：
+
+1. 读取旧 `tags.repos`；
+2. 读取旧 `repoTags`；
+3. 合并两套关系；
+4. 对 `[repoId, tagId]` 去重；
+5. 删除指向不存在标签的孤儿关系；
+6. 将标签改写为不含 `repos` 的 `StoredTag`；
+7. 将规范化关系写入 `repoTags`。
+
+迁移发生在 Dexie upgrade transaction 中，任一步失败都会回滚，不会留下半迁移状态。
+
+## 4. 关系读写规则
+
+### 读取
+
+`tagStore.loadTags()` 同时读取：
+
+```text
+db.tags
+db.repoTags
+```
+
+然后生成 UI 标签视图。
+
+### 单仓库标签编辑
+
+`replaceTagsForRepo(repoId, tagIds)`：
+
+- 只删除该仓库已有关系；
+- 写入该仓库新的关系；
+- 不全量覆盖其他仓库或标签；
+- 同步更新受影响标签的 `updatedAt`。
+
+### 标签元数据更新
+
+`updateTag()`：
+
+- `id` 不可被覆盖；
+- `createdAt` 不可被覆盖；
+- 修改 `repos` 时同时更新该标签的 `repoTags`；
+- 普通名称、颜色和 emoji 更新不会触碰关系。
+
+### 删除标签
+
+删除标签和删除该标签的全部 `repoTags` 在同一 Dexie 事务中完成。
+
+### 仓库同步
+
+仓库同步成功提交时只处理：
+
+```text
+repos
+repoTags 中指向已取消 Star 仓库的关系
+```
+
+它不再清空或改写标签元数据。
+
+## 5. 共享事务队列
 
 新增：
 
 ```text
-idle
-syncing
-success
-partial
-error
-cancelled
+src/services/dataMutationQueue.ts
 ```
 
-成功结果包含：
+所有跨表本地写入通过 `runDataMutation()` 串行执行：
+
+- 标签创建、更新和删除；
+- 单仓库标签替换；
+- 全量标签替换；
+- GitHub Stars 完整快照提交；
+- 备份导入；
+- 设置页彻底清空；
+- 重新抓取时清空本地数据。
+
+一个事务失败后，后续事务仍能继续执行，不会使队列永久失效。
+
+## 6. 设置页数据维护
+
+### 统计
+
+已标记仓库数量从 `repoTags.repoId` 统计，不再读取 `tags.repos`。
+
+### 导出
+
+备份格式升级到：
+
+```json
+{
+  "version": "2.0"
+}
+```
+
+导出时先从 `repoTags` 还原 `Tag.repos`，因此备份仍是便携的自包含 JSON。
+
+### 导入
+
+导入同时支持旧备份中的 `tags[].repos`。导入时：
+
+1. 规范化标签和仓库；
+2. 将标签拆为 `StoredTag`；
+3. 从 `repos` 数组生成 `repoTags`；
+4. 在同一事务中替换三张表。
+
+### 清空
+
+`repos`、`tags` 和 `repoTags` 在共享事务队列中的同一事务内清空。
+
+## 7. 自动验证
 
 ```text
-localCount
-remoteCount
-added
-updated
-removed
-fetchedPages
-totalPages
+CI run                           30760895159  PASS
+Lint                                         PASS
+Frontend type-check                          PASS
+Unit tests                                   PASS，11 tests
+Cloudflare Functions type-check              PASS
+Application + docs build                     PASS
+Cloudflare bundle build                      PASS
 ```
 
-部分失败包含 `failedPages`。
+测试包括：
 
-### 页面行为
-
-首页不再只在 `repos.length === 0` 时同步。每次进入首页都会：
-
-1. 先加载本地标签和仓库，快速显示旧完整快照；
-2. 后台获取 GitHub Stars 全部分页；
-3. 完整成功后一次性切换到新快照；
-4. 显示新增、更新和移除数量；
-5. 失败时保留旧数据并显示明确状态。
-
-## 4. 纯函数与测试
-
-新增 `src/services/repoSync.ts`：
-
-- `sanitizeRepository`
-- `buildRepositorySnapshot`
-- `calculateRepositoryChanges`
-- `pruneTagsForRepositories`
-- `pruneRepoTagsForRepositories`
-
-新增 `tests/repo-sync.test.mjs`，使用 Node 22 内置 test runner 和项目已有 TypeScript 编译器，不增加第三方测试依赖。
-
-覆盖：
-
-1. 多页快照合并和重复仓库去重；
-2. 新增、更新、取消 Star 差异计算；
-3. `tags.repos` 幽灵引用清理；
-4. `repoTags` 幽灵关联清理。
+- 仓库同步纯逻辑 3 项；
+- 标签关系与迁移 6 项；
+- 共享事务队列 2 项。
 
 运行：
 
 ```bash
-npm run test:sync
-```
-
-统一验证：
-
-```bash
+npm run test:unit
 npm run check
 ```
 
-## 5. 自动验证
+## 8. 主要文件
 
-```text
-CI run                           30759484185
-Lint                            PASS
-Frontend type-check             PASS
-Repository sync tests           PASS，4 tests
-Cloudflare Functions type-check PASS
-Application + docs build        PASS
-Cloudflare bundle build         PASS
-```
-
-当前仍有 8 条既有 ESLint 警告，本批没有引入阻断错误。
-
-## 6. 主要文件
-
+- `src/types/index.ts`
+- `src/db/index.ts`
+- `src/services/tagRelations.ts`
+- `src/services/dataMutationQueue.ts`
 - `src/services/repoSync.ts`
+- `src/stores/tag.ts`
 - `src/stores/repo.ts`
-- `src/pages/Home/index.vue`
+- `src/pages/Home/components/RepoCardTags.vue`
+- `src/pages/Settings/index.vue`
 - `tests/repo-sync.test.mjs`
-- `package.json`
-- `.github/workflows/ci.yml`
-- `docs/development/PROJECT_STATUS.md`
-- `docs/development/HANDOFF.md`
+- `tests/tag-relations.test.mjs`
+- `tests/data-mutation-queue.test.mjs`
 
-## 7. 人工验收步骤
+## 9. 合并后人工验收
 
-PR #7 合并前，使用真实 GitHub 账户执行：
+### 旧数据迁移
+
+1. 在已有标签数据的浏览器中打开新版本；
+2. 确认标签数量和仓库关联不变；
+3. DevTools → Application → IndexedDB → StarHubDB；
+4. 确认数据库版本为 3；
+5. 确认 `tags` 记录不含 `repos`；
+6. 确认全部关联位于 `repoTags`。
+
+### 标签操作
+
+1. 为仓库添加标签；
+2. 移除该标签；
+3. 同时选择多个标签并保存；
+4. 编辑标签名称和颜色；
+5. 删除标签；
+6. 刷新页面后确认状态保持一致。
+
+### 同步并发
+
+1. 触发 GitHub Stars 同步；
+2. 同步期间编辑一个仓库的标签；
+3. 等待全部操作完成；
+4. 刷新页面；
+5. 确认标签编辑未被同步覆盖。
+
+### 备份恢复
+
+1. 导出 v2.0 备份；
+2. 新建测试标签和关系；
+3. 导入备份；
+4. 确认仓库、标签和关系完整恢复；
+5. 确认导入后仍能正常新增和删除标签。
 
 ### 取消 Star
 
-1. 记录 StarHub 中某个测试仓库；
-2. 在 GitHub 取消 Star；
-3. 返回或刷新 StarHub 首页；
-4. 确认提示中 `移除 1`；
-5. 确认仓库列表、IndexedDB `repos`、标签引用中均不存在该仓库。
-
-### 新增 Star
-
-1. 在 GitHub 新增一个 Star；
-2. 返回 StarHub；
-3. 确认提示中 `新增 1`；
-4. 确认仓库进入本地数据库。
-
-### 网络失败保护
-
-1. 在浏览器开发者工具中让后续分页请求失败；
-2. 触发同步；
-3. 确认出现“同步未完成”；
-4. 确认旧仓库数量和 IndexedDB 内容未被部分结果覆盖。
-
-### 标签清理
-
 1. 给测试仓库添加标签；
-2. 在 GitHub 取消该仓库 Star；
-3. 完整同步成功；
-4. 确认标签仍存在，但其 `repos` 不再包含该仓库 ID。
+2. 在 GitHub 取消 Star；
+3. 完整同步；
+4. 确认仓库被删除；
+5. 确认对应 `repoTags` 被清理；
+6. 确认标签本身仍保留。
 
-## 8. 已知风险
+## 10. 已知风险
 
-### 并发标签编辑
+- 自动测试尚未直接运行真实浏览器 IndexedDB upgrade；
+- 没有 Playwright E2E 覆盖迁移和导入恢复；
+- GitHub token 仍持久化在 localStorage；
+- npm audit 仍报告 33 个依赖漏洞；
+- 主要前端 chunk 仍偏大。
 
-当前完整同步会在最终提交前读取标签并清理引用。同步期间用户同时编辑标签的极端竞态尚未做浏览器级并发测试。后续可在同步状态下暂时禁用标签写操作，或统一标签数据模型后集中解决。
+## 11. 下一步
 
-### 双轨标签模型
+1. PR #8 squash 合并到 `main`；
+2. 跟踪主分支 CI 和 GitHub Pages 发布；
+3. 按第 9 节执行生产浏览器验收；
+4. 下一批处理 GitHub token 生命周期和浏览器持久化安全；
+5. 随后处理依赖漏洞、ESLint 警告和构建体积。
 
-项目同时保留：
-
-- `tags.repos`
-- `repoTags`
-
-本批同时清理两套数据，避免幽灵引用，但没有完成模型统一。
-
-### 自动测试范围
-
-当前测试覆盖纯同步逻辑，不包含真实 GitHub API、IndexedDB 浏览器实现和 Vue 页面 E2E。
-
-### 其他遗留
-
-- 33 个 npm audit 漏洞，其中 19 个 high；
-- 8 条既有 ESLint 警告；
-- 两个主要 chunk 超过 1 MB；
-- GitHub token 仍存放在 localStorage。
-
-## 9. 下一步
-
-1. 完成 PR #7 真实账户人工验收；
-2. 验收通过后将 PR 标记 Ready；
-3. squash 合并到 `main`；
-4. 等待 GitHub Pages 生产发布成功；
-5. 生产环境再次验证新增 Star、取消 Star 和标签清理；
-6. 下一批统一 `tags.repos` 与 `repoTags` 数据模型。
-
-不得把 CI 通过表述为真实 GitHub 账户行为已经完成验收。
+自动检查通过不能替代真实浏览器数据迁移与生产行为验收。
