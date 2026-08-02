@@ -42,8 +42,8 @@ jobs:
       - name: Type-check
         run: npm run type-check
 
-      - name: Test repository synchronization
-        run: npm run test:sync
+      - name: Run unit tests
+        run: npm run test:unit
 
       - name: Type-check Cloudflare Functions
         run: npm run cloudflare:type-check
