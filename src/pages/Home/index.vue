@@ -15,7 +15,7 @@
               @repo-click="handleRepoClick"
             />
           </div>
-          <div 
+          <div
             v-if="selectedRepo"
             class="content-resize-handle"
             @mousedown="startContentResize"
@@ -35,6 +35,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useRepoStore } from '@/stores/repo'
 import { useTagStore } from '@/stores/tag'
 import HomeLayout from '@/layouts/HomeLayout.vue'
@@ -53,21 +54,24 @@ const filteredRepos = computed(() => repoStore.filteredRepos)
 const loading = computed(() => repoStore.isFetching)
 const syncing = computed(() => repoStore.isSyncing)
 
-// 内容区宽度调整
 const repoListWidth = ref(480)
 const isContentResizing = ref(false)
 
-const startContentResize = (e: MouseEvent) => {
+const startContentResize = (event: MouseEvent) => {
   isContentResizing.value = true
   document.addEventListener('mousemove', handleContentResize)
   document.addEventListener('mouseup', stopContentResize)
-  e.preventDefault()
+  event.preventDefault()
 }
 
-const handleContentResize = (e: MouseEvent) => {
+const handleContentResize = (event: MouseEvent) => {
   if (!isContentResizing.value) return
-  const newWidth = e.clientX - (document.querySelector('.layout-sidebar') as HTMLElement)?.offsetWidth - 4 // 减去侧边栏宽度和拖���条宽度
-  // 限制最小宽度 400px，最大宽度 800px
+
+  const sidebarWidth = (
+    document.querySelector('.layout-sidebar') as HTMLElement | null
+  )?.offsetWidth || 0
+  const newWidth = event.clientX - sidebarWidth - 4
+
   if (newWidth >= 400 && newWidth <= 800) {
     repoListWidth.value = newWidth
   }
@@ -89,16 +93,33 @@ const handleCloseDetail = () => {
 
 onMounted(async () => {
   try {
-    // Load repos if not already loaded or if empty
-    if (repoStore.repos.length === 0) {
-      await repoStore.loadRepos()
+    await tagStore.loadTags()
+    const result = await repoStore.loadRepos()
+
+    if (result.status === 'success') {
+      if (result.added || result.updated || result.removed) {
+        ElMessage.success(
+          `同步完成：新增 ${result.added}，更新 ${result.updated}，移除 ${result.removed}`
+        )
+      }
+      return
     }
-    
-    // Clean up tags for non-existent repos
-    const allRepoIds = new Set(repoStore.repos.map((r: Repository) => r.id))
-    await tagStore.washTags(allRepoIds)
+
+    if (result.status === 'partial') {
+      ElMessage.warning(
+        `同步未完成：第 ${result.failedPages.join(', ')} 页获取失败，已保留上一次完整数据。`
+      )
+      return
+    }
+
+    if (result.status === 'error') {
+      ElMessage.error(
+        `同步失败，已保留上一次完整数据：${result.message || '未知错误'}`
+      )
+    }
   } catch (error) {
-    console.error('Error loading repos:', error)
+    console.error('Error loading repositories:', error)
+    ElMessage.error('仓库数据加载失败，请稍后重试。')
   }
 })
 </script>
@@ -122,7 +143,7 @@ onMounted(async () => {
   max-width: 800px;
   height: 100%;
   flex-shrink: 0;
-  
+
   :deep(.repo-list) {
     width: 100%;
     border-right: none;
@@ -145,14 +166,13 @@ onMounted(async () => {
     background: var(--el-color-primary);
   }
 
-  // 深色模式下的样式
   [data-theme='dark'] & {
     background: rgba(96, 165, 250, 0.2);
-    
+
     &:hover {
       background: rgba(96, 165, 250, 0.5);
     }
-    
+
     &:active {
       background: rgba(96, 165, 250, 0.7);
     }
@@ -169,4 +189,3 @@ onMounted(async () => {
   overflow: hidden;
 }
 </style>
-

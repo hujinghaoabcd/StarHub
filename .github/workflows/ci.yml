@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint, type-check, and build
+    name: Lint, type-check, test, and build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -41,6 +41,9 @@ jobs:
 
       - name: Type-check
         run: npm run type-check
+
+      - name: Test repository synchronization
+        run: npm run test:sync
 
       - name: Type-check Cloudflare Functions
         run: npm run cloudflare:type-check

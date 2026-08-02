@@ -2,310 +2,229 @@
 
 ## 1. 当前状态
 
-StarHub 前端与文档已经由 GitHub Pages 正式发布：
-
 ```text
-应用：https://hujinghaoabcd.github.io/StarHub/
-文档：https://hujinghaoabcd.github.io/StarHub/docs/
+生产前端：https://hujinghaoabcd.github.io/StarHub/
+生产文档：https://hujinghaoabcd.github.io/StarHub/docs/
+OAuth API：https://starhub-oauth.pages.dev/api
+开发分支：agent/repo-sync-correctness
+Pull Request：#7
 ```
 
-OAuth 安全代码和 Cloudflare Pages Functions 路由已经准备完成并通过 CI，但 Cloudflare 项目、生产变量、Secret 和真实登录尚未配置或验证。
+用户已经完成 Cloudflare Pages OAuth 后端部署，并开始仓库同步正确性批次。PR #7 已完成代码实现和自动验证，但尚未合并到 `main`。
 
-因此当前状态必须表述为：
+## 2. 本批目标
 
-> OAuth 后端代码已就绪，生产平台尚未部署。
+修复以下问题：
 
-## 2. 已完成的工程基础
+1. 用户取消 GitHub Star 后，本地 IndexedDB 仍保留旧仓库；
+2. 分页中途失败时，旧实现仍把不完整结果写入数据库；
+3. 同步只能表现为“结束”，无法区分完整成功、部分失败和失败；
+4. 同步过程中频繁 `bulkPut`，无法保证完整快照原子替换；
+5. 标签中可能继续引用已经取消 Star 的仓库。
 
-### CI 与构建
+## 3. 已完成实现
 
-- Node.js 22；
-- Vue、TypeScript、Node.js 与 Cloudflare Functions ESLint/类型检查；
-- 应用和 VitePress 文档联合构建；
-- GitHub Actions CI；
-- Cloudflare Functions 独立类型检查与构建；
-- GitHub Pages 生产部署与公网冒烟测试。
+### 完整远端快照
 
-### GitHub Pages
+`src/stores/repo.ts` 不再使用本地仓库初始化远端合并 Map。GitHub 返回的所有 Stars 页面共同构成唯一远端快照。
 
-- 应用基础路径：`/StarHub/`；
-- 文档基础路径：`/StarHub/docs/`；
-- `.nojekyll`；
-- 带构建 SHA 的 `deployment-info.json`；
-- 生产发布仅从 `main` 执行；
-- 每次发布自动验证应用、文档、SHA 与代表性静态资源。
+这意味着：
 
-## 3. OAuth 安全实现
+- 远端新增 Star → 本地新增；
+- 远端仓库信息变化 → 本地更新；
+- 远端取消 Star → 本地删除；
+- 本地旧仓库不会因为历史缓存重新混入远端快照。
 
-### 浏览器端
+### 分页失败保护
 
-- 回调地址使用应用根路径；
-- 不再使用 `#/login` 作为 OAuth callback；
-- 使用 Web Crypto 生成随机 `state`；
-- 使用 PKCE S256；
-- 回调时消费并删除 `state` 与 `code_verifier`；
-- 弹窗通过 `postMessage` 返回 code/state；
-- 校验 `event.origin`、`event.source` 和消息类型；
-- 弹窗关闭时清理临时认证状态；
-- code 使用 JSON POST 发送给后端；
-- 生产环境缺少 API 地址时直接提示未配置；
-- 401 跳转使用 `import.meta.env.BASE_URL`，不会丢失 `/StarHub/`。
+剩余页面使用批量 `Promise.allSettled` 获取。任一页面失败时：
 
-### Cloudflare Pages Functions
+- 同步结果标记为 `partial`；
+- 记录失败页码；
+- 不清空、不替换 IndexedDB；
+- 页面继续使用上一次完整本地快照；
+- 用户收到“保留上一次完整数据”的警告。
 
-路由：
+第一页或数据库操作失败时标记为 `error`。主动取消时标记为 `cancelled`。
+
+### 原子数据库更新
+
+只有全部 GitHub 分页成功后，才执行 Dexie 写事务：
 
 ```text
-GET     /api/health
-OPTIONS /api/oauth/token
-POST    /api/oauth/token
+repos
++ tags.repos
++ repoTags
 ```
 
-安全措施：
+同一事务中完成：
 
-- Client Secret 仅从 Cloudflare Secret 读取；
-- Origin 严格白名单；
-- CORS 预检；
-- redirect URI 精确匹配；
-- code 与 code verifier 格式校验；
-- GitHub token 交换使用 `application/x-www-form-urlencoded` POST；
-- 响应设置 `Cache-Control: no-store`；
-- 不记录 code、secret 或 access token；
-- 不再生成随机伪 appToken。
+1. 清空旧仓库；
+2. 写入完整远端快照；
+3. 删除标签中不存在的仓库 ID；
+4. 删除 `repoTags` 中不存在仓库的关联行。
 
-## 4. 构建命令
+事务失败时不会留下半套仓库快照。
+
+### 同步结果模型
+
+新增：
+
+```text
+idle
+syncing
+success
+partial
+error
+cancelled
+```
+
+成功结果包含：
+
+```text
+localCount
+remoteCount
+added
+updated
+removed
+fetchedPages
+totalPages
+```
+
+部分失败包含 `failedPages`。
+
+### 页面行为
+
+首页不再只在 `repos.length === 0` 时同步。每次进入首页都会：
+
+1. 先加载本地标签和仓库，快速显示旧完整快照；
+2. 后台获取 GitHub Stars 全部分页；
+3. 完整成功后一次性切换到新快照；
+4. 显示新增、更新和移除数量；
+5. 失败时保留旧数据并显示明确状态。
+
+## 4. 纯函数与测试
+
+新增 `src/services/repoSync.ts`：
+
+- `sanitizeRepository`
+- `buildRepositorySnapshot`
+- `calculateRepositoryChanges`
+- `pruneTagsForRepositories`
+- `pruneRepoTagsForRepositories`
+
+新增 `tests/repo-sync.test.mjs`，使用 Node 22 内置 test runner 和项目已有 TypeScript 编译器，不增加第三方测试依赖。
+
+覆盖：
+
+1. 多页快照合并和重复仓库去重；
+2. 新增、更新、取消 Star 差异计算；
+3. `tags.repos` 幽灵引用清理；
+4. `repoTags` 幽灵关联清理。
+
+运行：
 
 ```bash
-nvm use
-npm ci
-npm run lint
-npm run type-check
-npm run cloudflare:type-check
-npm run pages:build
-npm run cloudflare:build
+npm run test:sync
 ```
 
-统一检查：
+统一验证：
 
 ```bash
 npm run check
 ```
 
-Cloudflare 本地预览：
-
-```bash
-cp .dev.vars.example .dev.vars
-npm run cloudflare:dev
-```
-
-`.dev.vars` 不得提交。
-
-## 5. 最终代码验证
+## 5. 自动验证
 
 ```text
-CI run                         30750815713  PASS
-Pages PR build run             30750815708  PASS
-npm ci                                      PASS
-Lint                                        PASS，8 条既有非阻断警告
-Frontend type-check                         PASS
-Cloudflare Functions type-check             PASS
-Application + documentation build           PASS
-Cloudflare output build                      PASS
-Pages configuration inspection               PASS
+CI run                           30759484185
+Lint                            PASS
+Frontend type-check             PASS
+Repository sync tests           PASS，4 tests
+Cloudflare Functions type-check PASS
+Application + docs build        PASS
+Cloudflare bundle build         PASS
 ```
 
-上述结果仅验证代码和构建，不等于 Cloudflare 线上服务已创建。
+当前仍有 8 条既有 ESLint 警告，本批没有引入阻断错误。
 
-## 6. Cloudflare Pages 创建步骤
+## 6. 主要文件
 
-进入 Cloudflare Dashboard：
-
-```text
-Workers & Pages
-→ Create
-→ Pages
-→ Connect to Git
-→ GitHub
-→ hujinghaoabcd/StarHub
-```
-
-构建配置：
-
-```text
-Production branch: main
-Build command: npm run cloudflare:build
-Build output directory: cloudflare-dist
-Root directory: /
-Node.js version: 22
-```
-
-仓库根目录的 `functions/` 会自动映射为 Pages Functions。
-
-详细说明：`docs/deploy/cloudflare.md`。
-
-## 7. Cloudflare Production Variables and Secrets
-
-必须添加：
-
-```text
-CLIENT_ID=Ov23liIm4iNdpnHwGLfp
-CLIENT_SECRET=<GitHub OAuth App Client Secret，Encrypt>
-ALLOWED_ORIGINS=https://hujinghaoabcd.github.io
-GITHUB_REDIRECT_URI=https://hujinghaoabcd.github.io/StarHub/
-```
-
-`CLIENT_SECRET` 不得写入源码、文档、聊天、Issue 或 Actions 日志。
-
-保存后重新部署 Production。
-
-## 8. GitHub OAuth App 配置
-
-进入：
-
-```text
-GitHub
-→ Settings
-→ Developer settings
-→ OAuth Apps
-→ StarHub
-```
-
-设置：
-
-```text
-Homepage URL:
-https://hujinghaoabcd.github.io/StarHub/
-
-Authorization callback URL:
-https://hujinghaoabcd.github.io/StarHub/
-```
-
-回调地址不得再填写：
-
-```text
-https://hujinghaoabcd.github.io/StarHub/#/login
-```
-
-本地开发应使用单独的 OAuth App，callback 为 `http://localhost:5173/`。
-
-## 9. GitHub Actions Variables
-
-Cloudflare 首次部署后会生成类似：
-
-```text
-https://starhub-oauth.pages.dev
-```
-
-进入 GitHub 仓库：
-
-```text
-Settings
-→ Secrets and variables
-→ Actions
-→ Variables
-```
-
-添加：
-
-```text
-VITE_API_BASE_URL=https://实际项目.pages.dev/api
-VITE_GITHUB_CLIENT_ID=Ov23liIm4iNdpnHwGLfp
-```
-
-然后重新运行 `Deploy GitHub Pages`，使 API 地址进入前端生产构建。
-
-## 10. 生产验证标准
-
-### 健康检查
-
-访问：
-
-```text
-https://实际项目.pages.dev/api/health
-```
-
-必须返回：
-
-```json
-{
-  "status": "ok",
-  "service": "starhub-oauth",
-  "configured": true
-}
-```
-
-### OAuth 完整链路
-
-必须逐项验证：
-
-1. 点击“使用 GitHub 登录”；
-2. GitHub 授权页不再出现 Invalid Redirect URI；
-3. 回调回到 `/StarHub/`；
-4. state 校验通过；
-5. Cloudflare 成功交换 token；
-6. StarHub 读取当前 GitHub 用户；
-7. StarHub 获取 Star 列表；
-8. 刷新页面后登录状态行为符合预期；
-9. 撤销 GitHub 授权后能够正确清理本地状态。
-
-只有上述流程通过，才能把 OAuth 后端标记为生产完成。
-
-## 11. 主要文件
-
-- `functions/api/health.ts`
-- `functions/api/oauth/token.ts`
-- `functions/tsconfig.json`
-- `functions/types.d.ts`
-- `scripts/build-cloudflare.mjs`
-- `.dev.vars.example`
-- `src/utils/oauth.ts`
-- `src/config/oauth.ts`
-- `src/api/auth.ts`
-- `src/api/backend.ts`
-- `src/api/request.ts`
-- `src/pages/Login.vue`
+- `src/services/repoSync.ts`
+- `src/stores/repo.ts`
+- `src/pages/Home/index.vue`
+- `tests/repo-sync.test.mjs`
+- `package.json`
 - `.github/workflows/ci.yml`
-- `.github/workflows/deploy-pages.yml`
-- `docs/deploy/cloudflare.md`
-- `docs/guide/oauth.md`
+- `docs/development/PROJECT_STATUS.md`
+- `docs/development/HANDOFF.md`
 
-## 12. 未完成与风险
+## 7. 人工验收步骤
 
-### 平台部署
+PR #7 合并前，使用真实 GitHub 账户执行：
 
-- Cloudflare Pages 项目尚未创建；
-- Production Secret 尚未添加；
-- GitHub Actions API 地址变量尚未添加；
-- 真实 OAuth 尚未验证。
+### 取消 Star
 
-### Token 存储
+1. 记录 StarHub 中某个测试仓库；
+2. 在 GitHub 取消 Star；
+3. 返回或刷新 StarHub 首页；
+4. 确认提示中 `移除 1`；
+5. 确认仓库列表、IndexedDB `repos`、标签引用中均不存在该仓库。
 
-GitHub token 当前仍保存在 localStorage。此次批次消除了伪 appToken，并加强了授权过程，但 token 生命周期和浏览器存储策略仍需单独评估。
+### 新增 Star
 
-### 依赖与质量
+1. 在 GitHub 新增一个 Star；
+2. 返回 StarHub；
+3. 确认提示中 `新增 1`；
+4. 确认仓库进入本地数据库。
 
-- `npm audit`：33 个漏洞，其中 19 个 high；
-- ESLint：8 条既有非阻断警告；
+### 网络失败保护
+
+1. 在浏览器开发者工具中让后续分页请求失败；
+2. 触发同步；
+3. 确认出现“同步未完成”；
+4. 确认旧仓库数量和 IndexedDB 内容未被部分结果覆盖。
+
+### 标签清理
+
+1. 给测试仓库添加标签；
+2. 在 GitHub 取消该仓库 Star；
+3. 完整同步成功；
+4. 确认标签仍存在，但其 `repos` 不再包含该仓库 ID。
+
+## 8. 已知风险
+
+### 并发标签编辑
+
+当前完整同步会在最终提交前读取标签并清理引用。同步期间用户同时编辑标签的极端竞态尚未做浏览器级并发测试。后续可在同步状态下暂时禁用标签写操作，或统一标签数据模型后集中解决。
+
+### 双轨标签模型
+
+项目同时保留：
+
+- `tags.repos`
+- `repoTags`
+
+本批同时清理两套数据，避免幽灵引用，但没有完成模型统一。
+
+### 自动测试范围
+
+当前测试覆盖纯同步逻辑，不包含真实 GitHub API、IndexedDB 浏览器实现和 Vue 页面 E2E。
+
+### 其他遗留
+
+- 33 个 npm audit 漏洞，其中 19 个 high；
+- 8 条既有 ESLint 警告；
 - 两个主要 chunk 超过 1 MB；
-- VitePress 仍有高亮回退与 CSS nesting 警告；
-- 单元测试与 E2E 测试尚未建立。
+- GitHub token 仍存放在 localStorage。
 
-### 仓库同步
+## 9. 下一步
 
-- 取消 Star 后旧仓库仍可能残留；
-- 同步尚未区分完整成功、部分成功和失败；
-- 尚未做到完整分页成功后原子替换；
-- 尚未增加同步单元测试。
+1. 完成 PR #7 真实账户人工验收；
+2. 验收通过后将 PR 标记 Ready；
+3. squash 合并到 `main`；
+4. 等待 GitHub Pages 生产发布成功；
+5. 生产环境再次验证新增 Star、取消 Star 和标签清理；
+6. 下一批统一 `tags.repos` 与 `repoTags` 数据模型。
 
-## 13. 下一步执行顺序
-
-1. 用户创建 Cloudflare Pages 项目；
-2. 用户添加 Production Variables and Secrets；
-3. 用户更新 GitHub OAuth App callback；
-4. 获取 `pages.dev` 地址并设置 GitHub Actions Variables；
-5. 重新部署 GitHub Pages；
-6. 验证健康检查与完整 OAuth 链路；
-7. 更新项目状态为生产完成；
-8. 进入幽灵仓库与同步正确性修复。
-
-后续不得把“代码构建通过”误报为“Cloudflare 已部署”或“OAuth 已生产可用”。
+不得把 CI 通过表述为真实 GitHub 账户行为已经完成验收。
