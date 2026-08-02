@@ -3,13 +3,13 @@
 ## 当前概况
 
 - 基准分支：`main`
-- `main` 当前同步修复提交：`909b99e23eef4aafef6af8109be786e9ba8e12f8`
-- 开发分支：`agent/tag-relations-single-source`
-- 当前 PR：`#8 refactor: make repoTags the single source of truth`
-- 当前阶段：标签关系单一真源与本地事务并发控制
+- `main` 当前提交：`4bf20a5dc57776438a35be86b9a1dbc04514ab45`
+- 开发分支：`agent/session-auth-lifecycle`
+- 当前 PR：`#9 security: scope authentication to a bounded browser session`
+- 当前阶段：GitHub token 会话化、过期控制和统一清理
 - GitHub Pages：已发布
 - Cloudflare Pages OAuth：已部署并接通
-- PR #8：代码与自动验证完成，等待合并和浏览器生产验收
+- PR #9：代码和自动验证完成，等待合并与生产浏览器验收
 
 ## 已完成批次
 
@@ -22,55 +22,61 @@
 
 ### 仓库同步正确性（PR #7，已合并）
 
-- [x] 远端 Stars 作为完整权威快照
+- [x] 远端 Stars 作为权威完整快照
 - [x] 取消 Star 后删除本地幽灵仓库
-- [x] 全部分页成功后才提交 IndexedDB
-- [x] 分页失败保留上一次完整快照
-- [x] 区分 `success`、`partial`、`error`、`cancelled`
+- [x] 分页完整成功后原子提交
 - [x] 合并提交：`909b99e23eef4aafef6af8109be786e9ba8e12f8`
 
-### 标签关系单一真源（PR #8）
+### 标签关系单一真源（PR #8，已合并）
 
-- [x] 新增 `StoredTag`，数据库 `tags` 只存标签元数据
-- [x] `repoTags` 成为唯一持久化关系真源
-- [x] `Tag.repos` 仅作为内存派生视图，兼容现有界面
-- [x] IndexedDB 升级到 v3
-- [x] 自动合并旧 `tags.repos` 与已有 `repoTags`
-- [x] 迁移时去重并删除孤儿标签关系
-- [x] 单仓库标签编辑只替换该仓库的关联
-- [x] 删除标签时同步删除其全部关系
-- [x] 仓库同步只清理失效 `repoTags`，不再重写标签元数据
-- [x] 设置页统计使用 `repoTags`
-- [x] 备份格式升级到 v2.0，并兼容旧标签关系导入
-- [x] 导入和清空操作采用完整 Dexie 事务
-- [x] 新增全局本地数据事务队列
-- [x] 仓库同步、标签编辑、导入和清空共享同一互斥队列
-- [x] 标签 `id` 与 `createdAt` 在更新时保持不可变
+- [x] `repoTags` 成为唯一持久化标签关系真源
+- [x] IndexedDB 升级到 v3 并迁移旧关系
+- [x] 仓库同步、标签编辑、导入和清空共享事务队列
+- [x] 备份格式升级到 v2.0
+- [x] 合并提交：`4bf20a5dc57776438a35be86b9a1dbc04514ab45`
+
+### 会话级认证（PR #9）
+
+- [x] GitHub token 从 `localStorage` 迁移到 `sessionStorage`
+- [x] 旧 `github-token` 首次读取时自动迁移并删除
+- [x] 旧 `app-token` 自动清除
+- [x] 用户资料缓存从 `localStorage` 迁移到 `sessionStorage`
+- [x] 会话最长 12 小时
+- [x] 关闭标签页或浏览器后不再长期保存 token
+- [x] 浏览器禁止 Storage API 时退化为当前页面内存会话
+- [x] 会话数据结构校验和损坏数据清理
+- [x] 每 5 分钟最多更新一次 `lastUsedAt`
+- [x] 每分钟、窗口聚焦和页面重新可见时检查会话期限
+- [x] OAuth callback 和登录页不受会话守护器干扰
+- [x] 请求前发现无有效会话时直接跳转登录
+- [x] GitHub 401 统一清理并只跳转一次
+- [x] 清理认证时同时删除 token 和缓存用户资料
+- [x] 跨标签页同步退出
+- [x] 登录页区分会话过期、GitHub 拒绝和其他标签页退出
 
 ## 自动验证
 
 ```text
-PR                              #8
-Branch                          agent/tag-relations-single-source
-CI run                          30760895159  PASS
-Pages PR build                  30760895134  PASS/PR build
+PR                              #9
+Branch                          agent/session-auth-lifecycle
+CI run                          30761611893  PASS
 npm ci                                        PASS
 npm run lint                                 PASS
 npm run type-check                           PASS
-npm run test:unit                            PASS，11 tests
+npm run test:unit                            PASS，17 tests
 npm run cloudflare:type-check                PASS
 npm run pages:build                          PASS
 npm run cloudflare:build                     PASS
 ```
 
-测试覆盖：
+新增认证测试覆盖：
 
-- 仓库远端快照、差异计算和失效关系清理；
-- 旧标签数据迁移、去重和孤儿关系过滤；
-- `StoredTag` 与 UI 标签视图转换；
-- 单仓库与单标签关系替换；
-- 本地数据事务按顺序执行；
-- 单次事务失败不会阻塞后续事务。
+- 新 token 只写入会话存储；
+- 旧 localStorage token 自动迁移；
+- 到期会话拒绝并删除；
+- 退出清理和通知；
+- Storage API 被阻止时的内存回退；
+- 会话时间元数据不暴露 token。
 
 ## 在线地址
 
@@ -78,54 +84,59 @@ npm run cloudflare:build                     PASS
 - 文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
 - OAuth API：`https://starhub-oauth.pages.dev/api`
 
-## PR #8 主要文件
+## PR #9 主要文件
 
-- `src/types/index.ts`
-- `src/db/index.ts`
-- `src/services/tagRelations.ts`
-- `src/services/dataMutationQueue.ts`
-- `src/services/repoSync.ts`
-- `src/stores/tag.ts`
-- `src/stores/repo.ts`
-- `src/pages/Home/components/RepoCardTags.vue`
-- `src/pages/Settings/index.vue`
-- `tests/repo-sync.test.mjs`
-- `tests/tag-relations.test.mjs`
-- `tests/data-mutation-queue.test.mjs`
+- `src/utils/auth.ts`
+- `src/utils/authLifecycle.ts`
+- `src/api/request.ts`
+- `src/stores/user.ts`
+- `src/pages/Login.vue`
+- `src/main.ts`
+- `tests/auth-session.test.mjs`
 
 ## 合并后人工验收
 
-- [ ] 刷新旧版用户数据，确认原标签和仓库关联全部保留
-- [ ] 检查 IndexedDB `tags` 行中不再保存 `repos`
-- [ ] 检查 IndexedDB `repoTags` 保存全部关联
-- [ ] 为单个仓库新增、移除和切换标签
-- [ ] 删除标签，确认对应 `repoTags` 一并删除
-- [ ] 新增和取消 GitHub Star，确认关系正确保留或清理
-- [ ] 导出 v2.0 备份并重新导入，确认标签关系完整恢复
-- [ ] 在后台同步期间编辑标签，确认最终状态不被覆盖
+- [ ] 已登录旧版本升级后无需立即重新授权
+- [ ] localStorage 中不再存在 `github-token`、`app-token`、`starhub_user`
+- [ ] sessionStorage 中存在版本化认证会话和用户资料
+- [ ] 刷新当前标签页仍保持登录
+- [ ] 关闭标签页后重新打开需要重新登录
+- [ ] 手动退出后 token 和用户资料全部删除
+- [ ] 两个标签页中任一标签页退出，另一标签页同步返回登录页
+- [ ] 模拟 401 后显示重新授权提示
+- [ ] 模拟过期后显示会话过期提示
+- [ ] OAuth 弹窗和同页回调仍能完成登录
+
+## 已知风险
+
+- `sessionStorage` 仍可被同源 JavaScript 读取，不能抵御成功的 XSS；
+- 真正的 HttpOnly 服务端会话需要后续引入同站后端会话或 GitHub API BFF；
+- 自动测试尚未覆盖真实浏览器跨标签页和计时器行为；
+- npm audit 仍报告 33 个依赖漏洞；
+- 主要前端 chunk 仍偏大。
 
 ## 后续计划
 
-### P1：令牌安全
+### P1：认证纵深防御
 
-- [ ] 缩短 GitHub access token 在浏览器中的持久化生命周期
-- [ ] 评估从 localStorage 迁移到会话级存储或后端会话
-- [ ] 增加退出、撤销授权和 401 状态的统一清理
+- [ ] 评估同站自定义域名与 HttpOnly Cookie 可行性
+- [ ] 评估 Cloudflare KV/D1 会话或 GitHub API BFF
+- [ ] 增加 Content Security Policy 和 XSS 防护审查
 
 ### P1：依赖与质量
 
 - [ ] 审查 33 个依赖漏洞：2 low、12 moderate、19 high
 - [ ] 清理现有 ESLint 警告
 - [ ] 处理主要 chunk 过大问题
-- [ ] 增加 IndexedDB 浏览器集成测试和 Playwright E2E
+- [ ] 增加 Playwright 认证与 IndexedDB E2E
 
 ## 下一步
 
-1. 将 PR #8 标记 Ready 并 squash 合并到 `main`；
-2. 等待主分支 CI 与 GitHub Pages 生产发布；
-3. 执行标签迁移和备份恢复人工验收；
-4. 开始 GitHub token 生命周期安全批次。
+1. 将 PR #9 标记 Ready 并 squash 合并到 `main`；
+2. 跟踪主分支 CI 与 GitHub Pages 发布；
+3. 执行会话迁移、刷新、关闭标签页和跨标签页退出验收；
+4. 下一批处理依赖漏洞与前端安全响应头。
 
 ## 更新规则
 
-每一批必须记录：已完成、未完成、修改文件、验证结果、已知风险和下一步。自动测试通过不得替代真实浏览器迁移和生产行为验收。
+每一批必须记录：已完成、未完成、修改文件、验证结果、已知风险和下一步。自动检查通过不得替代真实浏览器和生产行为验收。

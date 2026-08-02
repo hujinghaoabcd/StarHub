@@ -11,6 +11,7 @@ import App from './App.vue'
 import router from './router'
 import i18n from './i18n'
 import { useThemeStore } from './stores/theme'
+import { startAuthSessionLifecycle } from './utils/authLifecycle'
 import './styles/main.scss'
 
 const app = createApp(App)
@@ -46,4 +47,4 @@ app.use(ElementPlus, {
 })
 
 app.mount('#app')
-
+startAuthSessionLifecycle()
