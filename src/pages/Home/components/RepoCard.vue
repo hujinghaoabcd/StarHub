@@ -83,7 +83,7 @@ const props = defineProps<{
   selectMode?: boolean
 }>()
 
-const emit = defineEmits<{
+defineEmits<{
   click: []
   select: [selected: boolean]
 }>()

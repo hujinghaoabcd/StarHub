@@ -598,7 +598,7 @@ const handleSavePreset = async () => {
       .filter(k => k)
   }
 
-  let presets = categoryPresets.value
+  const presets = categoryPresets.value
   const isEditing = !!editingPreset.value
 
   if (isEditing) {

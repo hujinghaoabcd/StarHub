@@ -209,7 +209,7 @@ const handleCommand = async (command: string) => {
         
         // Show loading message
         const { ElMessage } = await import('element-plus')
-        let loading = ElMessage({
+        const loading = ElMessage({
           message: isSyncing ? '正在停止同步...' : t('menu.clearingData'),
           type: 'info',
           duration: 0,
