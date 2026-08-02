@@ -1,4 +1,4 @@
-import type { RepoTag, Repository, Tag } from '@/types'
+import type { RepoTag, Repository } from '@/types'
 
 export type RepoSyncStatus =
   | 'idle'
@@ -25,11 +25,6 @@ export interface RepositoryChanges {
   added: number
   updated: number
   removed: number
-}
-
-export interface PrunedTagsResult {
-  tags: Tag[]
-  removedAssignments: number
 }
 
 export interface PrunedRepoTagsResult {
@@ -142,36 +137,6 @@ export function calculateRepositoryChanges(
   }
 
   return { added, updated, removed }
-}
-
-export function pruneTagsForRepositories(
-  tags: readonly Tag[],
-  validRepositoryIds: ReadonlySet<number>,
-  now: number = Date.now()
-): PrunedTagsResult {
-  let removedAssignments = 0
-
-  const prunedTags = tags.map(tag => {
-    const repositories = (tag.repos || []).filter(repositoryId => {
-      const keep = validRepositoryIds.has(repositoryId)
-      if (!keep) {
-        removedAssignments++
-      }
-      return keep
-    })
-
-    if (repositories.length === (tag.repos || []).length) {
-      return { ...tag, repos: [...repositories] }
-    }
-
-    return {
-      ...tag,
-      repos: repositories,
-      updatedAt: now
-    }
-  })
-
-  return { tags: prunedTags, removedAssignments }
 }
 
 export function pruneRepoTagsForRepositories(
