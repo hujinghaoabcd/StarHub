@@ -19,11 +19,11 @@
 - [x] Pages 配置确认：`build_type: workflow`
 - [x] 开发分支部署限制诊断
 - [x] 生产策略改为 `main` 专用
+- [x] 最终 PR CI、Lint、类型检查和联合构建通过
 - [x] 状态与交接文档更新
 
 ## 未完成
 
-- [ ] PR #3 最后一轮 CI
 - [ ] 合并到 `main`
 - [ ] 验证正式 Pages 部署与公网冒烟测试
 - [ ] 验证应用和文档地址
@@ -39,7 +39,7 @@ npm run lint              PASS，9 条警告
 npm run type-check        PASS
 npm run pages:build       PASS
 Pages 配置读取            PASS
-Pages artifact 上传       PASS（诊断运行）
+PR Pages 构建             PASS
 正式部署                  PENDING ON MAIN
 ```
 
@@ -50,4 +50,4 @@ Pages artifact 上传       PASS（诊断运行）
 
 ## 下一步
 
-完成 CI、合并 PR、验证上线，然后进入同步正确性修复。
+合并 PR、验证上线，然后进入同步正确性修复。
