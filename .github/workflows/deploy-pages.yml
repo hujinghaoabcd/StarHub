@@ -92,6 +92,7 @@ jobs:
       - name: Smoke test application and documentation
         env:
           PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+          EXPECTED_SHA: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -115,7 +116,9 @@ jobs:
           grep -Eq '/StarHub/assets/[^"[:space:]]+\.(js|css)' application.html
           grep -q 'StarHub' documentation.html
           grep -q '/StarHub/docs/assets/' documentation.html
-          jq -e '.appBase == "/StarHub/" and .docsBase == "/StarHub/docs/"' deployment-info.json
+          jq -e --arg sha "${EXPECTED_SHA}" \
+            '.appBase == "/StarHub/" and .docsBase == "/StarHub/docs/" and .commit == $sha' \
+            deployment-info.json
 
           application_asset="$(grep -oE '/StarHub/assets/[^"[:space:]]+\.(js|css)' application.html | head -n 1)"
           documentation_asset="$(grep -oE '/StarHub/docs/assets/[^"[:space:]]+\.(js|css)' documentation.html | head -n 1)"
@@ -130,7 +133,79 @@ jobs:
           echo "Documentation URL: ${base_url}/docs/"
           echo "Application asset: ${application_asset}"
           echo "Documentation asset: ${documentation_asset}"
+          echo "Deployed commit: ${EXPECTED_SHA}"
           echo "GitHub Pages smoke test passed."
+
+  observe:
+    name: Verify live Pages deployment
+    if: github.event_name == 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    steps:
+      - name: Wait for matching branch deployment and smoke test it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          page_url="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.html_url')"
+          base_url="${page_url%/}"
+          curl_args=(--fail --silent --show-error --location)
+          matched=false
+
+          for attempt in $(seq 1 36); do
+            echo "Checking live deployment ${attempt}/36 for ${EXPECTED_SHA}"
+
+            if curl "${curl_args[@]}" \
+              "${base_url}/deployment-info.json?attempt=${attempt}" \
+              --output deployment-info.json; then
+              live_sha="$(jq -r '.commit // empty' deployment-info.json 2>/dev/null || true)"
+              echo "Live commit: ${live_sha:-not available}"
+
+              if [[ "${live_sha}" == "${EXPECTED_SHA}" ]]; then
+                matched=true
+                break
+              fi
+            fi
+
+            sleep 10
+          done
+
+          if [[ "${matched}" != "true" ]]; then
+            echo "::error::Live Pages deployment did not reach commit ${EXPECTED_SHA}."
+            exit 1
+          fi
+
+          curl "${curl_args[@]}" "${base_url}/" --output application.html
+          curl "${curl_args[@]}" "${base_url}/docs/" --output documentation.html
+
+          grep -q '<div id="app"></div>' application.html
+          grep -Eq '/StarHub/assets/[^"[:space:]]+\.(js|css)' application.html
+          grep -q 'StarHub' documentation.html
+          grep -q '/StarHub/docs/assets/' documentation.html
+          jq -e --arg sha "${EXPECTED_SHA}" \
+            '.appBase == "/StarHub/" and .docsBase == "/StarHub/docs/" and .commit == $sha' \
+            deployment-info.json
+
+          application_asset="$(grep -oE '/StarHub/assets/[^"[:space:]]+\.(js|css)' application.html | head -n 1)"
+          documentation_asset="$(grep -oE '/StarHub/docs/assets/[^"[:space:]]+\.(js|css)' documentation.html | head -n 1)"
+
+          test -n "${application_asset}"
+          test -n "${documentation_asset}"
+
+          curl "${curl_args[@]}" "${base_url}${application_asset#/StarHub}" --output /dev/null
+          curl "${curl_args[@]}" "${base_url}${documentation_asset#/StarHub}" --output /dev/null
+
+          echo "Application URL: ${base_url}/"
+          echo "Documentation URL: ${base_url}/docs/"
+          echo "Application asset: ${application_asset}"
+          echo "Documentation asset: ${documentation_asset}"
+          echo "Verified live commit: ${EXPECTED_SHA}"
+          echo "Live GitHub Pages verification passed."
 
   report:
     name: Report Pages status
