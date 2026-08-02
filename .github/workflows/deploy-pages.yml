@@ -54,8 +54,92 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
 
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  report:
+    name: Report deployment status
+    if: always()
+    needs:
+      - build
+      - deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Update pull request deployment comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_RESULT: ${{ needs.build.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+          PAGE_URL: ${{ needs.deploy.outputs.page_url }}
+        shell: bash
+        run: |
+          pr_number="$(
+            gh api --method GET "repos/${GITHUB_REPOSITORY}/pulls" \
+              -f state=open \
+              -f head="${GITHUB_REPOSITORY_OWNER}:${GITHUB_REF_NAME}" \
+              --jq '.[0].number // empty'
+          )"
+
+          if [[ -z "${pr_number}" ]]; then
+            echo "No open pull request found for ${GITHUB_REF_NAME}; skipping report."
+            exit 0
+          fi
+
+          marker='<!-- starhub-pages-status -->'
+          if [[ "${BUILD_RESULT}" == "success" && "${DEPLOY_RESULT}" == "success" ]]; then
+            summary='✅ GitHub Pages 部署成功'
+            application_url="${PAGE_URL}"
+            documentation_url="${PAGE_URL%/}/docs/"
+          elif [[ "${BUILD_RESULT}" != "success" ]]; then
+            summary='❌ GitHub Pages 构建失败'
+            application_url='尚未生成'
+            documentation_url='尚未生成'
+          else
+            summary='⚠️ 构建成功，但 GitHub Pages 发布失败或被跳过'
+            application_url='尚不可访问'
+            documentation_url='尚不可访问'
+          fi
+
+          body="${marker}
+          ## 在线部署状态
+
+          ${summary}
+
+          - 应用预览：${application_url}
+          - 项目文档：${documentation_url}
+          - 构建结果：\`${BUILD_RESULT}\`
+          - 发布结果：\`${DEPLOY_RESULT}\`
+          - 分支：\`${GITHUB_REF_NAME}\`
+          - 提交：\`${GITHUB_SHA}\`
+
+          > 登录仍依赖待部署的 OAuth 后端；当前 Pages 主要用于界面和文档预览。"
+
+          payload_file="$(mktemp)"
+          jq -n --arg body "${body}" '{ body: $body }' > "${payload_file}"
+
+          comment_id="$(
+            gh api --paginate "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/comments" \
+              --jq ".[] | select(.body | contains(\"${marker}\")) | .id" \
+              | head -n 1
+          )"
+
+          if [[ -n "${comment_id}" ]]; then
+            gh api --method PATCH \
+              "repos/${GITHUB_REPOSITORY}/issues/comments/${comment_id}" \
+              --input "${payload_file}" >/dev/null
+            echo "Updated deployment status comment ${comment_id}."
+          else
+            gh api --method POST \
+              "repos/${GITHUB_REPOSITORY}/issues/${pr_number}/comments" \
+              --input "${payload_file}" >/dev/null
+            echo "Created deployment status comment."
+          fi
