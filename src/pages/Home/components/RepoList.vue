@@ -141,7 +141,7 @@
     </div>
 
     <div
-      v-if="!loading && totalCount > 0 && totalPages > 1"
+      v-if="!loading && totalCount > 0"
       class="repo-list-pagination"
     >
       <el-pagination
@@ -391,7 +391,6 @@ const pageSize = computed({
 })
 
 const totalCount = computed(() => repoStore.totalFilteredCount)
-const totalPages = computed(() => repoStore.totalPages)
 
 const handlePageChange = (page: number) => {
   repoStore.setCurrentPage(page)
