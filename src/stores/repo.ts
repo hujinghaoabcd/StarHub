@@ -6,6 +6,12 @@ import { getPageFromLinkStr } from '@/utils'
 import { useTagStore } from './tag'
 import { runDataMutation } from '@/services/dataMutationQueue'
 import {
+  normalizeRepositoryPageSize,
+  sortRepositories,
+  type RepositorySortField,
+  type RepositorySortOrder
+} from '@/services/repositoryView'
+import {
   buildRepositorySnapshot,
   calculateRepositoryChanges,
   pruneRepoTagsForRepositories,
@@ -70,6 +76,8 @@ export const useRepoStore = defineStore('repo', {
     searchQuery: '',
     selectedLanguage: null as string | null,
     selectedTag: null as string | null,
+    sortBy: 'updated' as RepositorySortField,
+    sortOrder: 'desc' as RepositorySortOrder,
     currentPage: 1,
     pageSize: 50
   }),
@@ -111,9 +119,13 @@ export const useRepoStore = defineStore('repo', {
       return result
     },
 
+    sortedFilteredRepos(): Repository[] {
+      return sortRepositories(this.allFilteredRepos, this.sortBy, this.sortOrder)
+    },
+
     filteredRepos(): Repository[] {
       const start = (this.currentPage - 1) * this.pageSize
-      return this.allFilteredRepos.slice(start, start + this.pageSize)
+      return this.sortedFilteredRepos.slice(start, start + this.pageSize)
     },
 
     totalFilteredCount(): number {
@@ -406,13 +418,61 @@ export const useRepoStore = defineStore('repo', {
       this.$state.selectedTag = null
     },
 
+    setSortBy(field: RepositorySortField) {
+      this.$state.sortBy = field
+      this.$state.currentPage = 1
+    },
+
+    setSortOrder(order: RepositorySortOrder) {
+      this.$state.sortOrder = order
+      this.$state.currentPage = 1
+    },
+
+    toggleSortOrder() {
+      this.setSortOrder(this.$state.sortOrder === 'asc' ? 'desc' : 'asc')
+    },
+
     setCurrentPage(page: number) {
       this.$state.currentPage = page
     },
 
     setPageSize(size: number) {
-      this.$state.pageSize = size
+      this.$state.pageSize = normalizeRepositoryPageSize(size)
       this.$state.currentPage = 1
+    },
+
+    async removeRepository(repoId: number) {
+      await runDataMutation(() =>
+        db.transaction('rw', db.repos, db.repoTags, async () => {
+          await db.repos.delete(repoId)
+          await db.repoTags.where('repoId').equals(repoId).delete()
+        })
+      )
+
+      this.$state.repos = this.$state.repos.filter(
+        repository => repository.id !== repoId
+      )
+      this.$state.currentPage = Math.min(
+        this.$state.currentPage,
+        Math.max(1, Math.ceil(this.totalFilteredCount / this.$state.pageSize))
+      )
+
+      const tagStore = useTagStore()
+      await tagStore.loadTags()
+    },
+
+    async unstarRepository(repository: Repository) {
+      if (this.$state.isSyncing) {
+        throw new Error('Repository synchronization is in progress.')
+      }
+
+      const [owner, name] = repository.full_name.split('/')
+      if (!owner || !name) {
+        throw new Error('Repository full name is invalid.')
+      }
+
+      await githubApi.unstarRepository(owner, name)
+      await this.removeRepository(repository.id)
     },
 
     async clearAndReload() {
@@ -424,6 +484,8 @@ export const useRepoStore = defineStore('repo', {
       this.$state.selectedLanguage = null
       this.$state.filterType = 'all'
       this.$state.searchQuery = ''
+      this.$state.sortBy = 'updated'
+      this.$state.sortOrder = 'desc'
       this.$state.currentPage = 1
       this.$state.syncStatus = 'idle'
       this.$state.lastSyncResult = null

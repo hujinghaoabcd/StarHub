@@ -6,259 +6,186 @@
 生产前端：https://hujinghaoabcd.github.io/StarHub/
 生产文档：https://hujinghaoabcd.github.io/StarHub/docs/
 OAuth API：https://starhub-oauth.pages.dev/api
-main：ca85ce9291a446bcce367f181f5480629488915e
-开发分支：agent/local-oauth-docs-hardening
-Pull Request：#11
+main：6d1771d5bcafa5f645033c22dee6285871c5778e
+开发分支：agent/repo-links-unstar-pagination
+Pull Request：#14
 ```
 
-PR #10 已完成依赖升级、生产依赖审计和静态安全策略。PR #11 删除第二套旧 Node OAuth 服务，把本地开发、生产部署和文档统一到 Cloudflare Pages Functions。
+当前批次实现用户优先提出的项目链接、应用内取消 Star、全局升降序排序和最大 1000 条分页。
 
-## 2. 当前 OAuth 架构
+## 2. 项目链接
 
-### 生产
+详情页新增 `RepositoryOverview.vue`，展示：
 
 ```text
-GitHub Pages
-  └─ Vue 前端与 VitePress 文档
-       └─ HTTPS POST 到 Cloudflare Pages API
-
-Cloudflare Pages Functions
-  ├─ GET  /api/health
-  └─ POST /api/oauth/token
-       └─ 服务端使用 GitHub Client Secret 交换 token
+GitHub repository html_url
+GitHub About homepage
+GitHub Pages actual html_url
 ```
 
-### 本地
+数据来源：
+
+- Stars 同步快照保存 `homepage` 和 `has_pages`；
+- 打开详情时重新读取仓库详情，避免长期缓存过时；
+- `has_pages=true` 时调用 Pages API；
+- 优先使用当前认证请求的额度；
+- 403 或 404 时，对公开仓库使用匿名 Pages API 回退；
+- 任何 URL 都必须通过 `http:` / `https:` 校验后才能渲染为链接。
+
+未配置 About 或 Pages 时显示明确的未配置状态，不拼接推测网址。
+
+## 3. 全局排序与分页
+
+排序状态位于 `useRepoStore`：
 
 ```text
-http://localhost:5173  Vite 前端
-        │
-        └─ /api 代理
-              ↓
-http://localhost:8788  Wrangler Pages Functions
+sortBy: updated | stars | created | name
+sortOrder: asc | desc
 ```
 
-仓库不再维护独立的 Express/CORS/Dotenv OAuth 服务，也不再维护第二份服务端 `package-lock.json`。
-
-## 3. 本地配置
-
-### GitHub OAuth App
-
-为本地开发单独创建 OAuth App：
+执行顺序：
 
 ```text
-Homepage URL: http://localhost:5173/
-Authorization callback URL: http://localhost:5173/
+repos
+→ filterType / tag / language / search
+→ sortRepositories(allFilteredRepos)
+→ slice(currentPage, pageSize)
 ```
 
-生产 App 继续使用：
+这解决了旧实现只对当前页数组排序的问题。分页大小为：
 
 ```text
-Homepage URL: https://hujinghaoabcd.github.io/StarHub/
-Authorization callback URL: https://hujinghaoabcd.github.io/StarHub/
+50, 100, 200, 500, 1000
 ```
 
-GitHub OAuth App 只有一个 callback URL，因此本地与生产不要复用同一个 App。
+分页控件在有结果时始终显示，因此选择 1000 后即使只剩一页，也能继续切换其他大小。
 
-### Functions 变量
+## 4. 取消 Star 数据流
 
-```bash
-cp .dev.vars.example .dev.vars
-```
+入口：详情顶部的“取消 Star”按钮。
 
-```env
-CLIENT_ID=your_local_client_id
-CLIENT_SECRET=your_local_client_secret
-ALLOWED_ORIGINS=http://localhost:5173
-GITHUB_REDIRECT_URI=http://localhost:5173/
-```
+流程：
 
-`.dev.vars` 被 Git 忽略。不要把 Client Secret 写入源码、Issue、日志、聊天记录或浏览器变量。
+1. 仓库同步期间拒绝操作；
+2. 用户确认取消具体仓库的 Star；
+3. 检查当前 token 的 `X-OAuth-Scopes`；
+4. 已有 `public_repo` 或 `repo` 时直接调用 GitHub；
+5. 权限不足时显示作用域风险说明；
+6. 用户同意后通过 PKCE popup 请求 `read:user public_repo`；
+7. token 交换成功后替换当前 12 小时会话 token；
+8. 自动重试 `DELETE /user/starred/{owner}/{repo}`；
+9. 远端成功后，在共享数据写队列中删除 `repos` 和相关 `repoTags`；
+10. 重新加载标签视图并关闭被删除仓库的详情。
 
-### 浏览器变量
+私有仓库按钮禁用，因为本批不申请 `repo` 权限。
 
-创建未提交的 `.env.local`：
+## 5. OAuth 权限策略
 
-```env
-VITE_GITHUB_CLIENT_ID=your_local_client_id
-```
-
-该值必须与 `.dev.vars` 中的 `CLIENT_ID` 完全一致。Client ID 可以公开，Client Secret 不能进入任何 `VITE_*` 变量。
-
-本地使用 Vite 代理，不需要 `VITE_API_BASE_URL`。
-
-## 4. 本地运行
-
-```bash
-npm ci
-
-# 终端 1
-npm run cloudflare:dev
-
-# 终端 2
-npm run dev
-```
-
-验证：
+日常登录仍使用：
 
 ```text
-Frontend: http://localhost:5173/
-Health:   http://localhost:8788/api/health
+read:user
 ```
 
-健康检查应返回 `configured: true`。
-
-## 5. Token 交换契约
-
-请求：
-
-```http
-POST /api/oauth/token
-Content-Type: application/json
-Origin: http://localhost:5173
-```
-
-```json
-{
-  "code": "github_authorization_code",
-  "codeVerifier": "pkce_verifier",
-  "redirectUri": "http://localhost:5173/"
-}
-```
-
-服务端必须：
-
-1. 校验 HTTP 方法；
-2. 校验 Origin 白名单；
-3. 校验 JSON 数据结构；
-4. 精确校验 redirect URI；
-5. 使用 PKCE `code_verifier`；
-6. 在服务端使用 Client Secret；
-7. 返回 `Cache-Control: no-store`；
-8. 不在错误响应或日志中泄露 code、token 和 Secret。
-
-实现文件：`functions/api/oauth/token.ts`。
-
-## 6. 会话策略
-
-GitHub access token 仍由浏览器在当前会话中使用：
+只有主动使用取消 Star 时才请求：
 
 ```text
-sessionStorage.starhub-auth-session-v1
-sessionStorage.starhub_user
+read:user public_repo
 ```
 
-- 最长会话时间：12 小时；
-- 关闭标签页或浏览器后不依赖长期 token 自动登录；
-- GitHub 401、会话过期和手动退出统一清理；
-- 跨标签页退出通过不含 token 的事件同步；
-- `sessionStorage` 不是 HttpOnly，不能声称能够抵御 XSS。
+原因：GitHub OAuth App 没有只针对 Star 写操作的独立经典作用域。界面必须明确说明 `public_repo` 还包含更广泛的公开仓库读写能力。
+
+作用域包含关系：
+
+```text
+repo        ⇒ public_repo
+user        ⇒ read:user
+public_repo ⇏ repo
+```
+
+## 6. 主要文件
+
+```text
+src/types/index.ts
+src/api/github.ts
+src/services/repoSync.ts
+src/services/repositoryView.ts
+src/services/oauthScopes.ts
+src/services/oauthPermission.ts
+src/stores/repo.ts
+src/pages/Home/index.vue
+src/pages/Home/components/RepoList.vue
+src/pages/Home/components/RepositoryOverview.vue
+tests/repository-view.test.mjs
+tests/oauth-scopes.test.mjs
+docs/development/PRIORITY_FEATURE_BATCH.md
+```
 
 ## 7. 自动验证
 
-永久验证器：
+本批新增测试覆盖：
+
+- 全量 Star 数排序后再分页；
+- 更新时间和创建时间升降序；
+- 不区分大小写的项目名称排序；
+- 1000 条分页大小；
+- OAuth scope 多种分隔符；
+- 空值处理；
+- 精确权限；
+- `repo` 与 `user` 的上位作用域包含关系。
+
+第一轮 CI 和 Pages PR 构建已全绿。最终修正后的头提交还需再次通过：
 
 ```text
-scripts/verify-oauth-docs.mjs
+Lint
+Frontend TypeScript
+25 项单元测试
+Functions TypeScript
+OAuth 文档校验
+应用与文档构建
+CSP bundle 扫描
+静态安全策略
+生产依赖审计
+Cloudflare bundle
+GitHub Pages PR build
 ```
 
-它会检查：
+## 8. 人工验收
 
-- `server/` 旧服务目录没有恢复；
-- Markdown 不包含旧接口、旧端口和旧服务路径；
-- Vite `/api` 代理指向 8788；
-- 本地文档包含四个 Functions 变量；
-- 本地文档包含 `.env.local` 与 `VITE_GITHUB_CLIENT_ID`；
-- `.dev.vars.example` 只允许本地显式 Origin；
-- 本地 Client ID 示例不复用生产配置。
+### 项目链接
 
-运行：
+- [ ] 打开有 About Website 的仓库，确认 URL 完全一致；
+- [ ] 打开启用 GitHub Pages 的公开仓库，确认显示实际 `html_url`；
+- [ ] 未配置时显示“未配置”，不出现错误猜测链接。
 
-```bash
-npm run oauth:verify
-npm run check
-```
+### 排序
 
-`npm run check` 还包含：
+- [ ] 将分页设为 50，选择 Star 数降序；
+- [ ] 翻到第二页，确认仍是全量列表的连续排序；
+- [ ] 分别验证更新时间、创建时间、名称的升序和降序；
+- [ ] 切换到 1000，再切回 50，分页控件始终可用。
 
-- Lint；
-- 前端类型检查；
-- 17 项单元测试；
-- Functions 类型检查；
-- GitHub Pages 应用与文档构建；
-- CSP/Referrer Policy 校验；
-- 生产依赖审计；
-- Cloudflare Pages bundle 构建。
+### 取消 Star
 
-## 8. 主要修改文件
+- [ ] 使用默认只读会话点击取消 Star；
+- [ ] 确认出现 `public_repo` 风险说明；
+- [ ] 完成 GitHub 授权后操作自动重试；
+- [ ] GitHub 页面中 Star 状态已取消；
+- [ ] StarHub 列表、IndexedDB `repos` 和 `repoTags` 同时删除；
+- [ ] 刷新或重新同步后仓库不会重新出现；
+- [ ] 拒绝权限或关闭 popup 时仓库保持不变。
 
-```text
-.dev.vars.example
-vite.config.ts
-package.json
-scripts/verify-oauth-docs.mjs
-docs/development/local-oauth.md
-docs/guide/oauth.md
-docs/guide/installation.md
-docs/deploy/cloudflare.md
-docs/deploy/self-host.md
-docs/DEPLOYMENT.md
-docs/troubleshooting/login.md
-README.md
-README.en.md
-```
+## 9. 已知风险
 
-删除：
+- 自动测试不能替代真实 GitHub OAuth popup 和写操作；
+- `public_repo` 权限范围较宽，必须坚持按需申请和清晰说明；
+- 匿名 Pages 回退受 GitHub 未认证速率限制；
+- 远端取消成功但本地存储失败属于极端部分成功状态，应通过刷新同步恢复；
+- 当前仍缺少 Playwright 浏览器级 E2E。
 
-```text
-server/dev-server.js
-server/package.json
-server/package-lock.json
-```
+## 10. 下一步
 
-## 9. 合并后人工验收
-
-### 本地 OAuth
-
-1. 创建单独的本地 GitHub OAuth App；
-2. 配置 `.dev.vars` 与 `.env.local`；
-3. 启动 8788 Functions 和 5173 Vite；
-4. 确认 `/api/health` 返回 `configured: true`；
-5. 完成 GitHub 授权；
-6. 确认 Network 中是 `POST /api/oauth/token`；
-7. 确认授权后可以读取用户资料和 Stars；
-8. 确认 URL 中 `code`、`state` 被清理。
-
-### 拒绝路径
-
-1. 将 Origin 改为未授权地址，确认接口拒绝；
-2. 提交错误 redirect URI，确认接口拒绝；
-3. 重复使用同一个 GitHub code，确认失败且不泄露敏感信息；
-4. 缺少 PKCE verifier，确认返回通用错误。
-
-### 生产回归
-
-1. 打开 GitHub Pages；
-2. 完成生产 OAuth 登录；
-3. 同步 Stars；
-4. 刷新当前标签页；
-5. 退出并确认会话清理；
-6. 检查 Cloudflare 日志中没有 code、token 或 Secret。
-
-## 10. 已知风险与后续
-
-- VitePress `2.0.0-alpha.17` 是预发布版本；
-- 真实 OAuth、弹窗和 Cloudflare 变量仍需人工验收；
-- 前端 token 仍存在同源 XSS 风险；
-- ESLint 有历史 warning；
-- 前端主 chunk 仍偏大。
-
-后续优先级：
-
-1. 完成 PR #11 合并与人工验收；
-2. 清理 ESLint warning；
-3. 增加 Playwright OAuth callback、IndexedDB 和跨标签页 E2E；
-4. 评估同站自定义域名与 HttpOnly Cookie/BFF；
-5. 拆分大体积 chunk。
-
-自动检查通过不能替代真实浏览器、GitHub OAuth 与 Cloudflare 生产行为验收。
+1. 完成 PR #14 最终 CI；
+2. squash 合并到 `main`；
+3. 生产发布后完成上述人工验收；
+4. 返回 ESLint 零 warning 和 E2E 批次。
