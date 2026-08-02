@@ -36,30 +36,11 @@
 npm run pages:build
 ```
 
-联合产物：
-
-```text
-dist/
-├── index.html
-├── assets/
-├── logo.svg
-├── .nojekyll
-├── deployment-info.json
-└── docs/
-    ├── index.html
-    ├── assets/
-    └── ...
-```
-
-`deployment-info.json` 包含应用基础路径、文档基础路径和实际构建提交 SHA。
+最终产物将应用放在 `dist/`，文档放在 `dist/docs/`，并生成 `.nojekyll` 和记录提交 SHA 的 `deployment-info.json`。
 
 ### Pages 工作流
 
-文件：
-
-```text
-.github/workflows/deploy-pages.yml
-```
+文件：`.github/workflows/deploy-pages.yml`。
 
 当前标准流程：
 
@@ -68,15 +49,7 @@ dist/
 - 手动运行：仅当所选 ref 为 `main` 时进入生产部署；
 - 生产结果尝试回写到关联 PR。
 
-公网冒烟测试验证：
-
-1. 应用首页；
-2. 文档首页；
-3. `deployment-info.json`；
-4. 线上提交 SHA；
-5. `/StarHub/assets/` 应用资源路径；
-6. `/StarHub/docs/assets/` 文档资源路径；
-7. 实际请求应用和文档各一个 JS/CSS 资源。
+公网冒烟测试验证应用首页、文档首页、部署元数据、线上提交 SHA、应用与文档资源路径，以及实际 JS/CSS 资源请求。
 
 ## 3. 本轮诊断结论
 
@@ -97,21 +70,15 @@ Upload GitHub Pages artifact PASS
 Deploy Pages site            FAIL（未分配 runner，无执行步骤）
 ```
 
-公网轮询在 6 分钟内持续得到：
-
-```text
-/StarHub/deployment-info.json → HTTP 404
-```
-
-结论：`github-pages` 生产环境不接受当前开发分支发布。构建和资源路径没有失败，生产发布必须从 `main` 执行。
+同时，公网 `deployment-info.json` 在 6 分钟轮询中持续返回 HTTP 404。结论是生产环境拒绝非 `main` 分支发布，而不是构建或资源路径失败。
 
 处理结果：
 
 - 生产部署只监听 `main`；
-- PR 保留联合构建和 Pages 配置检查；
+- PR 保留联合构建与配置检查；
 - 删除临时诊断工作流；
 - 部署结果回写增加 `pull-requests: read`；
-- 合并后通过关联 PR API 回写状态。
+- 合并后通过关联 PR API 回写部署状态。
 
 ## 4. 当前验证结果
 
@@ -149,13 +116,13 @@ Verify deployed site      PENDING
 - `docs/development/PROJECT_STATUS.md`
 - `docs/development/HANDOFF.md`
 
-临时诊断工作流已删除，不属于最终方案。
+临时诊断工作流已删除。
 
 ## 6. 已知风险与未完成项
 
 ### 在线功能
 
-- Pages 上线后主要提供界面与文档预览；
+- Pages 上线后主要提供界面和文档预览；
 - GitHub OAuth 后端尚未部署；
 - `/api/getToken` 在线环境暂不可用；
 - GitHub 登录不能视为生产可用。
@@ -164,7 +131,7 @@ Verify deployed site      PENDING
 
 - 缺少 `state`；
 - 回调仍使用 `window.opener` 全局函数；
-- token 交换仍是 GET 风格；
+- token 交换仍为 GET 风格；
 - GitHub token 仍存入 localStorage；
 - 随机 `appToken` 无实际认证作用。
 
@@ -205,10 +172,4 @@ npm run pages:build
 
 ## 9. 交接要求
 
-后续每批必须：
-
-- 更新已完成与未完成；
-- 更新修改、验证、风险和下一步；
-- 不把“构建成功”误报为“线上成功”；
-- 不绕过 CI；
-- 生产 Pages 只从 `main` 发布。
+后续每批必须更新已完成、未完成、修改、验证、风险和下一步；不得把构建成功误报为线上成功；生产 Pages 只从 `main` 发布。
