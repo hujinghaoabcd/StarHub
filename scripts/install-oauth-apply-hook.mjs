@@ -10,8 +10,8 @@ await writeFile(
   `#!/usr/bin/env bash
 set -euo pipefail
 workflow='.github/workflows/apply-oauth-backend-fix.yml'
-if git diff --cached --name-status | grep -Eq "^D[[:space:]]+${workflow}$"; then
-  git restore --source=HEAD --staged --worktree -- "${workflow}"
+if git diff --cached --name-status | grep -Eq '^D[[:space:]]+\\.github/workflows/apply-oauth-backend-fix\\.yml$'; then
+  git restore --source=HEAD --staged --worktree -- "$workflow"
 fi
 `,
   'utf8'
