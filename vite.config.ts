@@ -16,7 +16,7 @@ function baseAwareVueRuntimeLinks(base: string): Plugin {
         return null
       }
 
-      let transformed = code.replace(
+      const transformed = code.replace(
         /(["'])\/docs\/\1/g,
         `$1${base}docs/$1`
       )
@@ -88,8 +88,7 @@ export default defineConfig({
       host: 'localhost', // HMR 使用 localhost
       port: 5173
     },
-    // 注意：/api 请求会通过 Cloudflare Workers 处理（部署后）
-    // 本地开发时，使用本地服务器（运行 node server/dev-server.js）
+    // 本地开发时，/api 请求转发到本地 OAuth 服务
     proxy: {
       '/api': {
         target: 'http://localhost:7001',
