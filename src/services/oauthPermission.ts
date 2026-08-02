@@ -10,7 +10,7 @@ import {
   createOAuthRequest,
   getOAuthRedirectUri
 } from '@/utils/oauth'
-import { parseOAuthScopes } from './oauthScopes'
+import { hasOAuthScope, parseOAuthScopes } from './oauthScopes'
 
 interface OAuthCallbackMessage {
   type: 'starhub:oauth-callback'
@@ -65,7 +65,7 @@ export async function currentTokenHasScope(
     return null
   }
 
-  return parseOAuthScopes(String(header)).has(requiredScope)
+  return hasOAuthScope(String(header), requiredScope)
 }
 
 export async function authorizeGitHubScopes(
@@ -156,7 +156,7 @@ export async function authorizeGitHubScopes(
         })
         const grantedScopes = parseOAuthScopes(response.data.scope)
         const missingScope = uniqueScopes.find(
-          scope => !grantedScopes.has(scope)
+          scope => !hasOAuthScope(response.data.scope, scope)
         )
 
         if (missingScope) {
