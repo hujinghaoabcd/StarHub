@@ -207,7 +207,7 @@ StarHub requires GitHub OAuth to access your Star data. Follow these steps:
 3. Fill in application information:
    - **Application name**: `StarHub` (or any name)
    - **Homepage URL**: `http://localhost:5173`
-   - **Authorization callback URL**: `http://localhost:5173/#/login`
+   - **Authorization callback URL**: `http://localhost:5173/`
 4. Click **Register application**
 5. Record the **Client ID**
 6. Click **Generate a new client secret** and record the **Client Secret**

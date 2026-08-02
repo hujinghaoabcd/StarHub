@@ -207,7 +207,7 @@ StarHub 需要通过 GitHub OAuth 获取你的 Star 数据。请按以下步骤�
 3. 填写应用信息：
    - **Application name**: `StarHub`（或任意名称）
    - **Homepage URL**: `http://localhost:5173`
-   - **Authorization callback URL**: `http://localhost:5173/#/login`
+   - **Authorization callback URL**: `http://localhost:5173/`
 4. 点击 **Register application**
 5. 记录 **Client ID**
 6. 点击 **Generate a new client secret**，记录 **Client Secret**

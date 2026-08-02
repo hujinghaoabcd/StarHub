@@ -2,146 +2,310 @@
 
 ## 1. 当前状态
 
-- GitHub Pages 已成功发布；
-- 生产发布仅允许从 `main` 执行；
-- 应用与文档由 GitHub Actions 自动构建、发布和验证；
-- Pages 当前主要提供界面与文档预览；
-- GitHub OAuth 生产后端尚未部署，在线登录暂不属于生产可用。
-
-## 2. 在线地址
+StarHub 前端与文档已经由 GitHub Pages 正式发布：
 
 ```text
 应用：https://hujinghaoabcd.github.io/StarHub/
 文档：https://hujinghaoabcd.github.io/StarHub/docs/
 ```
 
-## 3. 已完成
+OAuth 安全代码和 Cloudflare Pages Functions 路由已经准备完成并通过 CI，但 Cloudflare 项目、生产变量、Secret 和真实登录尚未配置或验证。
 
-### 工程与 CI
+因此当前状态必须表述为：
+
+> OAuth 后端代码已就绪，生产平台尚未部署。
+
+## 2. 已完成的工程基础
+
+### CI 与构建
 
 - Node.js 22；
-- Vue、TypeScript、Node.js、Cloudflare Functions ESLint 基线；
-- 非破坏性 Lint、类型检查和统一质量命令；
+- Vue、TypeScript、Node.js 与 Cloudflare Functions ESLint/类型检查；
+- 应用和 VitePress 文档联合构建；
 - GitHub Actions CI；
-- 本地 OAuth 服务入口修复。
+- Cloudflare Functions 独立类型检查与构建；
+- GitHub Pages 生产部署与公网冒烟测试。
 
-### Pages 构建与发布
+### GitHub Pages
 
-- 应用构建到 `/StarHub/`；
-- 文档构建到 `/StarHub/docs/`；
-- 应用与文档合并到同一 `dist/`；
-- 生成 `.nojekyll`；
-- 生成带构建提交 SHA 的 `deployment-info.json`；
-- Pull Request 只执行构建验证；
-- `main` 推送执行 Pages 配置、artifact 上传、部署和公网冒烟测试；
-- 应用、文档、部署元数据和实际静态资源均通过公网验证；
-- 临时诊断工作流未进入最终 `main`。
+- 应用基础路径：`/StarHub/`；
+- 文档基础路径：`/StarHub/docs/`；
+- `.nojekyll`；
+- 带构建 SHA 的 `deployment-info.json`；
+- 生产发布仅从 `main` 执行；
+- 每次发布自动验证应用、文档、SHA 与代表性静态资源。
 
-## 4. 首次完整生产验证
+## 3. OAuth 安全实现
+
+### 浏览器端
+
+- 回调地址使用应用根路径；
+- 不再使用 `#/login` 作为 OAuth callback；
+- 使用 Web Crypto 生成随机 `state`；
+- 使用 PKCE S256；
+- 回调时消费并删除 `state` 与 `code_verifier`；
+- 弹窗通过 `postMessage` 返回 code/state；
+- 校验 `event.origin`、`event.source` 和消息类型；
+- 弹窗关闭时清理临时认证状态；
+- code 使用 JSON POST 发送给后端；
+- 生产环境缺少 API 地址时直接提示未配置；
+- 401 跳转使用 `import.meta.env.BASE_URL`，不会丢失 `/StarHub/`。
+
+### Cloudflare Pages Functions
+
+路由：
 
 ```text
-main CI run                   30747981390  PASS
-main Pages deployment run     30747981393  PASS
-application page              PASS
-VitePress documentation       PASS
-deployment-info.json          PASS
-verified application commit   b406ede95eb3666bcf33d4b82bca576e112469f5
-application asset             /StarHub/assets/index-D_FEoJXh.js
-VitePress asset               /StarHub/docs/assets/style.9lQW86My.css
+GET     /api/health
+OPTIONS /api/oauth/token
+POST    /api/oauth/token
 ```
 
-验证内容包括：
+安全措施：
 
-1. 应用首页包含 Vue 挂载点；
-2. 应用资源使用 `/StarHub/assets/`；
-3. 文档首页可访问；
-4. 文档资源使用 `/StarHub/docs/assets/`；
-5. `deployment-info.json` 中的基础路径正确；
-6. 在线提交 SHA 与对应 `main` 构建提交一致；
-7. 应用 JS 与文档 CSS 代表性资源均能成功请求。
+- Client Secret 仅从 Cloudflare Secret 读取；
+- Origin 严格白名单；
+- CORS 预检；
+- redirect URI 精确匹配；
+- code 与 code verifier 格式校验；
+- GitHub token 交换使用 `application/x-www-form-urlencoded` POST；
+- 响应设置 `Cache-Control: no-store`；
+- 不记录 code、secret 或 access token；
+- 不再生成随机伪 appToken。
 
-最新在线提交应以站点的 `deployment-info.json` 为准。永久部署工作流会在每次 `main` 发布后自动验证在线 SHA 与当前构建一致。
+## 4. 构建命令
 
-## 5. 部署过程中发现并解决的问题
+```bash
+nvm use
+npm ci
+npm run lint
+npm run type-check
+npm run cloudflare:type-check
+npm run pages:build
+npm run cloudflare:build
+```
 
-### Pages 首次未启用
+统一检查：
 
-仓库已在 `Settings → Pages` 中将 Source 设置为 `GitHub Actions`。
+```bash
+npm run check
+```
 
-### 开发分支不能生产部署
+Cloudflare 本地预览：
 
-开发分支能够完成构建、Pages 配置和 artifact 上传，但 `github-pages` environment 不接受该分支的生产部署。最终采用标准流程：
+```bash
+cp .dev.vars.example .dev.vars
+npm run cloudflare:dev
+```
 
-- Pull Request：构建与配置验证；
-- `main`：正式发布。
+`.dev.vars` 不得提交。
 
-### 静态资源路径
+## 5. 最终代码验证
 
-曾错误预处理模板中的 `/logo.svg`，导致 Rollup 将 `/StarHub/logo.svg` 视为源码模块。最终保留 Vite 对 `public` 静态资源的原生处理，只通过 `base` 配置项目路径。
+```text
+CI run                         30750815713  PASS
+Pages PR build run             30750815708  PASS
+npm ci                                      PASS
+Lint                                        PASS，8 条既有非阻断警告
+Frontend type-check                         PASS
+Cloudflare Functions type-check             PASS
+Application + documentation build           PASS
+Cloudflare output build                      PASS
+Pages configuration inspection               PASS
+```
 
-### 部署结果可追溯性
+上述结果仅验证代码和构建，不等于 Cloudflare 线上服务已创建。
 
-`deployment-info.json` 记录构建提交 SHA，公网冒烟测试要求线上 SHA 与当前构建 SHA 完全匹配，避免将旧版本误判为部署成功。
+## 6. Cloudflare Pages 创建步骤
 
-## 6. 主要最终文件
+进入 Cloudflare Dashboard：
 
-- `.eslintrc.cjs`
+```text
+Workers & Pages
+→ Create
+→ Pages
+→ Connect to Git
+→ GitHub
+→ hujinghaoabcd/StarHub
+```
+
+构建配置：
+
+```text
+Production branch: main
+Build command: npm run cloudflare:build
+Build output directory: cloudflare-dist
+Root directory: /
+Node.js version: 22
+```
+
+仓库根目录的 `functions/` 会自动映射为 Pages Functions。
+
+详细说明：`docs/deploy/cloudflare.md`。
+
+## 7. Cloudflare Production Variables and Secrets
+
+必须添加：
+
+```text
+CLIENT_ID=Ov23liIm4iNdpnHwGLfp
+CLIENT_SECRET=<GitHub OAuth App Client Secret，Encrypt>
+ALLOWED_ORIGINS=https://hujinghaoabcd.github.io
+GITHUB_REDIRECT_URI=https://hujinghaoabcd.github.io/StarHub/
+```
+
+`CLIENT_SECRET` 不得写入源码、文档、聊天、Issue 或 Actions 日志。
+
+保存后重新部署 Production。
+
+## 8. GitHub OAuth App 配置
+
+进入：
+
+```text
+GitHub
+→ Settings
+→ Developer settings
+→ OAuth Apps
+→ StarHub
+```
+
+设置：
+
+```text
+Homepage URL:
+https://hujinghaoabcd.github.io/StarHub/
+
+Authorization callback URL:
+https://hujinghaoabcd.github.io/StarHub/
+```
+
+回调地址不得再填写：
+
+```text
+https://hujinghaoabcd.github.io/StarHub/#/login
+```
+
+本地开发应使用单独的 OAuth App，callback 为 `http://localhost:5173/`。
+
+## 9. GitHub Actions Variables
+
+Cloudflare 首次部署后会生成类似：
+
+```text
+https://starhub-oauth.pages.dev
+```
+
+进入 GitHub 仓库：
+
+```text
+Settings
+→ Secrets and variables
+→ Actions
+→ Variables
+```
+
+添加：
+
+```text
+VITE_API_BASE_URL=https://实际项目.pages.dev/api
+VITE_GITHUB_CLIENT_ID=Ov23liIm4iNdpnHwGLfp
+```
+
+然后重新运行 `Deploy GitHub Pages`，使 API 地址进入前端生产构建。
+
+## 10. 生产验证标准
+
+### 健康检查
+
+访问：
+
+```text
+https://实际项目.pages.dev/api/health
+```
+
+必须返回：
+
+```json
+{
+  "status": "ok",
+  "service": "starhub-oauth",
+  "configured": true
+}
+```
+
+### OAuth 完整链路
+
+必须逐项验证：
+
+1. 点击“使用 GitHub 登录”；
+2. GitHub 授权页不再出现 Invalid Redirect URI；
+3. 回调回到 `/StarHub/`；
+4. state 校验通过；
+5. Cloudflare 成功交换 token；
+6. StarHub 读取当前 GitHub 用户；
+7. StarHub 获取 Star 列表；
+8. 刷新页面后登录状态行为符合预期；
+9. 撤销 GitHub 授权后能够正确清理本地状态。
+
+只有上述流程通过，才能把 OAuth 后端标记为生产完成。
+
+## 11. 主要文件
+
+- `functions/api/health.ts`
+- `functions/api/oauth/token.ts`
+- `functions/tsconfig.json`
+- `functions/types.d.ts`
+- `scripts/build-cloudflare.mjs`
+- `.dev.vars.example`
+- `src/utils/oauth.ts`
+- `src/config/oauth.ts`
+- `src/api/auth.ts`
+- `src/api/backend.ts`
+- `src/api/request.ts`
+- `src/pages/Login.vue`
 - `.github/workflows/ci.yml`
 - `.github/workflows/deploy-pages.yml`
-- `.nvmrc`
-- `package.json`
-- `scripts/build-pages.mjs`
-- `server/package.json`
-- `tsconfig.json`
-- `vite.config.ts`
-- `docs/.vitepress/config.ts`
-- `docs/development/PROJECT_STATUS.md`
-- `docs/development/HANDOFF.md`
+- `docs/deploy/cloudflare.md`
+- `docs/guide/oauth.md`
 
-## 7. 未完成与风险
+## 12. 未完成与风险
+
+### 平台部署
+
+- Cloudflare Pages 项目尚未创建；
+- Production Secret 尚未添加；
+- GitHub Actions API 地址变量尚未添加；
+- 真实 OAuth 尚未验证。
+
+### Token 存储
+
+GitHub token 当前仍保存在 localStorage。此次批次消除了伪 appToken，并加强了授权过程，但 token 生命周期和浏览器存储策略仍需单独评估。
+
+### 依赖与质量
+
+- `npm audit`：33 个漏洞，其中 19 个 high；
+- ESLint：8 条既有非阻断警告；
+- 两个主要 chunk 超过 1 MB；
+- VitePress 仍有高亮回退与 CSS nesting 警告；
+- 单元测试与 E2E 测试尚未建立。
 
 ### 仓库同步
 
 - 取消 Star 后旧仓库仍可能残留；
 - 同步尚未区分完整成功、部分成功和失败；
-- 写库过程尚未做到完整分页成功后的原子替换；
-- 尚未建立同步单元测试；
-- 下一批优先处理。
+- 尚未做到完整分页成功后原子替换；
+- 尚未增加同步单元测试。
 
-### OAuth 与后端
+## 13. 下一步执行顺序
 
-- Cloudflare Worker 尚未部署；
-- OAuth 缺少 `state`；
-- 回调仍使用 `window.opener` 全局函数；
-- token 交换仍为 GET 风格；
-- GitHub token 仍存入 localStorage；
-- 随机 `appToken` 无实际认证作用。
+1. 用户创建 Cloudflare Pages 项目；
+2. 用户添加 Production Variables and Secrets；
+3. 用户更新 GitHub OAuth App callback；
+4. 获取 `pages.dev` 地址并设置 GitHub Actions Variables；
+5. 重新部署 GitHub Pages；
+6. 验证健康检查与完整 OAuth 链路；
+7. 更新项目状态为生产完成；
+8. 进入幽灵仓库与同步正确性修复。
 
-### 依赖与质量
-
-- `npm audit`：33 个漏洞，其中 19 个 high；
-- ESLint：9 条非阻断警告；
-- Element Plus 与 libs chunk 超过 1 MB；
-- VitePress 存在 `env` 高亮回退和 CSS nesting 警告；
-- 单元测试与 E2E 测试尚未建立。
-
-## 8. 下一步执行顺序
-
-1. 提取仓库同步结果合并纯函数；
-2. 增加同步单元测试；
-3. 修复取消 Star 后仍残留的幽灵仓库；
-4. 区分完整成功、部分成功和失败；
-5. 确保完整分页成功后再原子更新 IndexedDB；
-6. 再进入 OAuth 安全重构；
-7. 部署 Cloudflare Worker 后端。
-
-## 9. 本地复现
-
-```bash
-nvm use
-npm ci
-npm run check
-npm run pages:build
-```
-
-后续每批必须更新已完成、未完成、验证、风险和交接文档，不得把构建成功误报为线上成功。
+后续不得把“代码构建通过”误报为“Cloudflare 已部署”或“OAuth 已生产可用”。

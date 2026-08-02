@@ -31,3 +31,8 @@ dist-ssr
 # TypeScript
 *.tsbuildinfo
 
+
+# Cloudflare Pages Functions
+cloudflare-dist
+.dev.vars*
+!.dev.vars.example

@@ -1,27 +1,31 @@
-const APP_TOKEN_KEY = 'app-token'
+
+const LEGACY_APP_TOKEN_KEY = 'app-token'
 const GITHUB_TOKEN_KEY = 'github-token'
 
 export const AuthToken = {
   getAppToken(): string | null {
-    return localStorage.getItem(APP_TOKEN_KEY)
+    return this.getGithubToken()
   },
 
   getGithubToken(): string | null {
     return localStorage.getItem(GITHUB_TOKEN_KEY)
   },
 
-  setToken(appToken: string, githubToken: string): void {
-    localStorage.setItem(APP_TOKEN_KEY, appToken)
+  setGithubToken(githubToken: string): void {
+    localStorage.removeItem(LEGACY_APP_TOKEN_KEY)
     localStorage.setItem(GITHUB_TOKEN_KEY, githubToken)
   },
 
+  setToken(_appToken: string, githubToken: string): void {
+    this.setGithubToken(githubToken)
+  },
+
   clean(): void {
-    localStorage.removeItem(APP_TOKEN_KEY)
+    localStorage.removeItem(LEGACY_APP_TOKEN_KEY)
     localStorage.removeItem(GITHUB_TOKEN_KEY)
   },
 
   exist(): boolean {
-    return !!this.getAppToken()
+    return Boolean(this.getGithubToken())
   }
 }
-

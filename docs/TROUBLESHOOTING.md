@@ -23,8 +23,8 @@
 
 1. **检查回调地址**
    - 确认 GitHub OAuth App 的回调地址与当前网址匹配
-   - 本地开发：`http://localhost:5173/#/login`
-   - 生产环境：`https://yourdomain.com/#/login`
+   - 本地开发：`http://localhost:5173/`
+   - 生产环境：`https://yourdomain.com/`
 
 2. **检查 Client ID**
    - 确认 `src/config/oauth.ts` 中的 CLIENT_ID 正确

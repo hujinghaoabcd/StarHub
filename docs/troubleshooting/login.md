@@ -23,8 +23,8 @@ GitHub OAuth App 的回调地址必须**完全匹配**：
 
 | 环境 | 回调地址 |
 |------|----------|
-| 本地开发 | `http://localhost:5173/#/login` |
-| 生产环境 | `https://yourdomain.com/#/login` |
+| 本地开发 | `http://localhost:5173/` |
+| 生产环境 | `https://yourdomain.com/` |
 
 注意：
 - 协议（http/https）必须匹配
