@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server:dev": "npm --prefix server run dev",
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --ignore-path .gitignore",
@@ -13,7 +12,9 @@
     "type-check": "vue-tsc --noEmit",
     "test:unit": "node --test tests/*.test.mjs",
     "test:sync": "npm run test:unit",
-    "check": "npm run lint && npm run type-check && npm run test:unit && npm run cloudflare:type-check && npm run pages:build && npm run cloudflare:build",
+    "audit:production": "npm audit --omit=dev --audit-level=moderate",
+    "security:verify": "node scripts/verify-static-security.mjs",
+    "check": "npm run lint && npm run type-check && npm run test:unit && npm run cloudflare:type-check && npm run pages:build && npm run security:verify && npm run audit:production && npm run cloudflare:build",
     "pages:build": "node scripts/build-pages.mjs",
     "cloudflare:build": "node scripts/build-cloudflare.mjs",
     "cloudflare:type-check": "tsc -p functions/tsconfig.json --noEmit",
@@ -24,9 +25,9 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
-    "axios": "^1.6.7",
+    "axios": "^1.19.0",
     "dexie": "^3.2.4",
-    "dompurify": "^3.0.8",
+    "dompurify": "^3.4.12",
     "element-plus": "^2.5.6",
     "github-markdown-css": "^5.8.1",
     "highlight.js": "^11.10.0",
@@ -35,7 +36,6 @@
     "marked-gfm-heading-id": "^4.1.3",
     "marked-highlight": "^2.2.3",
     "marked-mangle": "^1.1.12",
-    "md5": "^2.3.0",
     "pinia": "^2.1.7",
     "query-string": "^9.1.0",
     "vue": "^3.4.21",
@@ -44,22 +44,18 @@
     "vue-virtual-scroller": "^2.0.0-beta.8"
   },
   "devDependencies": {
-    "@vitejs/plugin-vue": "^5.0.4",
+    "@vitejs/plugin-vue": "^6.0.8",
     "@vue/eslint-config-typescript": "^13.0.0",
     "@vue/tsconfig": "^0.5.1",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
     "eslint": "^8.57.0",
     "eslint-plugin-vue": "^9.23.0",
-    "express": "^5.2.1",
-    "sass": "^1.71.1",
-    "typescript": "~5.4.0",
-    "vite": "^5.1.4",
-    "vite-plugin-pwa": "^0.17.5",
-    "vitepress": "^1.6.4",
-    "vue-tsc": "^1.8.27"
+    "sass": "^1.102.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.0",
+    "vitepress": "2.0.0-alpha.17",
+    "vue-tsc": "^3.3.9"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.12.0"
   }
 }

@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Lint, type-check, test, and build
+    name: Lint, type-check, test, audit, and build
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -50,6 +50,12 @@ jobs:
 
       - name: Build application and documentation
         run: npm run pages:build
+
+      - name: Verify static security policy
+        run: npm run security:verify
+
+      - name: Audit production dependencies
+        run: npm run audit:production
 
       - name: Build Cloudflare Pages bundle
         run: npm run cloudflare:build
