@@ -1,0 +1,244 @@
+name: Apply detail layout and category import
+
+on:
+  push:
+    branches:
+      - agent/detail-layout-tag-import-ai-audit
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-detail-tag-import
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out feature branch
+        uses: actions/checkout@v6
+        with:
+          ref: agent/detail-layout-tag-import-ai-audit
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Apply exact integrations
+        shell: python
+        run: |
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              file = Path(path)
+              text = file.read_text(encoding='utf-8')
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one match, found {count}')
+              file.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          replace_once(
+              'src/pages/Home/components/DetailView.vue',
+              '''          <div class="meta-item updated">
+            Updated {{ formatDate(repo.updated_at) }}
+          </div>
+        </div>
+      </div>
+
+      <!-- README -->''',
+              '''          <div class="meta-item updated">
+            Updated {{ formatDate(repo.updated_at) }}
+          </div>
+        </div>
+
+        <RepositoryOverview
+          :repo="repo"
+          @unstarred="emit('unstarred', $event)"
+        />
+      </div>
+
+      <!-- README -->'''
+          )
+
+          replace_once(
+              'src/pages/Home/components/DetailView.vue',
+              '''import { useTagStore } from '@/stores/tag'
+import { useThemeStore } from '@/stores/theme' ''',
+              '''import { useTagStore } from '@/stores/tag'
+import { useThemeStore } from '@/stores/theme'
+import RepositoryOverview from './RepositoryOverview.vue' '''
+          )
+
+          replace_once(
+              'src/pages/Home/components/DetailView.vue',
+              '''defineEmits<{
+  close: []
+}>()''',
+              '''const emit = defineEmits<{
+  close: []
+  unstarred: [repoId: number]
+}>()'''
+          )
+
+          replace_once(
+              'src/pages/Home/components/SideMenu.vue',
+              '''          <el-button
+            text
+            circle
+            size="small"
+            :disabled="isClassifying"
+            @click="showCreateTagDialog = true"
+          >
+            <el-icon><Plus /></el-icon>
+          </el-button>''',
+              '''          <el-tooltip content="导入分类名称" placement="top">
+            <el-button
+              text
+              circle
+              size="small"
+              :disabled="isClassifying"
+              @click="showImportTagDialog = true"
+            >
+              <el-icon><Upload /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-button
+            text
+            circle
+            size="small"
+            :disabled="isClassifying"
+            @click="showCreateTagDialog = true"
+          >
+            <el-icon><Plus /></el-icon>
+          </el-button>'''
+          )
+
+          replace_once(
+              'src/pages/Home/components/SideMenu.vue',
+              '''    </el-dialog>
+  </div>
+</template>''',
+              '''    </el-dialog>
+
+    <TagNameImportDialog v-model="showImportTagDialog" />
+  </div>
+</template>'''
+          )
+
+          replace_once(
+              'src/pages/Home/components/SideMenu.vue',
+              "import { Plus, Close, Grid, Collection, Loading, MagicStick, ArrowDown, Refresh, CircleClose } from '@element-plus/icons-vue'",
+              "import { Plus, Close, Grid, Collection, Loading, MagicStick, ArrowDown, Refresh, CircleClose, Upload } from '@element-plus/icons-vue'\nimport TagNameImportDialog from './TagNameImportDialog.vue'"
+          )
+
+          replace_once(
+              'src/pages/Home/components/SideMenu.vue',
+              "const showCreateTagDialog = ref(false)\n",
+              "const showCreateTagDialog = ref(false)\nconst showImportTagDialog = ref(false)\n"
+          )
+
+          replace_once(
+              'src/stores/tag.ts',
+              '''function createTagId(): string {
+  return `tag_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+}
+''',
+              '''function createTagId(): string {
+  return `tag_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`
+}
+
+const IMPORT_TAG_COLORS = [
+  '#409EFF',
+  '#67C23A',
+  '#E6A23C',
+  '#F56C6C',
+  '#909399',
+  '#8B5CF6',
+  '#06B6D4',
+  '#EC4899'
+]
+'''
+          )
+
+          replace_once(
+              'src/stores/tag.ts',
+              '''    async updateTag(tagId: string, updates: Partial<Tag>) {''',
+              '''    async importTagNames(
+      names: readonly string[]
+    ): Promise<{ created: number; skipped: number }> {
+      return runDataMutation(async () => {
+        this.$state.isMutating = true
+
+        try {
+          await ensureDatabaseOpen()
+          const existingNames = new Set(
+            this.$state.tags.map(tag => tag.name.trim().toLocaleLowerCase())
+          )
+          const storedTags: StoredTag[] = []
+          let skipped = 0
+          const now = Date.now()
+
+          for (const rawName of names) {
+            const name = rawName.trim().replace(/\\s+/g, ' ')
+            const key = name.toLocaleLowerCase()
+
+            if (!name || name.length > 80 || existingNames.has(key)) {
+              skipped++
+              continue
+            }
+
+            existingNames.add(key)
+            storedTags.push({
+              id: createTagId(),
+              name,
+              color: IMPORT_TAG_COLORS[storedTags.length % IMPORT_TAG_COLORS.length],
+              createdAt: now,
+              updatedAt: now
+            })
+          }
+
+          if (storedTags.length > 0) {
+            await db.tags.bulkAdd(storedTags)
+            this.$state.tags = [
+              ...this.$state.tags,
+              ...storedTags.map(tag => ({ ...tag, repos: [] }))
+            ]
+          }
+
+          return { created: storedTags.length, skipped }
+        } finally {
+          this.$state.isMutating = false
+        }
+      })
+    },
+
+    async updateTag(tagId: string, updates: Partial<Tag>) {'''
+          )
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run complete checks
+        run: npm run check
+
+      - name: Remove one-time workflow
+        run: rm .github/workflows/apply-detail-tag-import.yml
+
+      - name: Commit integrated feature
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/Home/components/DetailView.vue \
+                  src/pages/Home/components/SideMenu.vue \
+                  src/stores/tag.ts \
+                  .github/workflows/apply-detail-tag-import.yml
+          git commit -m "feat: integrate repository actions and category import"
+          git push origin HEAD:agent/detail-layout-tag-import-ai-audit
