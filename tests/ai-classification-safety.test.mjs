@@ -269,6 +269,51 @@ test('classification batches enforce repository and category registries', async 
   )
 })
 
+test('DeepSeek v4 disables thinking and rejects empty or truncated final output', async () => {
+  const compatibility = await importTypescriptSource(
+    'src/services/openAICompatible.ts'
+  )
+  const body = compatibility.buildOpenAICompatibleRequestBody({
+    provider: 'deepseek',
+    model: 'deepseek-v4-flash',
+    messages: [{ role: 'user', content: 'Return JSON' }],
+    schema: { type: 'object' },
+    maxOutputTokens: 8000
+  })
+
+  assert.deepEqual(body.thinking, { type: 'disabled' })
+  assert.deepEqual(body.response_format, { type: 'json_object' })
+  assert.equal(body.max_tokens, 8000)
+  assert.equal(Object.hasOwn(body, 'max_completion_tokens'), false)
+  assert.equal(
+    compatibility.extractOpenAICompatibleText({
+      choices: [{
+        finish_reason: 'stop',
+        message: { content: '{"classifications":[]}' }
+      }]
+    }, 'deepseek'),
+    '{"classifications":[]}'
+  )
+  assert.throws(
+    () => compatibility.extractOpenAICompatibleText({
+      choices: [{
+        finish_reason: 'length',
+        message: { content: '{"classifications":[' }
+      }]
+    }, 'deepseek'),
+    error => error.code === 'truncated_output' && error.canSplit === true
+  )
+  assert.throws(
+    () => compatibility.extractOpenAICompatibleText({
+      choices: [{
+        finish_reason: 'stop',
+        message: { content: '', reasoning_content: 'long internal reasoning' }
+      }]
+    }, 'deepseek'),
+    error => error.code === 'empty_output' && /思考内容/.test(error.message)
+  )
+})
+
 test('classification registry uses existing tag IDs and never preset-only IDs', async () => {
   const registry = await importTypescriptSource(
     'src/services/classificationRegistry.ts'
@@ -328,6 +373,9 @@ test('classification UI cannot clear existing relationships and uses real cancel
   const classificationTasks = await source(
     'src/services/classificationTasks.ts'
   )
+  const openAICompatible = await source(
+    'src/services/openAICompatible.ts'
+  )
 
   assert.equal(sideMenu.includes('command="reclassify"'), false)
   assert.equal(sideMenu.includes('db.repoTags.clear()'), false)
@@ -336,6 +384,7 @@ test('classification UI cannot clear existing relationships and uses real cancel
   assert.match(sideMenu, /classificationTaskStore\.pause\(\)/)
   assert.equal(sideMenu.includes('getReadme('), false)
   assert.match(classificationTasks, /signal,/)
+  assert.match(classificationTasks, /任务已自动暂停：本批次没有任何有效结果/)
   assert.match(sideMenu, /onUnmounted\([\s\S]*classificationTaskStore\.pause/)
 
   assert.match(aiService, /fetchWithTimeout/)
@@ -343,11 +392,14 @@ test('classification UI cannot clear existing relationships and uses real cancel
     aiService,
     /ClassificationRunStatus[\s\S]*'success'[\s\S]*'partial'[\s\S]*'failed'[\s\S]*'cancelled'/
   )
-  assert.match(aiService, /type: 'json_schema'/)
-  assert.match(aiService, /strict: true/)
-  assert.match(aiService, /type: 'json_object'/)
+  assert.match(openAICompatible, /type: 'json_schema'/)
+  assert.match(openAICompatible, /strict: true/)
+  assert.match(openAICompatible, /type: 'json_object'/)
   assert.match(aiService, /output_config/)
-  assert.match(aiService, /max_completion_tokens/)
+  assert.match(openAICompatible, /max_completion_tokens/)
+  assert.match(openAICompatible, /thinking: \{ type: 'disabled' \}/)
+  assert.match(aiService, /classifyBatchWithAdaptiveSplit/)
+  assert.match(aiService, /error\.status === 500 \|\| error\.status === 503/)
   assert.equal(aiService.includes('lastCompleteObject'), false)
   assert.equal(aiService.includes('jsonMatch'), false)
 
