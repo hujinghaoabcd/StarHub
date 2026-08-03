@@ -358,6 +358,54 @@ test('classification registry uses existing tag IDs and never preset-only IDs', 
     examples: ['spatial', 'mapping'],
     exclusions: []
   }])
+
+  const secondCategory = {
+    ...categories[0],
+    categoryId: 'tag_1785760255553_75_u9rduyux6',
+    name: 'Long opaque tag ID'
+  }
+  const modelRegistry = registry.buildModelFacingClassificationRegistry([
+    categories[0],
+    secondCategory
+  ])
+
+  assert.deepEqual(
+    modelRegistry.categories.map(category => category.categoryId),
+    ['c001', 'c002']
+  )
+  assert.equal(
+    modelRegistry.modelCategoryIdByCategoryId.get(secondCategory.categoryId),
+    'c002'
+  )
+  assert.deepEqual(
+    registry.restorePersistedClassificationAssignments(
+      [{
+        repositoryId: 28387406,
+        categoryId: 'c002',
+        confidence: 0.9,
+        reason: 'Matched the second category'
+      }],
+      modelRegistry.categoryIdByModelCategoryId
+    ),
+    [{
+      repositoryId: 28387406,
+      categoryId: secondCategory.categoryId,
+      confidence: 0.9,
+      reason: 'Matched the second category'
+    }]
+  )
+  assert.throws(
+    () => registry.restorePersistedClassificationAssignments(
+      [{
+        repositoryId: 28387406,
+        categoryId: 'invented',
+        confidence: 0.9,
+        reason: 'Invalid token'
+      }],
+      modelRegistry.categoryIdByModelCategoryId
+    ),
+    /Unknown model category ID/
+  )
 })
 
 test('classification UI cannot clear existing relationships and uses real cancellation', async () => {
@@ -388,6 +436,8 @@ test('classification UI cannot clear existing relationships and uses real cancel
   assert.match(sideMenu, /onUnmounted\([\s\S]*classificationTaskStore\.pause/)
 
   assert.match(aiService, /fetchWithTimeout/)
+  assert.match(aiService, /buildModelFacingClassificationRegistry/)
+  assert.match(aiService, /restorePersistedClassificationAssignments/)
   assert.match(
     aiService,
     /ClassificationRunStatus[\s\S]*'success'[\s\S]*'partial'[\s\S]*'failed'[\s\S]*'cancelled'/
