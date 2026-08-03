@@ -49,3 +49,21 @@ test('layout keeps sessions on transient errors and honors the Pages base path',
   assert.match(layout, /onUnmounted\(stopResize\)/)
   assert.match(home, /onUnmounted\(stopContentResize\)/)
 })
+
+test('login page uses i18n and does not advertise unimplemented guarantees', async () => {
+  const [login, zhLocale, enLocale] = await Promise.all([
+    source('src/pages/Login.vue'),
+    source('src/i18n/locales/zh.ts'),
+    source('src/i18n/locales/en.ts')
+  ])
+
+  assert.match(login, /t\('login\.heroDescription'\)/)
+  assert.match(login, /t\('login\.governanceDescription'\)/)
+  assert.match(login, /t\('login\.networkError'\)/)
+  assert.match(zhLocale, /localFirst: '本地优先'/)
+  assert.match(enLocale, /localFirst: 'Local first'/)
+  assert.doesNotMatch(login, /PWA|离线可用|Offline Ready/)
+  assert.doesNotMatch(login, /18 种预设分类|18 presets/)
+  assert.doesNotMatch(login, /10,000\+|10000\+|<10ms|10ms/)
+  assert.doesNotMatch(login, /2024 technologies|2024 年最新/)
+})
