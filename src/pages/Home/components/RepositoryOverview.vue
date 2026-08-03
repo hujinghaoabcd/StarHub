@@ -1,77 +1,56 @@
 <template>
   <section class="repository-overview" aria-label="Repository links and actions">
-    <div class="overview-main">
-      <div class="overview-title-row">
-        <div>
-          <div class="overview-title">项目链接</div>
-          <div class="overview-subtitle">
-            显示 GitHub About 网站和实际 GitHub Pages 地址
-          </div>
-        </div>
-        <el-button
-          type="danger"
-          plain
-          size="small"
-          :loading="unstarLoading"
-          :disabled="repo.private"
-          @click="handleUnstar"
+    <div class="link-list">
+      <div class="link-item">
+        <span class="link-label">About</span>
+        <a
+          v-if="homepageUrl"
+          class="link-value"
+          :href="homepageUrl"
+          target="_blank"
+          rel="noopener noreferrer"
         >
-          取消 Star
-        </el-button>
+          {{ homepageUrl }}
+        </a>
+        <span v-else class="link-empty">
+          {{ linksLoading ? '正在读取…' : '未配置网站' }}
+        </span>
       </div>
 
-      <div class="link-grid">
-        <div class="link-item">
-          <span class="link-label">GitHub</span>
-          <a
-            class="link-value"
-            :href="repo.html_url"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {{ repo.html_url }}
-          </a>
-        </div>
-
-        <div class="link-item">
-          <span class="link-label">About</span>
-          <a
-            v-if="homepageUrl"
-            class="link-value"
-            :href="homepageUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {{ homepageUrl }}
-          </a>
-          <span v-else class="link-empty">
-            {{ linksLoading ? '正在读取…' : '未配置网站' }}
-          </span>
-        </div>
-
-        <div class="link-item">
-          <span class="link-label">GitHub Pages</span>
-          <a
-            v-if="pagesUrl"
-            class="link-value"
-            :href="pagesUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {{ pagesUrl }}
-          </a>
-          <span v-else class="link-empty">
-            {{ linksLoading ? '正在读取…' : '未启用或无法读取' }}
-          </span>
-        </div>
+      <div class="link-item">
+        <span class="link-label">GitHub Pages</span>
+        <a
+          v-if="pagesUrl"
+          class="link-value"
+          :href="pagesUrl"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {{ pagesUrl }}
+        </a>
+        <span v-else class="link-empty">
+          {{ linksLoading ? '正在读取…' : '未启用或无法读取' }}
+        </span>
       </div>
+    </div>
 
-      <div v-if="repo.private" class="permission-note">
-        StarHub 不申请私有仓库的 repo 权限，因此不能在此取消私有仓库的 Star。
-      </div>
-      <div v-else class="permission-note">
-        日常登录保持只读。首次取消 Star 时会单独请求 public_repo；GitHub 的该作用域同时包含更广的公开仓库写权限，授权前会再次说明。
-      </div>
+    <div class="action-column">
+      <el-button
+        type="danger"
+        plain
+        size="small"
+        :loading="unstarLoading"
+        :disabled="repo.private"
+        @click="handleUnstar"
+      >
+        取消 Star
+      </el-button>
+      <span v-if="repo.private" class="permission-note">
+        未申请私有仓库 repo 权限
+      </span>
+      <span v-else class="permission-note">
+        首次使用时按需申请 public_repo
+      </span>
     </div>
   </section>
 </template>
@@ -141,9 +120,7 @@ async function loadRepositoryLinks() {
 
     repositoryDetails.value = detailsResponse.data
 
-    if (!detailsResponse.data.has_pages) {
-      return
-    }
+    if (!detailsResponse.data.has_pages) return
 
     try {
       const pagesResponse = await githubApi.getRepositoryPages(owner, name)
@@ -305,50 +282,28 @@ watch(
 
 <style lang="scss" scoped>
 .repository-overview {
-  flex-shrink: 0;
-  padding: 12px 16px 0;
-  background: var(--bg-primary);
-}
-
-.overview-main {
-  padding: 14px 16px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-}
-
-.overview-title-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
+  gap: 18px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
 }
 
-.overview-title {
-  color: var(--text-primary);
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-.overview-subtitle,
-.permission-note {
-  color: var(--text-tertiary);
-  font-size: 0.76rem;
-  line-height: 1.5;
-}
-
-.link-grid {
+.link-list {
   display: grid;
-  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  gap: 7px;
 }
 
 .link-item {
   display: grid;
-  grid-template-columns: 110px minmax(0, 1fr);
+  grid-template-columns: 96px minmax(0, 1fr);
   gap: 10px;
   align-items: baseline;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
 }
 
 .link-label {
@@ -369,22 +324,28 @@ watch(
   }
 }
 
-.link-empty {
+.link-empty,
+.permission-note {
   color: var(--text-tertiary);
 }
 
+.action-column {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
 .permission-note {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
+  max-width: 190px;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  text-align: right;
 }
 
 @media (max-width: 768px) {
   .repository-overview {
-    padding: 10px 10px 0;
-  }
-
-  .overview-title-row {
     align-items: stretch;
     flex-direction: column;
   }
@@ -392,6 +353,15 @@ watch(
   .link-item {
     grid-template-columns: 1fr;
     gap: 2px;
+  }
+
+  .action-column {
+    align-items: flex-start;
+  }
+
+  .permission-note {
+    max-width: none;
+    text-align: left;
   }
 }
 </style>
