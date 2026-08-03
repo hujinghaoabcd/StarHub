@@ -2,7 +2,7 @@
   <div class="detail-view">
     <div class="detail-content" v-if="repo">
       <!-- 仓库信息卡片 -->
-      <div class="repo-card">
+      <div v-if="!readmeOnly" class="repo-card">
         <el-button
           text
           circle
@@ -55,7 +55,17 @@
         </div>
         <div v-else-if="readmeError" class="readme-state readme-error">
           <span>{{ readmeError }}</span>
-          <el-button size="small" @click="loadReadme">重试</el-button>
+          <a
+            v-if="readmeTooLarge"
+            :href="repo.html_url"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            在 GitHub 查看 README
+          </a>
+          <el-button v-else size="small" @click="scheduleReadmeLoad(0)">
+            重试
+          </el-button>
         </div>
         <div v-else-if="!readme" class="readme-state">
           该仓库暂无 README。
@@ -65,6 +75,7 @@
     </div>
 
     <el-dialog
+      v-if="!readmeOnly"
       v-model="showTagDialog"
       title="Add Tag"
       width="400px"
@@ -110,11 +121,11 @@ import { useThemeStore } from '@/stores/theme'
 import { githubApi } from '@/api/github'
 import { getLanguageColor } from '@/utils/languageColors'
 import { formatNumber, formatDate } from '@/utils'
-import { marked } from 'marked'
-import { gfmHeadingId } from 'marked-gfm-heading-id'
-import { mangle } from 'marked-mangle'
-import { markedHighlight } from 'marked-highlight'
-import hljs from 'highlight.js'
+import {
+  ReadmeWorkerError,
+  renderReadmeOffThread,
+  shutdownReadmeRenderer
+} from '@/services/readmeRenderer'
 
 // 导入 highlight.js GitHub 样式
 import 'highlight.js/styles/github.css'
@@ -131,27 +142,20 @@ import {
   ForkSpoon
 } from '@element-plus/icons-vue'
 
-// 配置 marked 使用 GFM 扩展和代码高亮
-marked.use(
-  gfmHeadingId(),
-  mangle(),
-  markedHighlight({
-    langPrefix: 'hljs language-',
-    highlight(code, lang) {
-      const language = hljs.getLanguage(lang) ? lang : 'plaintext'
-      return hljs.highlight(code, { language }).value
-    }
-  }),
-  {
-    gfm: true,
-    breaks: true
+const README_SELECTION_DEBOUNCE_MS = 140
+
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.nodeName === 'IMG') {
+    node.setAttribute('loading', 'lazy')
+    node.setAttribute('decoding', 'async')
   }
-)
+})
 
 const themeStore = useThemeStore()
 
 const props = defineProps<{
   repo: Repository
+  readmeOnly?: boolean
 }>()
 
 defineEmits<{
@@ -163,10 +167,12 @@ const repoTags = ref<Tag[]>([])
 const readme = ref('')
 const readmeLoading = ref(false)
 const readmeError = ref('')
+const readmeTooLarge = ref(false)
 const showTagDialog = ref(false)
 const selectedTagId = ref('')
 let readmeRequestId = 0
 let readmeController: AbortController | null = null
+let readmeDebounceTimer: number | null = null
 let repoTagsRequestId = 0
 
 const availableTags = computed(() => {
@@ -174,51 +180,59 @@ const availableTags = computed(() => {
   return tagStore.tags.filter((tag) => !currentTagIds.includes(tag.id))
 })
 
-const loadReadme = async () => {
-  const requestId = ++readmeRequestId
+interface ReadmeRepositorySnapshot {
+  fullName: string
+  defaultBranch: string
+}
+
+const isCurrentReadmeRequest = (
+  requestId: number,
+  controller?: AbortController
+) => requestId === readmeRequestId && !controller?.signal.aborted
+
+const cancelReadmeLoad = () => {
+  if (readmeDebounceTimer !== null) {
+    window.clearTimeout(readmeDebounceTimer)
+    readmeDebounceTimer = null
+  }
   readmeController?.abort()
+  readmeController = null
+}
+
+const loadReadme = async (
+  requestId: number,
+  repoSnapshot: ReadmeRepositorySnapshot
+) => {
+  if (!isCurrentReadmeRequest(requestId)) return
+
   const controller = new AbortController()
   readmeController = controller
-  readme.value = ''
-  readmeError.value = ''
-  readmeLoading.value = true
 
   try {
-    const [owner, repo] = props.repo.full_name.split('/')
-    const defaultBranch = props.repo.default_branch || 'main'
+    const [owner, repo] = repoSnapshot.fullName.split('/')
+    const defaultBranch = repoSnapshot.defaultBranch
     const response = await githubApi.getReadme(owner, repo, controller.signal)
-    let rawReadme = response.data
-    
-    // 将相对路径的图片和链接转换为 GitHub 绝对路径
-    const rawBaseUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${defaultBranch}/`
-    const repoBaseUrl = `https://github.com/${owner}/${repo}/blob/${defaultBranch}/`
-    
-    // 转换图片路径：![alt](./path) 或 ![alt](path) -> ![alt](https://raw.githubusercontent.com/...)
-    rawReadme = rawReadme.replace(
-      /!\[([^\]]*)\]\((?!https?:\/\/|data:)\.?\/?([^)]+)\)/g,
-      `![$1](${rawBaseUrl}$2)`
+    if (!isCurrentReadmeRequest(requestId, controller)) return
+
+    const html = await renderReadmeOffThread(
+      response.data,
+      { owner, repo, defaultBranch },
+      controller.signal
     )
-    
-    // 转换 HTML img 标签：<img src="./path" /> -> <img src="https://raw..." />
-    rawReadme = rawReadme.replace(
-      /<img([^>]*?)src=["'](?!https?:\/\/|data:)\.?\/?([^"']+)["']/gi,
-      `<img$1src="${rawBaseUrl}$2"`
-    )
-    
-    // 转换相对链接（非锚点）：[text](./path) -> [text](https://github.com/.../blob/...)
-    rawReadme = rawReadme.replace(
-      /\[([^\]]+)\]\((?!https?:\/\/|#|mailto:)\.?\/?([^)]+)\)/g,
-      `[$1](${repoBaseUrl}$2)`
-    )
-    
-    // 使用 marked 渲染 Markdown（代码高亮已通过 marked-highlight 配置）
-    const html = marked(rawReadme) as string
-    
-    // DOMPurify 配置，允许任务列表和其他 GFM 特性
-    if (requestId !== readmeRequestId || controller.signal.aborted) return
+    if (!isCurrentReadmeRequest(requestId, controller)) return
 
     readme.value = DOMPurify.sanitize(html, {
-      ADD_ATTR: ['target', 'rel', 'class', 'id', 'checked', 'disabled', 'type'],
+      ADD_ATTR: [
+        'target',
+        'rel',
+        'class',
+        'id',
+        'checked',
+        'disabled',
+        'type',
+        'loading',
+        'decoding'
+      ],
       ADD_TAGS: ['input', 'span'],
       FORBID_TAGS: ['script', 'style'],
       KEEP_CONTENT: true
@@ -233,9 +247,14 @@ const loadReadme = async () => {
     }
 
     console.error('Failed to load README:', error)
-    readmeError.value = isAxiosError(error) && error.response?.status === 404
-      ? '该仓库暂无 README。'
-      : 'README 加载失败，请稍后重试。'
+    readmeTooLarge.value = error instanceof ReadmeWorkerError && (
+      error.code === 'source_too_large' || error.code === 'html_too_large'
+    )
+    readmeError.value = readmeTooLarge.value
+      ? 'README 内容过大，为避免页面卡顿，已停止在页面内渲染。'
+      : isAxiosError(error) && error.response?.status === 404
+        ? '该仓库暂无 README。'
+        : 'README 加载失败，请稍后重试。'
   } finally {
     if (requestId === readmeRequestId) {
       readmeLoading.value = false
@@ -246,7 +265,30 @@ const loadReadme = async () => {
   }
 }
 
+const scheduleReadmeLoad = (delay = README_SELECTION_DEBOUNCE_MS) => {
+  const requestId = ++readmeRequestId
+  cancelReadmeLoad()
+  readme.value = ''
+  readmeError.value = ''
+  readmeTooLarge.value = false
+  readmeLoading.value = true
+
+  const repoSnapshot: ReadmeRepositorySnapshot = {
+    fullName: props.repo.full_name,
+    defaultBranch: props.repo.default_branch || 'main'
+  }
+  readmeDebounceTimer = window.setTimeout(() => {
+    readmeDebounceTimer = null
+    void loadReadme(requestId, repoSnapshot)
+  }, delay)
+}
+
 const loadRepoTags = async () => {
+  if (props.readmeOnly) {
+    repoTags.value = []
+    return
+  }
+
   const requestId = ++repoTagsRequestId
   const repoId = props.repo.id
   const tags = await tagStore.getRepoTags(repoId)
@@ -285,8 +327,10 @@ watch(
   () => props.repo.id,
   () => {
     if (props.repo) {
-      loadReadme()
-      loadRepoTags()
+      scheduleReadmeLoad()
+      if (!props.readmeOnly) {
+        loadRepoTags()
+      }
     }
   },
   { immediate: true }
@@ -295,8 +339,8 @@ watch(
 onUnmounted(() => {
   readmeRequestId++
   repoTagsRequestId++
-  readmeController?.abort()
-  readmeController = null
+  cancelReadmeLoad()
+  shutdownReadmeRenderer()
 })
 </script>
 
@@ -508,6 +552,12 @@ onUnmounted(() => {
   min-width: 200px;
   max-width: 100%;
   background: var(--bg-primary);
+
+  // Skip layout and paint work for README sections below the viewport.
+  :deep(> *) {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 120px;
+  }
   
   // 深色模式下使用与应用一致的背景色
   [data-theme='dark'] & {
