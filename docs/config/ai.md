@@ -56,11 +56,11 @@ API 地址：https://your-proxy.com/v1
 
 ### 推荐模型
 
-| 模型 | 说明 | 输入价格 | 输出价格 |
-|------|------|----------|----------|
-| claude-3-5-sonnet | **推荐** | $3/1M | $15/1M |
-| claude-3-5-haiku | 快速 | $0.25/1M | $1.25/1M |
-| claude-3-opus | 最强 | $15/1M | $75/1M |
+| 模型 | 说明 |
+|------|------|
+| claude-sonnet-4-6 | **默认**，支持原生 JSON Schema 结构化输出 |
+
+模型可用性和价格会变化，请以 Claude Platform 当前文档为准。
 
 ### 配置示例
 
@@ -68,7 +68,7 @@ API 地址：https://your-proxy.com/v1
 服务商：Claude
 API Key：sk-ant-xxxxxxxxxxxxxxxxxxxx
 API 地址：（留空使用默认）
-模型：claude-3-5-sonnet-20241022
+模型：claude-sonnet-4-6
 ```
 
 ---
@@ -209,4 +209,3 @@ API 地址：（留空使用默认）
 1. 开启"读取 README"
 2. 减小批次大小
 3. 尝试更强的模型
-
