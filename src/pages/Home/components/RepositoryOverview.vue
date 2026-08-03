@@ -169,11 +169,11 @@ async function handleUnstar() {
 .unstar-button {
   height: 28px;
   padding: 0 8px;
-  color: var(--el-color-danger);
+  color: #fff;
   font-size: 0.72rem;
   font-weight: 600;
   line-height: 1;
-  background: transparent;
+  background: var(--el-color-danger);
   border: 1px solid var(--el-color-danger);
   border-radius: 3px;
 
@@ -184,13 +184,13 @@ async function handleUnstar() {
   &:hover,
   &:focus-visible {
     color: #fff;
-    background: var(--el-color-danger);
-    border-color: var(--el-color-danger);
+    background: var(--el-color-danger-dark-2);
+    border-color: var(--el-color-danger-dark-2);
   }
 
   &.is-disabled {
     color: var(--text-tertiary);
-    background: transparent;
+    background: var(--bg-tertiary);
     border-color: var(--border);
   }
 }

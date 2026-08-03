@@ -12,62 +12,55 @@
       </el-button>
 
       <div class="summary-header">
-        <div class="repo-info">
+        <div class="summary-title-row">
           <h1 class="repo-name">{{ repo.full_name }}</h1>
-          <p v-if="repo.description" class="repo-description">
-            {{ repo.description }}
-          </p>
-          <div v-if="homepageUrl" class="repo-about">
-            <span class="about-label">About</span>
+          <div class="summary-actions">
+            <el-button
+              size="small"
+              type="warning"
+              class="highlight-button"
+              :class="{ 'is-highlighted': highlighted }"
+              :loading="highlightStore.isMutating"
+              :aria-pressed="highlighted"
+              @click="handleToggleHighlight"
+            >
+              <el-icon><CollectionTag /></el-icon>
+              <span>
+                {{
+                  highlighted ? t('highlight.unmark') : t('highlight.mark')
+                }}
+              </span>
+            </el-button>
             <a
-              :href="homepageUrl"
+              class="github-link"
+              :href="repo.html_url"
               target="_blank"
               rel="noopener noreferrer"
             >
-              {{ homepageUrl }}
+              <el-icon><Link /></el-icon>
+              <span>GitHub</span>
             </a>
-          </div>
-          <div v-if="pagesUrl" class="repo-about repo-pages">
-            <span class="about-label">GitHub Pages</span>
-            <a
-              :href="pagesUrl"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {{ pagesUrl }}
-            </a>
+            <RepositoryOverview
+              :repo="repo"
+              @unstarred="emit('unstarred', $event)"
+            />
           </div>
         </div>
 
-        <div class="summary-actions">
-          <el-button
-            size="small"
-            type="warning"
-            plain
-            class="highlight-button"
-            :class="{ 'is-highlighted': highlighted }"
-            :loading="highlightStore.isMutating"
-            :aria-pressed="highlighted"
-            @click="handleToggleHighlight"
-          >
-            <el-icon><CollectionTag /></el-icon>
-            <span>
-              {{ highlighted ? t('highlight.unmark') : t('highlight.mark') }}
-            </span>
-          </el-button>
-          <a
-            class="github-link"
-            :href="repo.html_url"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <el-icon><Link /></el-icon>
-            <span>GitHub</span>
+        <p v-if="repo.description" class="repo-description">
+          {{ repo.description }}
+        </p>
+        <div v-if="homepageUrl" class="repo-about">
+          <span class="about-label">About</span>
+          <a :href="homepageUrl" target="_blank" rel="noopener noreferrer">
+            {{ homepageUrl }}
           </a>
-          <RepositoryOverview
-            :repo="repo"
-            @unstarred="emit('unstarred', $event)"
-          />
+        </div>
+        <div v-if="pagesUrl" class="repo-about repo-pages">
+          <span class="about-label">GitHub Pages</span>
+          <a :href="pagesUrl" target="_blank" rel="noopener noreferrer">
+            {{ pagesUrl }}
+          </a>
         </div>
       </div>
 
@@ -280,21 +273,23 @@ onUnmounted(() => {
 }
 
 .summary-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-  padding-right: 34px;
   margin-bottom: 14px;
 }
 
-.repo-info {
-  flex: 1;
-  min-width: 0;
+.summary-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding-right: 34px;
+  margin-bottom: 6px;
 }
 
 .repo-name {
-  margin: 0 0 6px;
+  flex: 1 1 240px;
+  min-width: 0;
+  margin: 0;
   color: var(--el-color-primary);
   font-size: 1.1rem;
   font-weight: 600;
@@ -345,13 +340,31 @@ onUnmounted(() => {
 
 .highlight-button {
   height: 28px;
+  padding: 0 8px;
   margin: 0;
+  color: #fff;
   font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  background: var(--el-color-warning);
+  border-color: var(--el-color-warning);
+  border-radius: 3px;
+
+  :deep(.el-icon) {
+    font-size: 0.76rem;
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: #fff;
+    background: var(--el-color-warning-dark-2);
+    border-color: var(--el-color-warning-dark-2);
+  }
 
   &.is-highlighted {
-    color: #f59e0b;
-    background: rgba(245, 158, 11, 0.12);
-    border-color: rgba(245, 158, 11, 0.65);
+    color: #fff;
+    background: #d97706;
+    border-color: #d97706;
   }
 }
 
@@ -435,9 +448,10 @@ onUnmounted(() => {
     margin: 10px 10px 0;
   }
 
-  .summary-header {
+  .summary-title-row {
     align-items: stretch;
     flex-direction: column;
+    gap: 10px;
   }
 
   .summary-actions {
