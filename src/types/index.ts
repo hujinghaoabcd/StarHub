@@ -75,6 +75,32 @@ export interface RepoTag {
   tagId: string
 }
 
+export interface ClassificationCategory {
+  categoryId: string
+  name: string
+  description: string
+  examples: string[]
+  exclusions: string[]
+}
+
+export interface ClassificationAssignment {
+  repositoryId: number
+  categoryId: string
+  confidence: number
+  reason: string
+}
+
+export interface ClassificationReviewItem extends ClassificationAssignment {
+  repositoryName: string
+  categoryName: string
+}
+
+export interface ClassificationCommitReceipt {
+  id: string
+  createdAt: number
+  addedRelations: RepoTag[]
+}
+
 export interface PaginationInfo {
   page: number
   perPage: number
