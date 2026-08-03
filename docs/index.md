@@ -22,7 +22,7 @@ features:
     details: 自定义标签，支持 Emoji 和多种颜色，一个仓库可添加多个标签，自由组织你的收藏。
   - icon: 🤖
     title: AI 智能分类
-    details: 支持 OpenAI、Claude、DeepSeek 等多种 AI 服务，一键自动分类，准确率高达 95%。
+    details: 支持 OpenAI、Claude、DeepSeek 等多种 AI 服务，使用稳定分类 ID、结构化输出、人工审核和可撤销写入。
   - icon: ⚡
     title: 极速全文搜索
     details: 基于 IndexedDB 的本地存储，毫秒级响应，支持多维度搜索和标签筛选。
@@ -43,4 +43,3 @@ features:
   --vp-home-hero-name-background: -webkit-linear-gradient(120deg, #3b82f6 30%, #60a5fa);
 }
 </style>
-

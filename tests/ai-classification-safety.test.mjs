@@ -142,34 +142,75 @@ test('AI endpoints require public HTTPS hosts without embedded credentials', asy
   }
 })
 
-test('classification batches reject missing, duplicate, and unknown repository IDs', async () => {
+test('classification batches enforce repository and category registries', async () => {
   const validation = await importTypescriptSource(
     'src/services/classificationValidation.ts'
   )
 
   assert.deepEqual(
-    Object.fromEntries(validation.validateClassificationItems(
+    validation.validateClassificationItems(
       [1, 2],
+      ['tag_gis', 'tag_tools'],
       [
-        { id: 1, category: 'GIS' },
-        { id: '2', category: 'Tools' }
+        {
+          repository_id: 1,
+          category_id: 'tag_gis',
+          confidence: 0.9,
+          reason: 'Spatial analysis repository'
+        },
+        {
+          repository_id: 2,
+          category_id: 'tag_tools',
+          confidence: 0.8,
+          reason: 'General developer utility'
+        }
       ]
-    )),
-    { GIS: [1], Tools: [2] }
+    ),
+    [
+      {
+        repositoryId: 1,
+        categoryId: 'tag_gis',
+        confidence: 0.9,
+        reason: 'Spatial analysis repository'
+      },
+      {
+        repositoryId: 2,
+        categoryId: 'tag_tools',
+        confidence: 0.8,
+        reason: 'General developer utility'
+      }
+    ]
   )
   assert.throws(
     () => validation.validateClassificationItems(
       [1, 2],
-      [{ id: 1, category: 'GIS' }]
+      ['tag_gis'],
+      [{
+        repository_id: 1,
+        category_id: 'tag_gis',
+        confidence: 0.9,
+        reason: 'GIS'
+      }]
     ),
     /缺少仓库 ID/
   )
   assert.throws(
     () => validation.validateClassificationItems(
       [1, 2],
+      ['tag_gis'],
       [
-        { id: 1, category: 'GIS' },
-        { id: 1, category: 'GIS' }
+        {
+          repository_id: 1,
+          category_id: 'tag_gis',
+          confidence: 0.9,
+          reason: 'GIS'
+        },
+        {
+          repository_id: 1,
+          category_id: 'tag_gis',
+          confidence: 0.8,
+          reason: 'GIS'
+        }
       ]
     ),
     /重复返回仓库 ID/
@@ -177,15 +218,112 @@ test('classification batches reject missing, duplicate, and unknown repository I
   assert.throws(
     () => validation.validateClassificationItems(
       [1],
-      [{ id: 999, category: 'GIS' }]
+      ['tag_gis'],
+      [{
+        repository_id: 999,
+        category_id: 'tag_gis',
+        confidence: 0.9,
+        reason: 'GIS'
+      }]
     ),
     /当前批次之外/
   )
+  assert.throws(
+    () => validation.validateClassificationItems(
+      [1],
+      ['tag_gis'],
+      [{
+        repository_id: 1,
+        category_id: 'invented_category',
+        confidence: 0.9,
+        reason: 'Invented'
+      }]
+    ),
+    /未知分类 ID/
+  )
+  assert.throws(
+    () => validation.validateClassificationItems(
+      [1],
+      ['tag_gis'],
+      [{
+        repository_id: 1,
+        category_id: 'tag_gis',
+        confidence: 1.5,
+        reason: 'Invalid confidence'
+      }]
+    ),
+    /置信度/
+  )
+
+  assert.deepEqual(
+    validation.parseClassificationResponse(
+      '{"classifications":[]}'
+    ),
+    { classifications: [] }
+  )
+  assert.throws(
+    () => validation.parseClassificationResponse(
+      '```json\n{"classifications":[]}\n```'
+    ),
+    /拒绝自动修补/
+  )
+})
+
+test('classification registry uses existing tag IDs and never preset-only IDs', async () => {
+  const registry = await importTypescriptSource(
+    'src/services/classificationRegistry.ts'
+  )
+  const now = Date.now()
+  const categories = registry.buildClassificationRegistry(
+    [{
+      id: 'tag_existing',
+      name: 'GIS',
+      color: '#123456',
+      createdAt: now,
+      updatedAt: now,
+      repos: []
+    }],
+    [
+      {
+        name: 'GIS',
+        nameEn: 'GIS',
+        emoji: '🗺️',
+        description: '地理信息系统',
+        descriptionEn: 'Geographic information systems',
+        color: '#123456',
+        keywords: ['spatial', 'mapping']
+      },
+      {
+        name: 'Preset Only',
+        nameEn: 'Preset Only',
+        emoji: '',
+        description: '未同步分类',
+        descriptionEn: 'Not synced',
+        color: '#999999',
+        keywords: []
+      }
+    ],
+    'zh'
+  )
+
+  assert.deepEqual(categories, [{
+    categoryId: 'tag_existing',
+    name: 'GIS',
+    description: '地理信息系统',
+    examples: ['spatial', 'mapping'],
+    exclusions: []
+  }])
 })
 
 test('classification UI cannot clear existing relationships and uses real cancellation', async () => {
   const sideMenu = await source('src/pages/Home/components/SideMenu.vue')
   const aiService = await source('src/services/ai.ts')
+  const tagStore = await source('src/stores/tag.ts')
+  const reviewDialog = await source(
+    'src/pages/Home/components/ClassificationReviewDialog.vue'
+  )
+  const aiConfig = await source('src/config/ai.ts')
+  const login = await source('src/pages/Login.vue')
   const settings = await source('src/pages/Settings/index.vue')
 
   assert.equal(sideMenu.includes('command="reclassify"'), false)
@@ -197,9 +335,40 @@ test('classification UI cannot clear existing relationships and uses real cancel
   assert.match(sideMenu, /signal: classificationSignal/)
   assert.match(sideMenu, /onUnmounted\([\s\S]*component_unmounted/)
 
-  assert.match(aiService, /await onBatchComplete\(/)
   assert.match(aiService, /fetchWithTimeout/)
-  assert.match(aiService, /'success' \| 'partial' \| 'failed' \| 'cancelled'/)
+  assert.match(
+    aiService,
+    /ClassificationRunStatus[\s\S]*'success'[\s\S]*'partial'[\s\S]*'failed'[\s\S]*'cancelled'/
+  )
+  assert.match(aiService, /type: 'json_schema'/)
+  assert.match(aiService, /strict: true/)
+  assert.match(aiService, /type: 'json_object'/)
+  assert.match(aiService, /output_config/)
+  assert.match(aiService, /max_completion_tokens/)
+  assert.equal(aiService.includes('lastCompleteObject'), false)
+  assert.equal(aiService.includes('jsonMatch'), false)
+
+  assert.match(sideMenu, /ClassificationReviewDialog/)
+  assert.match(sideMenu, /applyClassificationAssignments/)
+  assert.match(sideMenu, /undoClassificationCommit/)
+  assert.equal(sideMenu.includes('CATEGORY_COLORS'), false)
+  const generationFlow = sideMenu.slice(
+    sideMenu.indexOf('const handleAutoClassify'),
+    sideMenu.indexOf('const handleClassificationReviewConfirm')
+  )
+  assert.equal(generationFlow.includes('tagStore.createTag'), false)
+  assert.equal(generationFlow.includes('tagStore.updateTag'), false)
+  assert.equal(generationFlow.includes('applyClassificationAssignments'), false)
+  assert.match(reviewDialog, /CONFIDENCE_THRESHOLD/)
+  assert.match(reviewDialog, /selectedCategoryIds/)
+
+  assert.match(tagStore, /applyClassificationAssignments/)
+  assert.match(tagStore, /db\.transaction\('rw', db\.tags, db\.repoTags/)
+  assert.match(tagStore, /addedRelations/)
+  assert.match(tagStore, /undoClassificationCommit/)
+
+  assert.match(aiConfig, /claude: 'claude-sonnet-4-6'/)
+  assert.equal(login.includes('95%'), false)
 
   assert.match(settings, /clearAIAPIKey/)
   assert.match(settings, /requestTimeoutMs|20_000/)

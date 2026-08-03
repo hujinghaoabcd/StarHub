@@ -38,11 +38,27 @@
               circle
               size="small"
               :loading="isClassifying"
-              :disabled="isClassifying"
+              :disabled="isClassifying || showClassificationReview"
               @click="handleAutoClassify"
               class="classify-btn"
             >
               <el-icon v-if="!isClassifying"><MagicStick /></el-icon>
+            </el-button>
+          </el-tooltip>
+          <el-tooltip
+            v-if="lastClassificationCommit"
+            :content="t('tag.undoClassification')"
+            placement="top"
+          >
+            <el-button
+              text
+              circle
+              size="small"
+              :disabled="isClassifying || tagStore.isMutating"
+              class="undo-classify-btn"
+              @click="handleUndoClassification"
+            >
+              <el-icon><RefreshLeft /></el-icon>
             </el-button>
           </el-tooltip>
           <el-tooltip content="停止分类" placement="top" v-if="isClassifying">
@@ -166,6 +182,13 @@
         <el-button type="primary" @click="handleCreateTag">{{ t('tag.create') }}</el-button>
       </template>
     </el-dialog>
+
+    <ClassificationReviewDialog
+      v-model="showClassificationReview"
+      :items="classificationReviewItems"
+      :categories="classificationCategories"
+      @confirm="handleClassificationReviewConfirm"
+    />
   </div>
 </template>
 
@@ -175,10 +198,27 @@ import { useI18n } from 'vue-i18n'
 import { useTagStore } from '@/stores/tag'
 import { useRepoStore } from '@/stores/repo'
 import { getLanguageColor } from '@/utils/languageColors'
-import { Plus, Close, Grid, Collection, Loading, MagicStick, ArrowDown, CircleClose } from '@element-plus/icons-vue'
+import {
+  ArrowDown,
+  CircleClose,
+  Close,
+  Collection,
+  Grid,
+  Loading,
+  MagicStick,
+  Plus,
+  RefreshLeft
+} from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
+import ClassificationReviewDialog from './ClassificationReviewDialog.vue'
+import type {
+  ClassificationAssignment,
+  ClassificationCategory,
+  ClassificationCommitReceipt,
+  ClassificationReviewItem
+} from '@/types'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const tagStore = useTagStore()
 const repoStore = useRepoStore()
@@ -196,6 +236,10 @@ const categoryExpanded = ref(true)
 const isClassifying = ref(false)
 const shouldStopClassifying = ref(false) // 停止分类标志
 const classifyNotificationHandle = ref<any>(null) // 当前分类通知句柄
+const showClassificationReview = ref(false)
+const classificationReviewItems = ref<ClassificationReviewItem[]>([])
+const classificationCategories = ref<ClassificationCategory[]>([])
+const lastClassificationCommit = ref<ClassificationCommitReceipt | null>(null)
 let classificationAbortController: AbortController | null = null
 
 const tags = computed(() => {
@@ -326,7 +370,6 @@ const handleAutoClassify = async () => {
     return
   }
   
-  // 提示用户关于 OpenAI 速率限制
   const aiConfig = getAIConfig()
   try {
     const { resolveAIEndpoint } = await import('@/utils/aiEndpoint')
@@ -349,29 +392,20 @@ const handleAutoClassify = async () => {
     return
   }
 
-  if (aiConfig.provider === 'openai') {
-    const batches = Math.ceil(repoStore.repos.length / 30)
-    const minutes = Math.ceil(batches * 25 / 60)
-    const confirm = await ElMessageBox.confirm(
-      t('tag.openaiRateLimit', { 
-        count: repoStore.repos.length, 
-        batches, 
-        minutes 
-      }),
-      t('tag.rateLimitTitle'),
-      {
-        confirmButtonText: t('tag.continueUsing'),
-        cancelButtonText: t('tag.goToSwitch'),
-        type: 'warning',
-        distinguishCancelAndClose: true
-      }
-    ).catch(() => {
-      window.location.hash = '#/settings'
-      return false
-    })
-    
-    if (!confirm) return
+  const { getCategoryPresets } = await import('@/config/categories')
+  const { buildClassificationRegistry } = await import(
+    '@/services/classificationRegistry'
+  )
+  const registry = buildClassificationRegistry(
+    tagStore.tags,
+    getCategoryPresets(),
+    locale.value
+  )
+  if (registry.length === 0) {
+    ElMessage.warning(t('tag.reviewNoCategories'))
+    return
   }
+  classificationCategories.value = registry
   
   // 先询问是否包含 README（在开始分类之前）
   let includeReadme = false
@@ -406,7 +440,7 @@ const handleAutoClassify = async () => {
   let runStatus: 'success' | 'partial' | 'failed' | 'cancelled' = 'success'
   let failedRepoCount = 0
   let totalClassified = 0
-  const allCategoryMap = new Map<string, number[]>()
+  const successfulAssignments: ClassificationAssignment[] = []
   
   try {
     isClassifying.value = true
@@ -414,24 +448,10 @@ const handleAutoClassify = async () => {
     classificationAbortController = new AbortController()
     const classificationSignal = classificationAbortController.signal
     
-    // 调用 AI 分类服务（带进度和批次结果回调）
-    const { classifyRepositories, CATEGORY_COLORS } = await import('@/services/ai')
+    const { classifyRepositories } = await import('@/services/ai')
     const { githubApi } = await import('@/api/github')
-    const { getAIConfig } = await import('@/config/ai')
-    const { getCategoryPresets } = await import('@/config/categories')
-    
-    // 获取预设分类，用于匹配 emoji
-    const presets = getCategoryPresets()
-    const presetMap = new Map<string, { emoji?: string, color: string }>()
-    presets.forEach(preset => {
-      presetMap.set(preset.name, { emoji: preset.emoji, color: preset.color })
-      if (preset.nameEn) {
-        presetMap.set(preset.nameEn, { emoji: preset.emoji, color: preset.color })
-      }
-    })
-    
+
     // 从配置中获取批次大小，默认 50
-    const aiConfig = getAIConfig()
     const batchSize = aiConfig.batchSize || 50
     const totalRepos = reposToClassify.length
     const totalBatches = Math.ceil(totalRepos / batchSize)
@@ -538,10 +558,6 @@ const handleAutoClassify = async () => {
             })
           }
           
-          // 每批之间稍作延迟，避免请求过快
-          if ((i + 1) % readmeBatchSize === 0 && i < batchRepos.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 100))
-          }
         }
         
         batchWithReadme = reposWithReadme
@@ -589,80 +605,9 @@ const handleAutoClassify = async () => {
             duration: 0
           })
         },
-        // 批次完成回调（每批次完成后立即更新）
-        async (innerBatchCategoryMap: Map<string, number[]>, innerBatchIndex: number, innerTotalBatches: number) => {
-          const stagedCategoryResults = new Map<string, number[]>()
-
-          // 立即更新这批次的分类
-          for (const [categoryName, repoIds] of innerBatchCategoryMap.entries()) {
-            if (repoIds.length === 0) continue
-            
-            // 移除分类名称中的描述部分和 emoji（如果有）
-            let cleanCategoryName = categoryName.split(' - ')[0].trim()
-            // 移除开头的 emoji（如果存在）
-            cleanCategoryName = cleanCategoryName.replace(/^[\u{1F300}-\u{1F9FF}]+\s*/u, '').trim()
-            
-            // 从预设分类中查找对应的 emoji 和颜色
-            const presetInfo = presetMap.get(cleanCategoryName) || presetMap.get(categoryName)
-            const emoji = presetInfo?.emoji
-            const color = presetInfo?.color || CATEGORY_COLORS[cleanCategoryName] || CATEGORY_COLORS[categoryName] || '#9e9e9e'
-            
-            // 检查分类是否已存在（精确匹配名称）
-            const existingTag = tagStore.tags.find((t: any) => 
-              t.name === cleanCategoryName || t.name === categoryName
-            )
-            
-            if (existingTag) {
-              // 更新现有分类（合并仓库 ID，更新 emoji 如果存在）
-              const mergedRepoIds = Array.from(new Set([...(existingTag.repos || []), ...repoIds]))
-              const updates: any = { repos: mergedRepoIds }
-              if (emoji && existingTag.emoji !== emoji) {
-                updates.emoji = emoji
-              }
-              await tagStore.updateTag(existingTag.id, updates)
-            } else {
-              // 创建新分类（包含 emoji）
-              const newTag = await tagStore.createTag(cleanCategoryName, color, emoji)
-              await tagStore.updateTag(newTag.id, {
-                repos: repoIds
-              })
-            }
-            
-            stagedCategoryResults.set(cleanCategoryName, repoIds)
-          }
-          
-          // 重新加载分类以刷新 UI
-          await tagStore.loadTags()
-
-          // 只有整批写入和刷新均成功后，才计入已完成数量。
-          for (const [categoryName, repoIds] of stagedCategoryResults) {
-            if (!allCategoryMap.has(categoryName)) {
-              allCategoryMap.set(categoryName, [])
-            }
-            allCategoryMap.get(categoryName)!.push(...repoIds)
-            totalClassified += repoIds.length
-          }
-          
-          // 更新总体进度通知
-          if (classifyNotificationHandle.value) {
-            classifyNotificationHandle.value.close()
-          }
-          const batchCompleteProgress = Math.round((totalClassified / totalRepos) * 100)
-          classifyNotificationHandle.value = ElNotification({
-            title: t('tag.classifying'),
-            message: `${t('tag.overallProgress')}: ${totalClassified}/${totalRepos} (${batchCompleteProgress}%)\n` +
-                     t('tag.innerBatchComplete', { 
-                       batch: batchIndex + 1, 
-                       innerCurrent: innerBatchIndex, 
-                       innerTotal: innerTotalBatches 
-                     }) + '\n' +
-                     `${t('tag.classifiedRepos')}: ${totalClassified}`,
-            type: 'info',
-            duration: 0
-          })
-        },
-        batchSize, // 传递批次大小参数
+        batchSize,
         {
+          categories: classificationCategories.value,
           signal: classificationSignal,
           requestTimeoutMs: 60_000
         }
@@ -672,6 +617,10 @@ const handleAutoClassify = async () => {
         runStatus = 'cancelled'
         break
       }
+
+      successfulAssignments.push(...classificationResult.assignments)
+      totalClassified += classificationResult.assignments.length
+
       if (
         classificationResult.status === 'failed' ||
         classificationResult.status === 'partial'
@@ -684,11 +633,7 @@ const handleAutoClassify = async () => {
         continue
       }
       if (runStatus === 'failed') runStatus = 'partial'
-      
-      // 注意：批次完成回调已经处理了所有分类的创建和更新
-      // 这里的 batchCategoryMap 返回值实际上已经被处理过了
-      // 不需要再次处理，否则会导致重复创建标签
-      
+
       // 批次完成后更新总体进度
       if (classifyNotificationHandle.value) {
         classifyNotificationHandle.value.close()
@@ -724,35 +669,48 @@ const handleAutoClassify = async () => {
         type: 'warning',
         duration: 4000
       })
-    } else if (runStatus === 'failed' || runStatus === 'partial') {
+    } else if (successfulAssignments.length > 0) {
+      const repositoriesById = new Map(
+        reposToClassify.map(repository => [repository.id, repository])
+      )
+      const categoriesById = new Map(
+        classificationCategories.value.map(category => [
+          category.categoryId,
+          category
+        ])
+      )
+      classificationReviewItems.value = successfulAssignments.flatMap(
+        assignment => {
+          const repository = repositoriesById.get(assignment.repositoryId)
+          const category = categoriesById.get(assignment.categoryId)
+          if (!repository || !category) return []
+          return [{
+            ...assignment,
+            repositoryName: repository.full_name,
+            categoryName: category.name
+          }]
+        }
+      )
+      showClassificationReview.value = true
+
       ElNotification({
-        title: runStatus === 'failed'
-          ? t('tag.classifyFailed')
-          : t('tag.classifyPartial'),
-        message: t('tag.classifyPartialMessage', {
+        title: t('tag.reviewTitle'),
+        message: t('tag.reviewReady', {
           success: totalClassified,
           failed: failedRepoCount
         }),
-        type: runStatus === 'failed' ? 'error' : 'warning',
+        type: runStatus === 'partial' ? 'warning' : 'success',
         duration: 6000
       })
     } else {
-      // 强制刷新页面以显示更新
-      repoStore.setCurrentPage(1)
-      
-      // 如果当前没有选中任何过滤，自动选中"全部仓库"
-      if (!repoStore.selectedTag && repoStore.filterType !== 'all') {
-        repoStore.setFilterType('all')
-      }
-      
       ElNotification({
-        title: t('tag.classifySuccess'),
-        message: t('tag.classifySuccessMessage', { 
-          count: totalClassified, 
-          categories: allCategoryMap.size 
+        title: t('tag.classifyFailed'),
+        message: t('tag.classifyPartialMessage', {
+          success: 0,
+          failed: failedRepoCount || reposToClassify.length
         }),
-        type: 'success',
-        duration: 3000
+        type: 'error',
+        duration: 6000
       })
     }
   } catch (error: any) {
@@ -776,6 +734,57 @@ const handleAutoClassify = async () => {
     isClassifying.value = false
     shouldStopClassifying.value = false
     classificationAbortController = null
+  }
+}
+
+const handleClassificationReviewConfirm = async (
+  assignments: ClassificationAssignment[]
+) => {
+  try {
+    const receipt = await tagStore.applyClassificationAssignments(assignments)
+    classificationReviewItems.value = []
+    lastClassificationCommit.value = receipt.addedRelations.length > 0
+      ? receipt
+      : null
+    repoStore.setCurrentPage(1)
+    ElNotification({
+      title: t('tag.classifySuccess'),
+      message: t('tag.classificationCommitted', {
+        count: receipt.addedRelations.length
+      }),
+      type: 'success',
+      duration: 5000
+    })
+  } catch (error) {
+    console.error('Failed to commit AI classification review:', error)
+    showClassificationReview.value = true
+    ElMessage.error(error instanceof Error ? error.message : String(error))
+  }
+}
+
+const handleUndoClassification = async () => {
+  const receipt = lastClassificationCommit.value
+  if (!receipt) return
+
+  try {
+    await ElMessageBox.confirm(
+      t('tag.undoClassificationConfirm', {
+        count: receipt.addedRelations.length
+      }),
+      t('tag.undoClassification'),
+      {
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
+    await tagStore.undoClassificationCommit(receipt)
+    lastClassificationCommit.value = null
+    ElMessage.success(t('tag.undoClassificationSuccess'))
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      console.error('Failed to undo AI classification:', error)
+    }
   }
 }
 

@@ -1,5 +1,11 @@
 import { defineStore } from 'pinia'
-import type { RepoTag, StoredTag, Tag } from '@/types'
+import type {
+  ClassificationAssignment,
+  ClassificationCommitReceipt,
+  RepoTag,
+  StoredTag,
+  Tag
+} from '@/types'
 import { db } from '@/db'
 import {
   buildRepoTagsFromTags,
@@ -347,6 +353,152 @@ export const useTagStore = defineStore('tag', {
 
     async removeTagFromRepo(repoId: number, tagId: string) {
       await this.setTagForRepo(repoId, tagId, false)
+    },
+
+    async applyClassificationAssignments(
+      assignments: readonly ClassificationAssignment[]
+    ): Promise<ClassificationCommitReceipt> {
+      return runDataMutation(async () => {
+        this.$state.isMutating = true
+
+        try {
+          await ensureDatabaseOpen()
+          const knownTagIds = new Set(this.$state.tags.map(tag => tag.id))
+          const requestedByKey = new Map<string, RepoTag>()
+          const seenRepoIds = new Set<number>()
+
+          for (const assignment of assignments) {
+            if (!Number.isSafeInteger(assignment.repositoryId)) {
+              throw new Error('AI classification contains an invalid repository ID')
+            }
+            if (!knownTagIds.has(assignment.categoryId)) {
+              throw new Error(
+                `AI classification references unknown category ${assignment.categoryId}`
+              )
+            }
+            if (seenRepoIds.has(assignment.repositoryId)) {
+              throw new Error(
+                `AI classification contains duplicate repository ${assignment.repositoryId}`
+              )
+            }
+
+            seenRepoIds.add(assignment.repositoryId)
+            const relation = {
+              repoId: assignment.repositoryId,
+              tagId: assignment.categoryId
+            }
+            requestedByKey.set(
+              `${relation.repoId}\u0000${relation.tagId}`,
+              relation
+            )
+          }
+
+          const repositoryIds = [...seenRepoIds]
+          const now = Date.now()
+          let addedRelations: RepoTag[] = []
+
+          if (repositoryIds.length > 0) {
+            await db.transaction('rw', db.tags, db.repoTags, async () => {
+              const existingRelations = await db.repoTags
+                .where('repoId')
+                .anyOf(repositoryIds)
+                .toArray()
+              const existingKeys = new Set(
+                existingRelations.map(
+                  relation => `${relation.repoId}\u0000${relation.tagId}`
+                )
+              )
+              addedRelations = [...requestedByKey.entries()]
+                .filter(([key]) => !existingKeys.has(key))
+                .map(([, relation]) => relation)
+
+              if (addedRelations.length > 0) {
+                await db.repoTags.bulkAdd(addedRelations)
+                const changedTagIds = new Set(
+                  addedRelations.map(relation => relation.tagId)
+                )
+                const changedTags = this.$state.tags
+                  .filter(tag => changedTagIds.has(tag.id))
+                  .map(tag => ({ ...tag, updatedAt: now }))
+                if (changedTags.length > 0) {
+                  await db.tags.bulkPut(changedTags.map(toStoredTag))
+                }
+              }
+            })
+          }
+
+          if (addedRelations.length > 0) {
+            const repoIdsByTag = new Map<string, number[]>()
+            for (const relation of addedRelations) {
+              const ids = repoIdsByTag.get(relation.tagId) || []
+              ids.push(relation.repoId)
+              repoIdsByTag.set(relation.tagId, ids)
+            }
+            this.$state.tags = this.$state.tags.map(tag => {
+              const addedRepoIds = repoIdsByTag.get(tag.id)
+              return addedRepoIds
+                ? {
+                    ...tag,
+                    repos: [...new Set([...tag.repos, ...addedRepoIds])],
+                    updatedAt: now
+                  }
+                : tag
+            })
+          }
+
+          return {
+            id: `classification_${now}_${Math.random().toString(36).slice(2, 9)}`,
+            createdAt: now,
+            addedRelations
+          }
+        } finally {
+          this.$state.isMutating = false
+        }
+      })
+    },
+
+    async undoClassificationCommit(receipt: ClassificationCommitReceipt) {
+      return runDataMutation(async () => {
+        this.$state.isMutating = true
+
+        try {
+          await ensureDatabaseOpen()
+          if (receipt.addedRelations.length === 0) return
+
+          const now = Date.now()
+          const changedTagIds = new Set(
+            receipt.addedRelations.map(relation => relation.tagId)
+          )
+          await db.transaction('rw', db.tags, db.repoTags, async () => {
+            await db.repoTags.bulkDelete(
+              receipt.addedRelations.map(
+                relation => [relation.repoId, relation.tagId] as [number, string]
+              )
+            )
+            const changedTags = this.$state.tags
+              .filter(tag => changedTagIds.has(tag.id))
+              .map(tag => ({ ...tag, updatedAt: now }))
+            if (changedTags.length > 0) {
+              await db.tags.bulkPut(changedTags.map(toStoredTag))
+            }
+          })
+
+          const removedKeys = new Set(
+            receipt.addedRelations.map(
+              relation => `${relation.repoId}\u0000${relation.tagId}`
+            )
+          )
+          this.$state.tags = this.$state.tags.map(tag => ({
+            ...tag,
+            repos: tag.repos.filter(
+              repoId => !removedKeys.has(`${repoId}\u0000${tag.id}`)
+            ),
+            updatedAt: changedTagIds.has(tag.id) ? now : tag.updatedAt
+          }))
+        } finally {
+          this.$state.isMutating = false
+        }
+      })
     },
 
     async washTags(allRepoIds: Set<number>) {

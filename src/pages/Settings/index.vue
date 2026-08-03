@@ -243,7 +243,7 @@
                 <li>{{ t('settings.visitLink') }} <a href="https://console.anthropic.com/settings/keys" target="_blank">Claude API Keys</a></li>
                 <li>{{ t('settings.loginAndCreate') }} {{ t('settings.newAPIKey') }}</li>
                 <li>{{ t('settings.copyKey') }}</li>
-                <li>{{ t('settings.recommendedModel') }}: claude-3-5-sonnet-20241022</li>
+                <li>{{ t('settings.recommendedModel') }}: claude-sonnet-4-6</li>
               </ol>
             </el-collapse-item>
 
@@ -790,6 +790,10 @@ const handleTest = async () => {
         })
       })
     } else {
+      const tokenLimit = ['openai', 'qwen'].includes(aiConfig.value.provider)
+        ? { max_completion_tokens: 10 }
+        : { max_tokens: 10 }
+
       response = await fetch(`${baseURL}/chat/completions`, {
         method: 'POST',
         signal: controller.signal,
@@ -800,7 +804,7 @@ const handleTest = async () => {
         body: JSON.stringify({
           model,
           messages: [{ role: 'user', content: 'Hi' }],
-          max_tokens: 10
+          ...tokenLimit
         })
       })
     }
