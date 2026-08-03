@@ -515,6 +515,24 @@ export async function executeClassificationTask(
       if (result.status === 'cancelled' || signal.aborted) break
       assignments = result.assignments
       failures.push(...result.failures)
+
+      if (result.status === 'failed') {
+        task = await saveClassificationBatchResult(
+          id,
+          pendingIds,
+          assignments,
+          failures
+        )
+        const failureReason = result.failures[result.failures.length - 1]?.reason ||
+          'AI returned no validated result for this batch'
+        task = await setClassificationTaskStatus(
+          id,
+          'paused',
+          `任务已自动暂停：本批次没有任何有效结果。${failureReason}`
+        )
+        onUpdate?.(task)
+        return task
+      }
     }
 
     task = await saveClassificationBatchResult(

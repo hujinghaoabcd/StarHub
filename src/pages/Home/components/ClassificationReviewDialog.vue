@@ -62,7 +62,7 @@
           {{ t('tag.pauseTask') }}
         </el-button>
         <el-button
-          v-if="task.status === 'paused' && !task.committedAt"
+          v-if="task.status === 'paused' && task.failedCount === 0 && !task.committedAt"
           type="primary"
           :loading="actionBusy"
           @click="emit('resume')"
@@ -70,7 +70,7 @@
           {{ t('tag.resumeTask') }}
         </el-button>
         <el-button
-          v-if="task.status === 'partial' && task.failedCount > 0 && !task.committedAt"
+          v-if="(task.status === 'partial' || task.status === 'paused') && task.failedCount > 0 && !task.committedAt"
           type="warning"
           :loading="actionBusy"
           @click="emit('retry')"

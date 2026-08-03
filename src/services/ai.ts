@@ -19,6 +19,13 @@ import {
   buildRepositoryClassificationMetadata,
   CLASSIFICATION_PROMPT_VERSION
 } from '@/services/classificationProtocol'
+import {
+  AIOutputError,
+  buildOpenAICompatibleRequestBody,
+  extractOpenAICompatibleText,
+  type AIOutputFailureCode,
+  type OpenAICompatibleProvider
+} from '@/services/openAICompatible'
 
 export { CLASSIFICATION_PROMPT_VERSION }
 
@@ -32,7 +39,14 @@ export interface ClassificationBatchFailure {
   batchIndex: number
   repositoryIds: number[]
   reason: string
+  code?: ClassificationFailureCode
 }
+
+export type ClassificationFailureCode =
+  | AIOutputFailureCode
+  | 'rate_limited'
+  | 'transient_request'
+  | 'request_failed'
 
 export interface ClassificationRunResult {
   status: ClassificationRunStatus
@@ -69,6 +83,7 @@ interface JsonSchema {
 
 const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60_000
 const MAX_REASON_LENGTH = 500
+const MAX_ADAPTIVE_SPLIT_DEPTH = 2
 
 class AIRequestError extends Error {
   constructor(
@@ -229,19 +244,7 @@ async function callOpenAICompatible(
   options: Required<Pick<ClassificationRunOptions, 'requestTimeoutMs'>> &
     ClassificationRunOptions
 ): Promise<string> {
-  const structuredFormat = config.provider === 'openai'
-    ? {
-        type: 'json_schema',
-        json_schema: {
-          name: 'repository_classification',
-          strict: true,
-          schema
-        }
-      }
-    : { type: 'json_object' }
-  const tokenParameter = config.provider === 'openai' || config.provider === 'qwen'
-    ? { max_completion_tokens: outputTokenBudget(repositoryCount) }
-    : { max_tokens: outputTokenBudget(repositoryCount) }
+  const provider = config.provider as OpenAICompatibleProvider
 
   const response = await fetchWithTimeout(
     `${baseURL}/chat/completions`,
@@ -251,27 +254,29 @@ async function callOpenAICompatible(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${config.apiKey}`
       },
-      body: JSON.stringify({
+      body: JSON.stringify(buildOpenAICompatibleRequestBody({
+        provider,
         model,
         messages,
-        temperature: 0.2,
-        response_format: structuredFormat,
-        ...tokenParameter
-      })
+        schema,
+        maxOutputTokens: outputTokenBudget(repositoryCount)
+      }))
     },
     options.requestTimeoutMs,
     options.signal
   )
 
   await assertSuccessfulResponse(response, config.provider)
-  const data = await response.json() as {
-    choices?: Array<{ message?: { content?: unknown } }>
+  let data: unknown
+  try {
+    data = await response.json() as unknown
+  } catch {
+    throw new AIOutputError(
+      `${config.provider} API 响应正文不是有效 JSON`,
+      'invalid_output'
+    )
   }
-  const content = data.choices?.[0]?.message?.content
-  if (typeof content !== 'string') {
-    throw new Error(`${config.provider} API response did not contain text content`)
-  }
-  return content
+  return extractOpenAICompatibleText(data, provider)
 }
 
 async function callClaude(
@@ -376,41 +381,20 @@ export async function classifyRepositories(
     const batchRepos = repos.slice(start, start + resolvedBatchSize)
     onProgress?.(batchIndex + 1, totalBatches)
 
-    let batchAssignments: ClassificationAssignment[] | null = null
-    for (let attempt = 1; attempt <= 3 && !batchAssignments; attempt++) {
-      try {
-        batchAssignments = await classifyBatch(
-          batchRepos,
-          config,
-          baseURL,
-          model,
-          categories,
-          options
-        )
-      } catch (error) {
-        if (isAbortError(error) || options.signal?.aborted) break
-
-        const shouldRetry = error instanceof AIRequestError &&
-          error.status === 429 &&
-          attempt < 3
-        if (shouldRetry) {
-          const waitSeconds = error.retryAfterSeconds || 30
-          await abortableDelay(waitSeconds * 1_000, options.signal)
-          continue
-        }
-
-        failures.push({
-          batchIndex: batchIndex + 1,
-          repositoryIds: batchRepos.map(repository => repository.id),
-          reason: error instanceof Error ? error.message : String(error)
-        })
-        break
-      }
-    }
+    const batchResult = await classifyBatchWithAdaptiveSplit(
+      batchRepos,
+      batchIndex + 1,
+      config,
+      baseURL,
+      model,
+      categories,
+      options
+    )
 
     if (options.signal?.aborted) break
-    if (batchAssignments) {
-      assignments.push(...batchAssignments)
+    assignments.push(...batchResult.assignments)
+    failures.push(...batchResult.failures)
+    if (batchResult.failures.length === 0) {
       completedBatches++
     }
   }
@@ -419,7 +403,7 @@ export async function classifyRepositories(
     ? 'cancelled'
     : failures.length === 0
       ? 'success'
-      : completedBatches === 0
+      : assignments.length === 0
         ? 'failed'
         : 'partial'
 
@@ -430,6 +414,132 @@ export async function classifyRepositories(
     completedBatches,
     totalBatches,
     failures
+  }
+}
+
+function classificationFailureCode(error: unknown): ClassificationFailureCode {
+  if (error instanceof AIOutputError) return error.code
+  if (error instanceof AIRequestError) {
+    if (error.status === 429) return 'rate_limited'
+    if (error.status === 500 || error.status === 503) return 'transient_request'
+  }
+  return 'request_failed'
+}
+
+async function classifyBatchWithRetry(
+  repos: Repository[],
+  config: AIConfig,
+  baseURL: string,
+  model: string,
+  categories: ClassificationCategory[],
+  options: Required<Pick<ClassificationRunOptions, 'requestTimeoutMs'>> &
+    ClassificationRunOptions
+): Promise<ClassificationAssignment[]> {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await classifyBatch(
+        repos,
+        config,
+        baseURL,
+        model,
+        categories,
+        options
+      )
+    } catch (error) {
+      if (isAbortError(error) || options.signal?.aborted) throw error
+      lastError = error
+      const retryableRequest = error instanceof AIRequestError &&
+        (error.status === 429 || error.status === 500 || error.status === 503)
+      const retryableOutput = error instanceof AIOutputError &&
+        error.code === 'transient_output'
+      if ((!retryableRequest && !retryableOutput) || attempt === 3) break
+
+      const waitSeconds = error instanceof AIRequestError && error.status === 429
+        ? error.retryAfterSeconds || 30
+        : attempt * 2
+      await abortableDelay(waitSeconds * 1_000, options.signal)
+    }
+  }
+
+  throw lastError
+}
+
+async function classifyBatchWithAdaptiveSplit(
+  repos: Repository[],
+  batchIndex: number,
+  config: AIConfig,
+  baseURL: string,
+  model: string,
+  categories: ClassificationCategory[],
+  options: Required<Pick<ClassificationRunOptions, 'requestTimeoutMs'>> &
+    ClassificationRunOptions,
+  splitDepth = 0
+): Promise<{
+  assignments: ClassificationAssignment[]
+  failures: ClassificationBatchFailure[]
+}> {
+  try {
+    return {
+      assignments: await classifyBatchWithRetry(
+        repos,
+        config,
+        baseURL,
+        model,
+        categories,
+        options
+      ),
+      failures: []
+    }
+  } catch (error) {
+    if (isAbortError(error) || options.signal?.aborted) {
+      return { assignments: [], failures: [] }
+    }
+
+    if (
+      error instanceof AIOutputError &&
+      error.canSplit &&
+      repos.length > 1 &&
+      splitDepth < MAX_ADAPTIVE_SPLIT_DEPTH
+    ) {
+      const midpoint = Math.ceil(repos.length / 2)
+      const left = await classifyBatchWithAdaptiveSplit(
+        repos.slice(0, midpoint),
+        batchIndex,
+        config,
+        baseURL,
+        model,
+        categories,
+        options,
+        splitDepth + 1
+      )
+      throwIfAborted(options.signal)
+      const right = await classifyBatchWithAdaptiveSplit(
+        repos.slice(midpoint),
+        batchIndex,
+        config,
+        baseURL,
+        model,
+        categories,
+        options,
+        splitDepth + 1
+      )
+      return {
+        assignments: [...left.assignments, ...right.assignments],
+        failures: [...left.failures, ...right.failures]
+      }
+    }
+
+    return {
+      assignments: [],
+      failures: [{
+        batchIndex,
+        repositoryIds: repos.map(repository => repository.id),
+        reason: error instanceof Error ? error.message : String(error),
+        code: classificationFailureCode(error)
+      }]
+    }
   }
 }
 
@@ -488,10 +598,18 @@ ${JSON.stringify(repositoryInfo)}`
         options
       )
 
-  const parsed = parseClassificationResponse(responseText)
-  return validateClassificationItems(
-    repos.map(repository => repository.id),
-    categories.map(category => category.categoryId),
-    extractClassificationItems(parsed)
-  )
+  try {
+    const parsed = parseClassificationResponse(responseText)
+    return validateClassificationItems(
+      repos.map(repository => repository.id),
+      categories.map(category => category.categoryId),
+      extractClassificationItems(parsed)
+    )
+  } catch (error) {
+    throw new AIOutputError(
+      error instanceof Error ? error.message : String(error),
+      'invalid_output',
+      true
+    )
+  }
 }
