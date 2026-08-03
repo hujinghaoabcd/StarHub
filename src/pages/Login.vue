@@ -259,8 +259,8 @@
             <div class="feature-item-content">
               <h3>{{ currentLanguage === 'zh' ? 'AI 智能分类' : 'AI Smart Classification' }}</h3>
               <p>{{ currentLanguage === 'zh' 
-                ? '支持 OpenAI、Claude、DeepSeek、通义千问、智谱 AI 五种服务。分析仓库名称、描述和 README，批量分类准确率高达 95%，一键整理上千仓库。' 
-                : 'Supports OpenAI, Claude, DeepSeek, Qwen, and Zhipu AI. Analyzes repo names, descriptions and READMEs. 95% accuracy for batch classification of thousands of repos.' }}</p>
+                ? '支持 OpenAI、Claude、DeepSeek、通义千问、智谱 AI 五种服务。模型只能选择已有分类，结果经人工审核后写入，并支持撤销。'
+                : 'Supports OpenAI, Claude, DeepSeek, Qwen, and Zhipu AI. Models can select only existing categories; results are reviewed before a reversible write.' }}</p>
             </div>
           </div>
           <div class="feature-item">
@@ -1656,5 +1656,3 @@ const toggleLanguage = () => {
   }
 }
 </style>
-
-
