@@ -17,17 +17,33 @@
           <p v-if="repo.description" class="repo-description">
             {{ repo.description }}
           </p>
+          <div v-if="homepageUrl" class="repo-about">
+            <span class="about-label">About</span>
+            <a
+              :href="homepageUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {{ homepageUrl }}
+            </a>
+          </div>
         </div>
 
-        <a
-          class="github-link"
-          :href="repo.html_url"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <el-icon><Link /></el-icon>
-          <span>GitHub</span>
-        </a>
+        <div class="summary-actions">
+          <a
+            class="github-link"
+            :href="repo.html_url"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <el-icon><Link /></el-icon>
+            <span>GitHub</span>
+          </a>
+          <RepositoryOverview
+            :repo="repo"
+            @unstarred="emit('unstarred', $event)"
+          />
+        </div>
       </div>
 
       <div class="repo-meta">
@@ -55,11 +71,6 @@
           Updated {{ formatDate(repo.updated_at) }}
         </div>
       </div>
-
-      <RepositoryOverview
-        :repo="repo"
-        @unstarred="emit('unstarred', $event)"
-      />
     </div>
 
     <DetailView class="readme-only" :repo="repo" />
@@ -67,6 +78,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { Repository } from '@/types'
 import { formatDate, formatNumber } from '@/utils'
 import { getLanguageColor } from '@/utils/languageColors'
@@ -79,7 +91,7 @@ import {
 import DetailView from './DetailView.vue'
 import RepositoryOverview from './RepositoryOverview.vue'
 
-defineProps<{
+const props = defineProps<{
   repo: Repository
 }>()
 
@@ -87,6 +99,21 @@ const emit = defineEmits<{
   close: []
   unstarred: [repoId: number]
 }>()
+
+function safeHttpUrl(value: string | undefined | null): string | null {
+  if (!value) return null
+
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:'
+      ? url.toString()
+      : null
+  } catch {
+    return null
+  }
+}
+
+const homepageUrl = computed(() => safeHttpUrl(props.repo.homepage))
 </script>
 
 <style lang="scss" scoped>
@@ -130,7 +157,7 @@ const emit = defineEmits<{
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 18px;
   padding-right: 34px;
   margin-bottom: 14px;
 }
@@ -155,21 +182,61 @@ const emit = defineEmits<{
   line-height: 1.5;
 }
 
+.repo-about {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  margin-top: 8px;
+  font-size: 0.8rem;
+
+  a {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--el-color-primary);
+    text-decoration: none;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.about-label {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.summary-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
 .github-link {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  height: 44px;
   flex-shrink: 0;
-  gap: 6px;
-  padding: 6px 12px;
+  gap: 7px;
+  padding: 0 18px;
   color: #fff;
-  font-size: 0.85rem;
-  font-weight: 500;
+  font-size: 0.9rem;
+  font-weight: 600;
   text-decoration: none;
   background: var(--el-color-primary);
-  border-radius: 3px;
+  border: 1px solid var(--el-color-primary);
+  border-radius: 5px;
 
-  &:hover {
+  &:hover,
+  &:focus-visible {
     background: var(--el-color-primary-dark-2);
+    border-color: var(--el-color-primary-dark-2);
   }
 }
 
@@ -234,8 +301,8 @@ const emit = defineEmits<{
     flex-direction: column;
   }
 
-  .github-link {
-    align-self: flex-start;
+  .summary-actions {
+    flex-wrap: wrap;
   }
 
   .meta-item.updated {
