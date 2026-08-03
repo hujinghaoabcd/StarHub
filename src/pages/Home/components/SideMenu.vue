@@ -29,6 +29,9 @@
       <div class="menu-header collapsible" @click="categoryExpanded = !categoryExpanded">
         <h3>{{ t('menu.tags') }}</h3>
         <div class="menu-actions" @click.stop>
+          <el-tag class="experimental-badge" size="small" type="warning" effect="plain">
+            {{ t('tag.experimental') }}
+          </el-tag>
           <el-tooltip :content="isClassifying ? '分类进行中...' : 'AI 智能分类（仅未分类）'" placement="top">
             <el-button
               text
@@ -36,7 +39,7 @@
               size="small"
               :loading="isClassifying"
               :disabled="isClassifying"
-              @click="handleAutoClassify(false)"
+              @click="handleAutoClassify"
               class="classify-btn"
             >
               <el-icon v-if="!isClassifying"><MagicStick /></el-icon>
@@ -54,29 +57,6 @@
               <el-icon><CircleClose /></el-icon>
             </el-button>
           </el-tooltip>
-          <el-dropdown trigger="click" :disabled="isClassifying" @command="handleClassifyCommand">
-            <el-button
-              text
-              circle
-              size="small"
-              :disabled="isClassifying"
-              class="classify-dropdown-btn"
-            >
-              <el-icon><ArrowDown /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="incremental">
-                  <el-icon><MagicStick /></el-icon>
-                  {{ t('tag.classifyIncremental') }}
-                </el-dropdown-item>
-                <el-dropdown-item command="reclassify" divided>
-                  <el-icon><Refresh /></el-icon>
-                  {{ t('tag.classifyReclassify') }}
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
           <el-button
             text
             circle
@@ -190,12 +170,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTagStore } from '@/stores/tag'
 import { useRepoStore } from '@/stores/repo'
 import { getLanguageColor } from '@/utils/languageColors'
-import { Plus, Close, Grid, Collection, Loading, MagicStick, ArrowDown, Refresh, CircleClose } from '@element-plus/icons-vue'
+import { Plus, Close, Grid, Collection, Loading, MagicStick, ArrowDown, CircleClose } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
 
 const { t } = useI18n()
@@ -216,6 +196,7 @@ const categoryExpanded = ref(true)
 const isClassifying = ref(false)
 const shouldStopClassifying = ref(false) // 停止分类标志
 const classifyNotificationHandle = ref<any>(null) // 当前分类通知句柄
+let classificationAbortController: AbortController | null = null
 
 const tags = computed(() => {
   // 按名称字母顺序排序
@@ -312,39 +293,14 @@ const handleDeleteTag = async (tagId: string) => {
   }
 }
 
-const handleClassifyCommand = (command: string) => {
-  if (command === 'incremental') {
-    handleAutoClassify(false)
-  } else if (command === 'reclassify') {
-    handleAutoClassifyWithConfirm()
-  }
-}
-
-const handleAutoClassifyWithConfirm = async () => {
-  try {
-    await ElMessageBox.confirm(
-      t('tag.reclassifyConfirm'),
-      t('tag.reclassifyTitle'),
-      {
-        confirmButtonText: t('tag.reclassifyConfirmButton'),
-        cancelButtonText: t('common.cancel'),
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger'
-      }
-    )
-    await handleAutoClassify(true)
-  } catch (error) {
-    // 用户取消
-  }
-}
-
 // 停止分类
 const handleStopClassifying = () => {
   shouldStopClassifying.value = true
+  classificationAbortController?.abort('user_cancelled')
   ElMessage.warning(t('tag.stopping'))
 }
 
-const handleAutoClassify = async (reclassifyAll = false) => {
+const handleAutoClassify = async () => {
   if (repoStore.repos.length === 0) {
     ElMessage.warning(t('tag.noReposToClassify'))
     return
@@ -372,6 +328,27 @@ const handleAutoClassify = async (reclassifyAll = false) => {
   
   // 提示用户关于 OpenAI 速率限制
   const aiConfig = getAIConfig()
+  try {
+    const { resolveAIEndpoint } = await import('@/utils/aiEndpoint')
+    const endpoint = resolveAIEndpoint(aiConfig)
+    if (endpoint.isCustom) {
+      await ElMessageBox.confirm(
+        t('settings.customEndpointConfirm', { host: endpoint.host }),
+        t('settings.customEndpointTitle'),
+        {
+          confirmButtonText: t('settings.confirmEndpoint'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning'
+        }
+      )
+    }
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AIEndpointValidationError') {
+      ElMessage.error(error.message)
+    }
+    return
+  }
+
   if (aiConfig.provider === 'openai') {
     const batches = Math.ceil(repoStore.repos.length / 30)
     const minutes = Math.ceil(batches * 25 / 60)
@@ -412,101 +389,30 @@ const handleAutoClassify = async (reclassifyAll = false) => {
     includeReadme = false
   }
   
-  // 筛选需要分类的仓库（在获取 README 之前）
-  let reposToClassify = repoStore.repos
-  if (reclassifyAll) {
-    // 显示清空进度
-    const clearingMsg = ElMessage({
-      message: '正在强力清空所有分类关联...',
-      type: 'info',
-      duration: 0
-    })
-    
-    try {
-      // 导入数据库
-      const { db } = await import('@/db')
-      
-      // 确保数据库打开
-      if (!db.isOpen()) {
-        await db.open()
-      }
-      
-      // 直接清空数据库中所有标签的 repos 字段
-      const allTags = await db.tags.toArray()
-      
-      // 清空所有标签的 repos
-      for (const tag of allTags) {
-        await db.tags.update(tag.id, { repos: [], updatedAt: Date.now() })
+  // 止损阶段只允许增量分类，绝不清空或覆盖已有分类关系。
+  const taggedRepoIds = new Set<number>()
+  tagStore.tags.forEach((tag: any) => {
+    if (tag.repos && Array.isArray(tag.repos)) {
+      tag.repos.forEach((id: number) => taggedRepoIds.add(id))
     }
-      
-      // 清空 repoTags 表
-      if (db.repoTags) {
-        await db.repoTags.clear()
-      }
-      
-      // 强制刷新 Store
-    await tagStore.loadTags()
-      
-      // 等待一下确保同步
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      // 最终验证
-      await tagStore.loadTags()
-      const totalRepos = tagStore.tags.reduce((sum: number, tag: any) => sum + (tag.repos?.length || 0), 0)
-      
-      if (totalRepos > 0) {
-        clearingMsg.close()
-        
-        // 提供详细的错误信息
-        await ElMessageBox.alert(
-          `清空失败！仍有 ${totalRepos} 个仓库关联。\n\n` +
-          `这可能是数据库损坏导致的。\n\n` +
-          `请使用以下方法之一：\n` +
-          `1. 设置页面 → 清空所有数据\n` +
-          `2. 右上角头像 → 重新抓取\n` +
-          `3. 刷新页面后重试`,
-          '清空失败',
-          {
-            confirmButtonText: '我知道了',
-            type: 'error'
-          }
-        )
-        return
-      }
-      
-      clearingMsg.close()
-      ElMessage.success('✓ 所有分类关联已彻底清空')
-      
-      // 等待 UI 更新
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-    } catch (error) {
-      clearingMsg.close()
-      console.error('清空标签关联失败:', error)
-      ElMessage.error('清空失败: ' + (error instanceof Error ? error.message : String(error)))
-      return
-    }
-    
-    reposToClassify = repoStore.repos
-  } else {
-    // 只分类未分类的仓库
-    const taggedRepoIds = new Set<number>()
-    tagStore.tags.forEach((tag: any) => {
-      if (tag.repos && Array.isArray(tag.repos)) {
-        tag.repos.forEach((id: number) => taggedRepoIds.add(id))
-      }
-    })
-    reposToClassify = repoStore.repos.filter((repo: any) => !taggedRepoIds.has(repo.id))
-    
-    if (reposToClassify.length === 0) {
-      ElMessage.success(t('tag.allClassified'))
-      return
-    }
+  })
+  const reposToClassify = repoStore.repos.filter((repo: any) => !taggedRepoIds.has(repo.id))
+
+  if (reposToClassify.length === 0) {
+    ElMessage.success(t('tag.allClassified'))
+    return
   }
+
+  let runStatus: 'success' | 'partial' | 'failed' | 'cancelled' = 'success'
+  let failedRepoCount = 0
+  let totalClassified = 0
+  const allCategoryMap = new Map<string, number[]>()
   
   try {
     isClassifying.value = true
     shouldStopClassifying.value = false // 重置停止标志
+    classificationAbortController = new AbortController()
+    const classificationSignal = classificationAbortController.signal
     
     // 调用 AI 分类服务（带进度和批次结果回调）
     const { classifyRepositories, CATEGORY_COLORS } = await import('@/services/ai')
@@ -529,9 +435,6 @@ const handleAutoClassify = async (reclassifyAll = false) => {
     const batchSize = aiConfig.batchSize || 50
     const totalRepos = reposToClassify.length
     const totalBatches = Math.ceil(totalRepos / batchSize)
-    let totalClassified = 0
-    const allCategoryMap = new Map<string, number[]>()
-    
     // 创建固定的通知句柄
     classifyNotificationHandle.value = null
     
@@ -539,16 +442,7 @@ const handleAutoClassify = async (reclassifyAll = false) => {
     for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
       // 检查是否停止
       if (shouldStopClassifying.value) {
-        if (classifyNotificationHandle.value) {
-          classifyNotificationHandle.value.close()
-          classifyNotificationHandle.value = null
-        }
-        ElNotification({
-          title: t('tag.classifyStopped'),
-          message: t('tag.classifyStoppedMessage', { count: totalClassified }),
-          type: 'warning',
-          duration: 3000
-        })
+        runStatus = 'cancelled'
         break
       }
       const start = batchIndex * batchSize
@@ -601,13 +495,22 @@ const handleAutoClassify = async (reclassifyAll = false) => {
           const repo = batchRepos[i]
           try {
             const [owner, repoName] = repo.full_name.split('/')
-            const response = await githubApi.getReadme(owner, repoName)
+            const response = await githubApi.getReadme(
+              owner,
+              repoName,
+              classificationSignal
+            )
             reposWithReadme.push({
               ...repo,
               description: repo.description ?? null,
               readme: response.data
             } as any)
           } catch (e) {
+            if (classificationSignal.aborted) {
+              const abortError = new Error('Classification cancelled')
+              abortError.name = 'AbortError'
+              throw abortError
+            }
             // README 不存在或获取失败，使用原仓库信息
             reposWithReadme.push({
               ...repo,
@@ -665,7 +568,7 @@ const handleAutoClassify = async (reclassifyAll = false) => {
         duration: 0
       })
       
-      await classifyRepositories(
+      const classificationResult = await classifyRepositories(
         batchWithReadme as any,
         // 进度回调
         (current, total) => {
@@ -688,6 +591,8 @@ const handleAutoClassify = async (reclassifyAll = false) => {
         },
         // 批次完成回调（每批次完成后立即更新）
         async (innerBatchCategoryMap: Map<string, number[]>, innerBatchIndex: number, innerTotalBatches: number) => {
+          const stagedCategoryResults = new Map<string, number[]>()
+
           // 立即更新这批次的分类
           for (const [categoryName, repoIds] of innerBatchCategoryMap.entries()) {
             if (repoIds.length === 0) continue
@@ -723,17 +628,20 @@ const handleAutoClassify = async (reclassifyAll = false) => {
               })
             }
             
-            // 合并到总分类映射
-            if (!allCategoryMap.has(cleanCategoryName)) {
-              allCategoryMap.set(cleanCategoryName, [])
-            }
-            allCategoryMap.get(cleanCategoryName)!.push(...repoIds)
-            
-            totalClassified += repoIds.length
+            stagedCategoryResults.set(cleanCategoryName, repoIds)
           }
           
           // 重新加载分类以刷新 UI
           await tagStore.loadTags()
+
+          // 只有整批写入和刷新均成功后，才计入已完成数量。
+          for (const [categoryName, repoIds] of stagedCategoryResults) {
+            if (!allCategoryMap.has(categoryName)) {
+              allCategoryMap.set(categoryName, [])
+            }
+            allCategoryMap.get(categoryName)!.push(...repoIds)
+            totalClassified += repoIds.length
+          }
           
           // 更新总体进度通知
           if (classifyNotificationHandle.value) {
@@ -753,8 +661,29 @@ const handleAutoClassify = async (reclassifyAll = false) => {
             duration: 0
           })
         },
-        batchSize // 传递批次大小参数
+        batchSize, // 传递批次大小参数
+        {
+          signal: classificationSignal,
+          requestTimeoutMs: 60_000
+        }
       )
+
+      if (classificationResult.status === 'cancelled') {
+        runStatus = 'cancelled'
+        break
+      }
+      if (
+        classificationResult.status === 'failed' ||
+        classificationResult.status === 'partial'
+      ) {
+        const failedIds = new Set(
+          classificationResult.failures.flatMap(failure => failure.repositoryIds)
+        )
+        failedRepoCount += failedIds.size
+        runStatus = totalClassified > 0 ? 'partial' : 'failed'
+        continue
+      }
+      if (runStatus === 'failed') runStatus = 'partial'
       
       // 注意：批次完成回调已经处理了所有分类的创建和更新
       // 这里的 batchCategoryMap 返回值实际上已经被处理过了
@@ -784,8 +713,30 @@ const handleAutoClassify = async (reclassifyAll = false) => {
       classifyNotificationHandle.value = null
     }
     
-    // 如果被停止，不显示成功消息
-    if (!shouldStopClassifying.value) {
+    if (classificationSignal.aborted || shouldStopClassifying.value) {
+      runStatus = 'cancelled'
+    }
+
+    if (runStatus === 'cancelled') {
+      ElNotification({
+        title: t('tag.classifyStopped'),
+        message: t('tag.classifyStoppedMessage', { count: totalClassified }),
+        type: 'warning',
+        duration: 4000
+      })
+    } else if (runStatus === 'failed' || runStatus === 'partial') {
+      ElNotification({
+        title: runStatus === 'failed'
+          ? t('tag.classifyFailed')
+          : t('tag.classifyPartial'),
+        message: t('tag.classifyPartialMessage', {
+          success: totalClassified,
+          failed: failedRepoCount
+        }),
+        type: runStatus === 'failed' ? 'error' : 'warning',
+        duration: 6000
+      })
+    } else {
       // 强制刷新页面以显示更新
       repoStore.setCurrentPage(1)
       
@@ -811,15 +762,32 @@ const handleAutoClassify = async (reclassifyAll = false) => {
       classifyNotificationHandle.value.close()
       classifyNotificationHandle.value = null
     }
-    ElMessage.error(error.message || t('tag.classifyFailed'))
+    if (error?.name === 'AbortError' || classificationAbortController?.signal.aborted) {
+      ElNotification({
+        title: t('tag.classifyStopped'),
+        message: t('tag.classifyStoppedMessage', { count: totalClassified }),
+        type: 'warning',
+        duration: 4000
+      })
+    } else {
+      ElMessage.error(error.message || t('tag.classifyFailed'))
+    }
   } finally {
     isClassifying.value = false
     shouldStopClassifying.value = false
+    classificationAbortController = null
   }
 }
 
 onMounted(() => {
   tagStore.loadTags()
+})
+
+onUnmounted(() => {
+  classificationAbortController?.abort('component_unmounted')
+  classificationAbortController = null
+  classifyNotificationHandle.value?.close()
+  classifyNotificationHandle.value = null
 })
 </script>
 
@@ -1006,6 +974,12 @@ onMounted(() => {
       gap: $spacing-xs;
       margin-left: auto;
 
+      .experimental-badge {
+        height: 20px;
+        padding: 0 5px;
+        font-size: 0.65rem;
+      }
+
       .el-button {
         &.is-loading {
           color: var(--el-color-primary) !important;
@@ -1115,4 +1089,3 @@ onMounted(() => {
   font-size: 0.875rem;
 }
 </style>
-
