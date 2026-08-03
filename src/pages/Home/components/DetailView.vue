@@ -45,12 +45,22 @@
       </div>
 
       <!-- README -->
-      <div class="readme-section" v-if="readme">
+      <div class="readme-section">
         <div class="readme-header">
           <el-icon><Document /></el-icon>
           <span>README</span>
         </div>
-        <div class="readme-content markdown-body" :data-color-mode="themeStore.theme" data-light-theme="light" data-dark-theme="dark" v-html="readme"></div>
+        <div v-if="readmeLoading" class="readme-state">
+          <el-skeleton :rows="8" animated />
+        </div>
+        <div v-else-if="readmeError" class="readme-state readme-error">
+          <span>{{ readmeError }}</span>
+          <el-button size="small" @click="loadReadme">重试</el-button>
+        </div>
+        <div v-else-if="!readme" class="readme-state">
+          该仓库暂无 README。
+        </div>
+        <div v-else class="readme-content markdown-body" :data-color-mode="themeStore.theme" data-light-theme="light" data-dark-theme="dark" v-html="readme"></div>
       </div>
     </div>
 
@@ -93,7 +103,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import { isAxiosError } from 'axios'
 import { useTagStore } from '@/stores/tag'
 import { useThemeStore } from '@/stores/theme'
 import { githubApi } from '@/api/github'
@@ -150,8 +161,13 @@ defineEmits<{
 const tagStore = useTagStore()
 const repoTags = ref<Tag[]>([])
 const readme = ref('')
+const readmeLoading = ref(false)
+const readmeError = ref('')
 const showTagDialog = ref(false)
 const selectedTagId = ref('')
+let readmeRequestId = 0
+let readmeController: AbortController | null = null
+let repoTagsRequestId = 0
 
 const availableTags = computed(() => {
   const currentTagIds = repoTags.value.map((t) => t.id)
@@ -159,10 +175,18 @@ const availableTags = computed(() => {
 })
 
 const loadReadme = async () => {
+  const requestId = ++readmeRequestId
+  readmeController?.abort()
+  const controller = new AbortController()
+  readmeController = controller
+  readme.value = ''
+  readmeError.value = ''
+  readmeLoading.value = true
+
   try {
     const [owner, repo] = props.repo.full_name.split('/')
     const defaultBranch = props.repo.default_branch || 'main'
-    const response = await githubApi.getReadme(owner, repo)
+    const response = await githubApi.getReadme(owner, repo, controller.signal)
     let rawReadme = response.data
     
     // 将相对路径的图片和链接转换为 GitHub 绝对路径
@@ -191,6 +215,8 @@ const loadReadme = async () => {
     const html = marked(rawReadme) as string
     
     // DOMPurify 配置，允许任务列表和其他 GFM 特性
+    if (requestId !== readmeRequestId || controller.signal.aborted) return
+
     readme.value = DOMPurify.sanitize(html, {
       ADD_ATTR: ['target', 'rel', 'class', 'id', 'checked', 'disabled', 'type'],
       ADD_TAGS: ['input', 'span'],
@@ -198,12 +224,35 @@ const loadReadme = async () => {
       KEEP_CONTENT: true
     })
   } catch (error) {
+    if (
+      controller.signal.aborted ||
+      requestId !== readmeRequestId ||
+      (isAxiosError(error) && error.code === 'ERR_CANCELED')
+    ) {
+      return
+    }
+
     console.error('Failed to load README:', error)
+    readmeError.value = isAxiosError(error) && error.response?.status === 404
+      ? '该仓库暂无 README。'
+      : 'README 加载失败，请稍后重试。'
+  } finally {
+    if (requestId === readmeRequestId) {
+      readmeLoading.value = false
+      if (readmeController === controller) {
+        readmeController = null
+      }
+    }
   }
 }
 
 const loadRepoTags = async () => {
-  repoTags.value = await tagStore.getRepoTags(props.repo.id)
+  const requestId = ++repoTagsRequestId
+  const repoId = props.repo.id
+  const tags = await tagStore.getRepoTags(repoId)
+  if (requestId === repoTagsRequestId && repoId === props.repo.id) {
+    repoTags.value = tags
+  }
 }
 
 const handleAddTag = async () => {
@@ -233,7 +282,7 @@ const handleAddTag = async () => {
 // }
 
 watch(
-  () => props.repo,
+  () => props.repo.id,
   () => {
     if (props.repo) {
       loadReadme()
@@ -243,11 +292,11 @@ watch(
   { immediate: true }
 )
 
-// 监听主题变化，重新加载 README 以应用新的代码高亮
-watch(() => themeStore.theme, () => {
-  if (props.repo) {
-    loadReadme()
-  }
+onUnmounted(() => {
+  readmeRequestId++
+  repoTagsRequestId++
+  readmeController?.abort()
+  readmeController = null
 })
 </script>
 
@@ -426,6 +475,30 @@ watch(() => themeStore.theme, () => {
   .el-icon {
     color: var(--text-secondary);
   }
+}
+
+.readme-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  padding: 24px;
+  color: var(--text-secondary);
+  background: var(--bg-primary);
+
+  .el-skeleton {
+    width: 100%;
+  }
+
+  [data-theme='dark'] & {
+    background: #1c2333;
+  }
+}
+
+.readme-error {
+  flex-direction: column;
+  gap: 12px;
+  color: var(--el-color-danger);
 }
 
 .readme-content {
@@ -617,4 +690,3 @@ watch(() => themeStore.theme, () => {
   border-radius: $radius-round;
 }
 </style>
-

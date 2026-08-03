@@ -25,10 +25,12 @@ export const githubApi = {
   // Get starred repositories for authenticated user
   getLoginUserStarred(
     perPage: number = 40,
-    page: number = 1
+    page: number = 1,
+    signal?: AbortSignal
   ): Promise<AxiosResponse<Repository[]>> {
     return http.get(
-      `/user/starred?${qs.stringify({ per_page: perPage, page })}`
+      `/user/starred?${qs.stringify({ per_page: perPage, page })}`,
+      { signal }
     )
   },
 
@@ -66,17 +68,18 @@ export const githubApi = {
   // an anonymous request when the current OAuth scope cannot read Pages data.
   async getRepositoryPages(
     owner: string,
-    repo: string
+    repo: string,
+    signal?: AbortSignal
   ): Promise<AxiosResponse<RepositoryPagesSite>> {
     try {
-      return await http.get(`/repos/${owner}/${repo}/pages`)
+      return await http.get(`/repos/${owner}/${repo}/pages`, { signal })
     } catch (error) {
       const status = isAxiosError(error) ? error.response?.status : undefined
       if (status !== 403 && status !== 404) {
         throw error
       }
 
-      return publicGithubHttp.get(`/repos/${owner}/${repo}/pages`)
+      return publicGithubHttp.get(`/repos/${owner}/${repo}/pages`, { signal })
     }
   },
 

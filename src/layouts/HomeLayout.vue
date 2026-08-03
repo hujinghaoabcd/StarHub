@@ -98,7 +98,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { isAxiosError } from 'axios'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessageBox } from 'element-plus'
@@ -259,7 +260,7 @@ const handleCommand = async (command: string) => {
               }
             ).then(() => {
               // Navigate to home and reload
-              window.location.href = '/#/'
+              window.location.href = `${import.meta.env.BASE_URL}#/`
               setTimeout(() => {
                 window.location.reload()
               }, 100)
@@ -287,12 +288,19 @@ onMounted(async () => {
       userStore.setUser(user.data)
     } catch (error) {
       console.error('Failed to restore user info:', error)
-      // 如果获取失败，可能是 token 过期，清除 token
-      AuthToken.clean()
-      userStore.clearUser()
+      const status = isAxiosError(error) ? error.response?.status : undefined
+      if (status === 401) {
+        AuthToken.clean()
+        userStore.clearUser()
+      } else {
+        const { ElMessage } = await import('element-plus')
+        ElMessage.warning('暂时无法恢复 GitHub 用户信息，登录状态已保留。')
+      }
     }
   }
 })
+
+onUnmounted(stopResize)
 </script>
 
 
@@ -557,4 +565,3 @@ onMounted(async () => {
   }
 }
 </style>
-

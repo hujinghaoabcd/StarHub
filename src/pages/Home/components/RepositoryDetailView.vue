@@ -27,6 +27,16 @@
               {{ homepageUrl }}
             </a>
           </div>
+          <div v-if="pagesUrl" class="repo-about repo-pages">
+            <span class="about-label">GitHub Pages</span>
+            <a
+              :href="pagesUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {{ pagesUrl }}
+            </a>
+          </div>
         </div>
 
         <div class="summary-actions">
@@ -78,8 +88,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
+import { isAxiosError } from 'axios'
 import type { Repository } from '@/types'
+import { githubApi } from '@/api/github'
 import { formatDate, formatNumber } from '@/utils'
 import { getLanguageColor } from '@/utils/languageColors'
 import {
@@ -114,6 +126,56 @@ function safeHttpUrl(value: string | undefined | null): string | null {
 }
 
 const homepageUrl = computed(() => safeHttpUrl(props.repo.homepage))
+const pagesUrl = ref<string | null>(null)
+let pagesRequestId = 0
+let pagesController: AbortController | null = null
+
+async function loadPagesUrl() {
+  const requestId = ++pagesRequestId
+  pagesController?.abort()
+  const controller = new AbortController()
+  pagesController = controller
+  pagesUrl.value = null
+
+  if (props.repo.has_pages === false) {
+    pagesController = null
+    return
+  }
+
+  const [owner, repoName] = props.repo.full_name.split('/')
+  if (!owner || !repoName) return
+
+  try {
+    const response = await githubApi.getRepositoryPages(
+      owner,
+      repoName,
+      controller.signal
+    )
+    if (requestId === pagesRequestId && !controller.signal.aborted) {
+      pagesUrl.value = safeHttpUrl(response.data.html_url)
+    }
+  } catch (error) {
+    if (
+      !controller.signal.aborted &&
+      requestId === pagesRequestId &&
+      !(isAxiosError(error) && error.code === 'ERR_CANCELED')
+    ) {
+      console.warn('Failed to load GitHub Pages URL:', error)
+    }
+  } finally {
+    if (pagesController === controller) {
+      pagesController = null
+    }
+  }
+}
+
+watch(() => props.repo.id, loadPagesUrl, { immediate: true })
+
+onUnmounted(() => {
+  pagesRequestId++
+  pagesController?.abort()
+  pagesController = null
+})
 </script>
 
 <style lang="scss" scoped>

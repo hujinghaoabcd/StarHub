@@ -44,7 +44,7 @@ test('repository action buttons remain compact and equally sized', async () => {
   assert.equal(overview.includes('height: 32px'), false)
 })
 
-test('about is shown below the description without a github pages section', async () => {
+test('about and github pages are shown below the description', async () => {
   const detail = await source(
     'src/pages/Home/components/RepositoryDetailView.vue'
   )
@@ -56,7 +56,12 @@ test('about is shown below the description without a github pages section', asyn
     detail,
     /class="repo-description"[\s\S]*class="repo-about"[\s\S]*class="summary-actions"/
   )
-  assert.equal(detail.includes('GitHub Pages'), false)
+  assert.match(
+    detail,
+    /class="repo-about repo-pages"[\s\S]*GitHub Pages[\s\S]*pagesUrl/
+  )
+  assert.match(detail, /getRepositoryPages/)
+  assert.match(detail, /AbortController/)
   assert.equal(overview.includes('GitHub Pages'), false)
   assert.equal(overview.includes('link-list'), false)
 })

@@ -66,7 +66,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Upload } from '@element-plus/icons-vue'
 import { useRepoStore } from '@/stores/repo'
@@ -117,6 +117,8 @@ const stopContentResize = () => {
   document.removeEventListener('mousemove', handleContentResize)
   document.removeEventListener('mouseup', stopContentResize)
 }
+
+onUnmounted(stopContentResize)
 
 const handleRepoClick = (repo: Repository) => {
   selectedRepo.value = repo
