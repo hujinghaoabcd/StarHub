@@ -15,6 +15,12 @@
           </el-tag>
           <span>{{ task.provider }} / {{ task.model }}</span>
           <span>{{ t('tag.metadataOnly') }}</span>
+          <span v-if="task.selectionMode">
+            {{ t('tag.taskScope', {
+              mode: t(`tag.taskSelectionMode.${task.selectionMode}`),
+              count: task.totalCount
+            }) }}
+          </span>
         </div>
 
         <el-progress
@@ -105,6 +111,57 @@
           class="review-notice"
         />
 
+        <section class="evaluation-panel">
+          <h4>{{ t('tag.evaluationTitle') }}</h4>
+          <div class="evaluation-metrics">
+            <div class="evaluation-metric accuracy">
+              <strong>{{ reviewedAccuracy }}</strong>
+              <span>{{ t('tag.evaluationAccuracy') }}</span>
+            </div>
+            <div class="evaluation-metric">
+              <strong>{{ evaluationSummary.evaluatedCount }}</strong>
+              <span>{{ t('tag.evaluationEvaluated') }}</span>
+            </div>
+            <div class="evaluation-metric correct">
+              <strong>{{ evaluationSummary.correctCount }}</strong>
+              <span>{{ t('tag.evaluationCorrect') }}</span>
+            </div>
+            <div class="evaluation-metric incorrect">
+              <strong>{{ evaluationSummary.incorrectCount }}</strong>
+              <span>{{ t('tag.evaluationIncorrect') }}</span>
+            </div>
+            <div class="evaluation-metric">
+              <strong>{{ evaluationSummary.unreviewedCount }}</strong>
+              <span>{{ t('tag.evaluationUnreviewed') }}</span>
+            </div>
+            <div class="evaluation-metric">
+              <strong>{{ evaluationSummary.lowConfidenceCount }}</strong>
+              <span>{{ t('tag.evaluationLowConfidence') }}</span>
+            </div>
+          </div>
+          <div
+            v-if="evaluationSummary.corrections.length > 0"
+            class="correction-summary"
+          >
+            <span>{{ t('tag.evaluationCorrections') }}:</span>
+            <el-tag
+              v-for="correction in evaluationSummary.corrections.slice(0, 6)"
+              :key="`${correction.modelCategoryId}:${correction.reviewedCategoryId}`"
+              effect="plain"
+            >
+              {{ categoryName(correction.modelCategoryId) }}
+              → {{ categoryName(correction.reviewedCategoryId) }}
+              ×{{ correction.count }}
+            </el-tag>
+          </div>
+          <p
+            v-else-if="evaluationSummary.evaluatedCount === 0"
+            class="evaluation-empty"
+          >
+            {{ t('tag.evaluationNoData') }}
+          </p>
+        </section>
+
         <div class="review-toolbar">
           <el-checkbox
             :model-value="allPageSelected"
@@ -158,13 +215,38 @@
                 size="small"
                 filterable
                 :disabled="task.committedAt !== undefined"
-                @update:model-value="setCategory(row.repositoryId, $event)"
+                @update:model-value="setCategory(row, $event)"
               >
                 <el-option
                   v-for="category in categories"
                   :key="category.categoryId"
                   :label="category.name"
                   :value="category.categoryId"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+
+          <el-table-column
+            :label="t('tag.evaluationLabel')"
+            width="130"
+            align="center"
+          >
+            <template #default="{ row }">
+              <el-select
+                :model-value="row.evaluation || ''"
+                size="small"
+                clearable
+                :disabled="task.committedAt !== undefined"
+                @change="setEvaluation(row, $event)"
+              >
+                <el-option
+                  :label="t('tag.evaluationCorrectOption')"
+                  value="correct"
+                />
+                <el-option
+                  :label="t('tag.evaluationIncorrectOption')"
+                  value="incorrect"
                 />
               </el-select>
             </template>
@@ -229,6 +311,8 @@ import { useClassificationTaskStore } from '@/stores/classificationTask'
 import type {
   ClassificationAssignment,
   ClassificationCategory,
+  ClassificationEvaluation,
+  ClassificationEvaluationSummary,
   ClassificationTask,
   ClassificationTaskItem,
   Repository
@@ -262,6 +346,18 @@ const currentPage = ref(1)
 const pageItems = ref<ClassificationTaskItem[]>([])
 const pageLoading = ref(false)
 const confidenceThresholdPercent = Math.round(CONFIDENCE_THRESHOLD * 100)
+const emptyEvaluationSummary = (): ClassificationEvaluationSummary => ({
+  evaluatedCount: 0,
+  correctCount: 0,
+  incorrectCount: 0,
+  unreviewedCount: 0,
+  lowConfidenceCount: 0,
+  accuracy: null,
+  corrections: []
+})
+const evaluationSummary = ref<ClassificationEvaluationSummary>(
+  emptyEvaluationSummary()
+)
 
 const repositoryNames = computed(() => new Map(
   props.repositories.map(repository => [repository.id, repository.full_name])
@@ -291,6 +387,14 @@ const allPageSelected = computed(
 const pageIndeterminate = computed(
   () => selectedOnPage.value > 0 && selectedOnPage.value < pageItems.value.length
 )
+const reviewedAccuracy = computed(() =>
+  evaluationSummary.value.accuracy === null
+    ? '—'
+    : `${Math.round(evaluationSummary.value.accuracy * 100)}%`
+)
+const categoryNames = computed(() => new Map(
+  props.categories.map(category => [category.categoryId, category.name])
+))
 
 function formatNumber(value: number) {
   return new Intl.NumberFormat().format(value)
@@ -298,6 +402,10 @@ function formatNumber(value: number) {
 
 function repositoryName(repositoryId: number) {
   return repositoryNames.value.get(repositoryId) || `#${repositoryId}`
+}
+
+function categoryName(categoryId: string) {
+  return categoryNames.value.get(categoryId) || categoryId
 }
 
 function confidenceTagType(confidence: number) {
@@ -316,6 +424,11 @@ async function loadPage() {
   }
 }
 
+async function loadEvaluationSummary() {
+  const summary = await taskStore.evaluationSummary()
+  evaluationSummary.value = summary || emptyEvaluationSummary()
+}
+
 watch(
   () => [
     props.modelValue,
@@ -325,7 +438,7 @@ watch(
   ([visible, taskId], previous) => {
     if (!visible || !taskId) return
     if (taskId !== previous?.[1]) currentPage.value = 1
-    void loadPage()
+    void Promise.all([loadPage(), loadEvaluationSummary()])
   },
   { immediate: true }
 )
@@ -340,10 +453,36 @@ async function setAccepted(
   if (item) item.accepted = accepted ? 1 : 0
 }
 
-async function setCategory(repositoryId: number, categoryId: string) {
-  await taskStore.updateReviewItem(repositoryId, { categoryId })
-  const item = pageItems.value.find(candidate => candidate.repositoryId === repositoryId)
-  if (item) item.categoryId = categoryId
+async function setCategory(item: ClassificationTaskItem, categoryId: string) {
+  if (item.categoryId === categoryId) return
+  await taskStore.updateReviewItem(item.repositoryId, {
+    categoryId,
+    evaluation: 'incorrect',
+    accepted: true
+  })
+  item.categoryId = categoryId
+  item.evaluation = 'incorrect'
+  item.accepted = 1
+  await loadEvaluationSummary()
+}
+
+async function setEvaluation(
+  item: ClassificationTaskItem,
+  value: ClassificationEvaluation | ''
+) {
+  const evaluation = value || null
+  await taskStore.updateReviewItem(item.repositoryId, {
+    evaluation,
+    ...(evaluation === 'correct'
+      ? { accepted: true }
+      : evaluation === 'incorrect'
+        ? { accepted: false }
+        : {})
+  })
+  item.evaluation = evaluation || undefined
+  if (evaluation === 'correct') item.accepted = 1
+  if (evaluation === 'incorrect') item.accepted = 0
+  await loadEvaluationSummary()
 }
 
 async function togglePage(value: boolean | string | number) {
@@ -406,6 +545,80 @@ async function handleConfirm() {
   align-items: center;
   flex-wrap: wrap;
   gap: 10px 18px;
+}
+
+.evaluation-panel {
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+
+  h4 {
+    margin: 0 0 12px;
+    color: var(--text-primary);
+    font-size: 0.92rem;
+  }
+}
+
+.evaluation-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(90px, 1fr));
+  gap: 8px;
+}
+
+.evaluation-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border-radius: 6px;
+  background: var(--bg-primary);
+  text-align: center;
+
+  strong {
+    color: var(--text-primary);
+    font-size: 1.05rem;
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+  }
+
+  &.correct strong {
+    color: var(--success-color, #67c23a);
+  }
+
+  &.incorrect strong {
+    color: var(--danger-color, #f56c6c);
+  }
+
+  &.accuracy strong {
+    color: var(--primary-color, #409eff);
+  }
+}
+
+.correction-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.evaluation-empty {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+@media (max-width: 900px) {
+  .evaluation-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .task-heading {

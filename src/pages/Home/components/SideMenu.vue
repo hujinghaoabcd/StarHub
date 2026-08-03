@@ -182,6 +182,14 @@
       </template>
     </el-dialog>
 
+    <ClassificationTaskStartDialog
+      v-model="showClassificationStart"
+      :repositories="classificationStartRepositories"
+      :categories="classificationCategories"
+      :batch-size="classificationStartBatchSize"
+      @start="handleClassificationTaskStart"
+    />
+
     <ClassificationReviewDialog
       v-model="showClassificationReview"
       :task="activeClassificationTask"
@@ -223,10 +231,13 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessageBox, ElMessage, ElNotification } from 'element-plus'
 import ClassificationReviewDialog from './ClassificationReviewDialog.vue'
+import ClassificationTaskStartDialog from './ClassificationTaskStartDialog.vue'
 import type {
   ClassificationAssignment,
   ClassificationCategory,
-  ClassificationCommitReceipt
+  ClassificationCommitReceipt,
+  ClassificationTaskSelectionMode,
+  Repository
 } from '@/types'
 
 const { t, locale } = useI18n()
@@ -250,7 +261,10 @@ const activeClassificationTask = computed(
   () => classificationTaskStore.activeTask
 )
 const showClassificationReview = ref(false)
+const showClassificationStart = ref(false)
 const classificationCategories = ref<ClassificationCategory[]>([])
+const classificationStartRepositories = ref<Repository[]>([])
+const classificationStartBatchSize = ref(50)
 const classificationActionBusy = ref(false)
 const classificationCommitBusy = ref(false)
 const lastClassificationCommit = ref<ClassificationCommitReceipt | null>(null)
@@ -595,41 +609,32 @@ const handleAutoClassify = async () => {
     return
   }
 
-  const { estimateClassificationUsage } = await import(
-    '@/services/classificationProtocol'
-  )
   const batchSize = config.batchSize || 50
-  const estimate = estimateClassificationUsage(
-    repositories,
-    registry,
-    batchSize
-  )
-  try {
-    await ElMessageBox.confirm(
-      t('tag.taskStartMessage', {
-        count: estimate.repositoryCount,
-        batches: estimate.batchCount,
-        input: new Intl.NumberFormat().format(estimate.estimatedInputTokens),
-        output: new Intl.NumberFormat().format(estimate.estimatedOutputTokens)
-      }),
-      t('tag.taskStartTitle'),
-      {
-        confirmButtonText: t('tag.startTask'),
-        cancelButtonText: t('common.cancel'),
-        type: 'info'
-      }
-    )
-  } catch {
-    return
-  }
+  classificationStartRepositories.value = repositories
+  classificationStartBatchSize.value = batchSize
+  showClassificationStart.value = true
+}
+
+const handleClassificationTaskStart = async (payload: {
+  repositories: Repository[]
+  selectionMode: ClassificationTaskSelectionMode
+  sampleSeed?: number
+}) => {
+  const registry = classificationCategories.value
+  if (registry.length === 0 || payload.repositories.length === 0) return
 
   classificationActionBusy.value = true
   try {
     await classificationTaskStore.create(
-      repositories,
+      payload.repositories,
       registry,
-      batchSize
+      classificationStartBatchSize.value,
+      {
+        selectionMode: payload.selectionMode,
+        sampleSeed: payload.sampleSeed
+      }
     )
+    showClassificationStart.value = false
     showClassificationReview.value = true
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : String(error))

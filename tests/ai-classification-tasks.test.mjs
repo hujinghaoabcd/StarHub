@@ -133,6 +133,9 @@ test('classification tasks persist per-repository drafts and page review results
   const dialog = await source(
     'src/pages/Home/components/ClassificationReviewDialog.vue'
   )
+  const startDialog = await source(
+    'src/pages/Home/components/ClassificationTaskStartDialog.vue'
+  )
 
   assert.match(database, /version\(4\)/)
   assert.match(database, /classificationTasks: 'id, status, updatedAt'/)
@@ -146,6 +149,9 @@ test('classification tasks persist per-repository drafts and page review results
   assert.match(tasks, /retryFailedClassificationItems/)
   assert.match(tasks, /getClassificationReviewPage/)
   assert.match(tasks, /markClassificationTaskCommitted/)
+  assert.match(tasks, /getClassificationEvaluationSummary/)
+  assert.match(tasks, /modelCategoryId/)
+  assert.match(tasks, /evaluation/)
   assert.match(tasks, /status: 'committed'/)
   assert.match(tasks, /assertClassificationTaskCompatible/)
 
@@ -158,10 +164,16 @@ test('classification tasks persist per-repository drafts and page review results
   assert.equal(generation.includes('applyClassificationAssignments'), false)
 
   assert.equal(sideMenu.includes('includeReadme'), false)
-  assert.match(sideMenu, /estimatedInputTokens/)
+  assert.match(startDialog, /estimatedInputTokens/)
   assert.match(sideMenu, /classificationTaskStore\.retryFailures/)
   assert.match(sideMenu, /existingTask && !existingTask\.committedAt/)
+  assert.match(sideMenu, /ClassificationTaskStartDialog/)
+  assert.match(startDialog, /selectClassificationSample/)
+  assert.match(startDialog, /pilotScope/)
+  assert.match(startDialog, /pilotRandom/)
   assert.match(dialog, /PAGE_SIZE = 50/)
+  assert.match(dialog, /evaluationAccuracy/)
+  assert.match(dialog, /setEvaluation/)
   assert.match(dialog, /reviewCommitPaused/)
   assert.match(dialog, /commitPausedMessage/)
   assert.match(
