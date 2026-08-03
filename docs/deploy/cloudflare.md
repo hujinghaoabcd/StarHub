@@ -1,20 +1,8 @@
-
 # Cloudflare Pages Functions OAuth 后端
 
-StarHub 正式前端继续部署在 GitHub Pages：
+Cloudflare 项目只承载 StarHub 的 OAuth API。正式应用和文档仍由 GitHub Pages 承载，用户的 Stars、分类和 AI 任务仍只在浏览器 IndexedDB 中。
 
-- 应用：`https://hujinghaoabcd.github.io/StarHub/`
-- 文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
-
-Cloudflare Pages 项目只承载 OAuth API，不重复承担正式前端托管。
-
-## 1. 创建 Cloudflare Pages 项目
-
-进入 Cloudflare Dashboard：
-
-`Workers & Pages → Create → Pages → Connect to Git`
-
-连接 GitHub 并选择 `hujinghaoabcd/StarHub`，使用以下构建设置：
+## 构建设置
 
 | 设置 | 值 |
 |---|---|
@@ -24,121 +12,59 @@ Cloudflare Pages 项目只承载 OAuth API，不重复承担正式前端托管�
 | Root directory | `/` |
 | Node.js | `22` |
 
-`/functions` 必须位于仓库根目录。Cloudflare 会根据文件路径生成 API 路由：
+构建脚本只生成 API 站点首页和 `_routes.json`。实际 API 由根目录 `functions/` 提供：
 
-- `functions/api/health.ts` → `/api/health`
-- `functions/api/oauth/token.ts` → `/api/oauth/token`
+- `GET /api/health`：报告服务状态以及必要变量是否齐全；
+- `POST /api/oauth/token`：校验 Origin、redirect URI、请求体与 PKCE 参数后向 GitHub 换取 token。
 
-## 2. 配置 Variables and Secrets
+## 生产变量
 
-进入：
-
-`Workers & Pages → StarHub OAuth 项目 → Settings → Variables and Secrets`
-
-在 Production 环境添加：
-
-| 名称 | 值 | 类型 |
+| 名称 | 类型 | 内容 |
 |---|---|---|
-| `CLIENT_ID` | `Ov23liIm4iNdpnHwGLfp` | Text |
-| `CLIENT_SECRET` | GitHub OAuth App Client Secret | **Encrypt** |
-| `ALLOWED_ORIGINS` | `https://hujinghaoabcd.github.io` | Text |
-| `GITHUB_REDIRECT_URI` | `https://hujinghaoabcd.github.io/StarHub/` | Text |
+| `CLIENT_ID` | Text | GitHub OAuth App Client ID |
+| `CLIENT_SECRET` | Encrypted | GitHub OAuth App Client Secret |
+| `ALLOWED_ORIGINS` | Text | 允许调用 API 的前端 Origin |
+| `GITHUB_REDIRECT_URI` | Text | OAuth App 中登记的完整回调 URL |
 
-Secret 不得提交到仓库或粘贴到 issue、日志和聊天记录。
-
-保存变量后重新部署 Production。
-
-## 3. 配置 GitHub OAuth App
-
-GitHub 中进入：
-
-`Settings → Developer settings → OAuth Apps → StarHub`
-
-设置：
+官方实例：
 
 ```text
-Homepage URL:
-https://hujinghaoabcd.github.io/StarHub/
-
-Authorization callback URL:
-https://hujinghaoabcd.github.io/StarHub/
+ALLOWED_ORIGINS=https://hujinghaoabcd.github.io
+GITHUB_REDIRECT_URI=https://hujinghaoabcd.github.io/StarHub/
 ```
 
-回调地址不再使用 `#/login`。授权 code 和 state 会作为查询参数返回到应用根路径。
+`ALLOWED_ORIGINS` 是 Origin，不含路径；`GITHUB_REDIRECT_URI` 是完整 URL，包含仓库路径和末尾斜杠。不要使用通配符，也不要把 Secret 写进普通 Text 变量。
 
-## 4. 将 Cloudflare API 地址提供给 GitHub Pages
+## OAuth App 与前端变量
 
-Cloudflare 首次部署完成后会生成类似地址：
+OAuth App 的 Homepage URL 和 callback 都应为正式前端根 URL。GitHub Actions 还必须提供：
 
 ```text
-https://starhub-oauth.pages.dev
+VITE_API_BASE_URL=https://<project>.pages.dev/api
+VITE_GITHUB_CLIENT_ID=<与 Cloudflare CLIENT_ID 相同的 Client ID>
 ```
 
-在 GitHub 仓库进入：
+修改 Cloudflare 变量后重新部署 API；修改 Actions Variables 后重新部署 GitHub Pages。只改其中一侧可能导致 Client ID 或回调不一致。
 
-`Settings → Secrets and variables → Actions → Variables`
+## 本地开发
 
-添加：
-
-```text
-VITE_API_BASE_URL=https://你的项目.pages.dev/api
-VITE_GITHUB_CLIENT_ID=Ov23liIm4iNdpnHwGLfp
-```
-
-然后重新运行 `Deploy GitHub Pages`，或者向 `main` 推送新提交。
-
-## 5. 验证
-
-先访问：
-
-```text
-https://你的项目.pages.dev/api/health
-```
-
-正确配置后应返回：
-
-```json
-{
-  "status": "ok",
-  "service": "starhub-oauth",
-  "configured": true
-}
-```
-
-再打开 StarHub，点击“使用 GitHub 登录”，完成授权和仓库同步。
-
-## 6. 本地开发
-
-复制示例变量：
+使用独立的本地 OAuth App，并复制变量模板：
 
 ```bash
 cp .dev.vars.example .dev.vars
-```
-
-将 `.dev.vars` 中的 `CLIENT_SECRET` 改为本地开发 OAuth App 的密钥，然后运行：
-
-```bash
 npm run cloudflare:dev
 ```
 
-Cloudflare Pages Functions 默认在 `http://localhost:8788` 启动。另一个终端运行 `npm run dev` 后，Vite 会将 `/api` 请求代理到该地址。
+Wrangler 默认运行在 `http://localhost:8788`。另一个终端执行 `npm run dev`，Vite 会把 `/api` 代理到 8788。`.dev.vars` 不得提交。
 
-## 安全措施
+## 验证清单
 
-当前实现包括：
+1. `/api/health` 返回 HTTP 200 与 `configured: true`；
+2. 非白名单 Origin 被拒绝；
+3. 预检请求返回允许的 method 与 headers；
+4. 登录时浏览器发出 `POST /api/oauth/token`；
+5. 响应含 `Cache-Control: no-store`；
+6. 日志不输出 code、token 或 Client Secret；
+7. 登录后回调参数从地址栏移除。
 
-- OAuth `state` 校验；
-- PKCE S256；
-- code 通过 JSON POST 发送；
-- GitHub token 交换使用 POST 请求体；
-- 严格 Origin 白名单和 CORS 预检；
-- redirect URI 精确校验；
-- 响应禁止缓存；
-- Client Secret 仅存在于 Cloudflare 加密 Secret；
-- 不生成伪造的随机应用 token。
-
-## 发布与回归检查
-
-Cloudflare Functions 与 GitHub Pages 前端可以独立发布。前端合并到 `main` 后，必须同时确认 Pages 构建、单元测试、TypeScript、CSP 校验和生产依赖审计通过；涉及 OAuth 时还要重新访问 `/api/health` 并完成一次真实登录回调。
-
-完整的变量清单、GitHub Actions 流程、故障排查和发布验收见[部署指南](../DEPLOYMENT.md)。当前开发状态及后续工作见[下一阶段详细交接](../development/NEXT_PHASE_HANDOFF.md)。
+完整上线步骤、回滚和 Pages 验证见[生产部署与发布手册](../DEPLOYMENT.md)。

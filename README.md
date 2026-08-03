@@ -1,573 +1,320 @@
 <p align="center">
-  <img src="public/logo.svg" alt="StarHub Logo" width="120" height="120">
+  <img src="public/logo.svg" alt="StarHub Logo" width="112" height="112">
 </p>
 
 <h1 align="center">StarHub</h1>
 
+<p align="center"><strong>面向大量 GitHub Stars 的本地优先管理工具</strong></p>
+<p align="center">分类治理 · 重点项目 · AI 审核分类 · README 预览 · 搜索与批量管理</p>
+
 <p align="center">
-  <strong>🌟 专业的 GitHub Stars 管理工具</strong>
+  <a href="README.md">中文</a> · <a href="README.en.md">English</a> ·
+  <a href="https://hujinghaoabcd.github.io/StarHub/">在线应用</a> ·
+  <a href="https://hujinghaoabcd.github.io/StarHub/docs/">完整文档</a>
 </p>
 
 <p align="center">
-  <em>让你的 GitHub Star 收藏井井有条，再也不怕找不到好项目</em>
+  <a href="https://github.com/hujinghaoabcd/StarHub/actions/workflows/ci.yml"><img src="https://github.com/hujinghaoabcd/StarHub/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/hujinghaoabcd/StarHub/actions/workflows/deploy-pages.yml"><img src="https://github.com/hujinghaoabcd/StarHub/actions/workflows/deploy-pages.yml/badge.svg" alt="GitHub Pages"></a>
+  <a href="https://github.com/hujinghaoabcd/StarHub/blob/main/LICENSE"><img src="https://img.shields.io/github/license/hujinghaoabcd/StarHub" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/IndexedDB-v8-3b82f6" alt="IndexedDB v8">
+  <img src="https://img.shields.io/badge/backup-v4-3b82f6" alt="Backup v4">
 </p>
 
-<p align="center">
-  <a href="README.md">中文</a> | <a href="README.en.md">English</a>
-</p>
+## StarHub 是什么
 
-<p align="center">
-  <a href="https://github.com/hujinghaoabcd/StarHub/stargazers"><img src="https://img.shields.io/github/stars/hujinghaoabcd/StarHub?style=flat&logo=github" alt="GitHub Stars"></a>
-  <a href="https://github.com/hujinghaoabcd/StarHub/blob/main/LICENSE"><img src="https://img.shields.io/github/license/hujinghaoabcd/StarHub?style=flat" alt="License"></a>
-  <img src="https://img.shields.io/badge/version-1.0.0-blue?style=flat" alt="Version">
-  <img src="https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen?style=flat&logo=node.js" alt="Node.js">
-  <img src="https://img.shields.io/badge/vue-3.4-4FC08D?style=flat&logo=vue.js" alt="Vue.js">
-  <img src="https://img.shields.io/badge/typescript-5.9-3178C6?style=flat&logo=typescript" alt="TypeScript">
-  <img src="https://img.shields.io/badge/vite-8.2-646CFF?style=flat&logo=vite" alt="Vite">
-</p>
+StarHub 用于整理数百、数千乃至上万条 GitHub Stars。它把仓库快照、分类关系、重点标记、AI 审核草稿和 README 缓存保存在当前浏览器，通过 GitHub API 同步收藏，通过用户自行配置的 AI 服务生成分类建议。
 
-<p align="center">
-  <a href="#项目简介">项目简介</a> •
-  <a href="#功能特性">功能特性</a> •
-  <a href="#在线演示">在线演示</a> •
-  <a href="#快速开始">快速开始</a> •
-  <a href="#部署指南">部署指南</a> •
-  <a href="#使用说明">使用说明</a> •
-  <a href="#技术栈">技术栈</a>
-</p>
+它不是共享收藏社区，也不会把某一位用户的个人分类清单内置为所有人的标准。每位用户可以创建自己的普通分类，或导入包含稳定 ID、中英文名称、别名、说明、示例和排除项的正式分类注册表。
 
----
+### 当前适合解决的问题
 
-<a id="项目简介"></a>
-## 📖 项目简介
+- GitHub Stars 数量过多，依靠原生时间列表难以查找；
+- 同一个仓库需要同时属于多个主题；
+- 希望把少量关键仓库单独标为“重点”，但不想创建额外分类；
+- 希望使用 AI 批量生成分类建议，同时保留人工审核、失败重试和撤销能力；
+- 希望在应用内查看仓库元数据、About、GitHub Pages 和 README；
+- 希望分类重命名或合并时不丢失已有仓库关系。
 
-**StarHub** 是一款专为开发者设计的 GitHub Stars 管理应用。当你的 Star 数量达到数百甚至上千时，找到真正需要的项目变得异常困难。StarHub 正是为解决这个问题而生——它不仅同步你的所有 Star 仓库，还提供强大的分类、搜索和 AI 智能归类功能，让你的技术收藏真正发挥价值。
+## 在线地址
 
-### 🎯 解决的痛点
+| 服务 | 地址 | 用途 |
+|---|---|---|
+| StarHub 应用 | https://hujinghaoabcd.github.io/StarHub/ | GitHub 登录、同步与本地管理 |
+| 项目文档 | https://hujinghaoabcd.github.io/StarHub/docs/ | 用户、部署和开发文档 |
+| OAuth API | https://starhub-oauth.pages.dev/api | GitHub OAuth code 兑换 |
+| OAuth 健康检查 | https://starhub-oauth.pages.dev/api/health | 检查后端变量是否完整 |
 
-- ❌ Star 了很多优秀项目，但需要时找不到
-- ❌ GitHub 原生的 Star 列表只能按时间排序，没有分类功能
-- ❌ 手动整理分类太耗时，难以坚持
-- ❌ 收藏的项目越来越多，越来越混乱
+> GitHub OAuth Token、分类和 AI 草稿不会集中保存到 StarHub 服务器。OAuth API 只负责使用服务端 Client Secret 兑换 GitHub Token。
 
-### ✅ StarHub 的解决方案
+## 功能全景
 
-- ✨ **智能标签系统** - 自定义分类，支持 Emoji 和颜色
-- 🤖 **AI 自动分类** - 一键智能归类，省时省力
-- ⚡ **极速搜索** - 毫秒级响应，精准定位
-- 📖 **README 预览** - 无需跳转，快速了解项目
-- 🔒 **本地存储** - 数据安全，隐私可控
+### 仓库同步与浏览
 
----
+- 分页获取当前账户的全部 GitHub Stars；
+- 只有完整快照获取成功后才原子替换本地仓库；
+- 部分失败、取消或超时时保留上一次完整数据；
+- 自动清理已经取消 Star 的仓库关系和重点标记；
+- 支持按更新时间、创建时间、Star 数、名称和重点状态排序；
+- 支持 50、100、200、500、1000 条分页；
+- 支持名称、描述和语言搜索，以及语言、分类、未分类和重点项目筛选。
 
-<a id="功能特性"></a>
-## ✨ 功能特性
+### 仓库详情
 
-### 🏷️ 智能标签系统
+- 单一摘要卡片展示名称、描述、语言、Star、Fork、许可证和更新时间；
+- 提供 GitHub、About 网站和 GitHub Pages 入口；
+- 支持直接取消 Star；
+- README 在 Web Worker 中解析，切换仓库时会取消旧请求并忽略陈旧响应；
+- Markdown 经过 DOMPurify 清理，超大源码和代码块有明确上限。
 
-- **自定义标签**：创建任意数量的标签，自由组织你的收藏
-- **Emoji 图标**：每个标签支持设置 Emoji，一目了然
-- **颜色标识**：18 种预设颜色，视觉区分更清晰
-- **多标签支持**：一个仓库可添加多个标签，灵活分类
-- **批量操作**：支持批量为仓库添加/移除标签
+### 分类与正式注册表
 
-### 🧭 通用分类注册表与安全治理
+- 普通分类支持名称、颜色、Emoji 和多仓库关系；
+- 批量添加分类或替换所选仓库的分类；
+- 导入 TXT、CSV、JSON、StarHub 备份或正式注册表；
+- 导入前预览新增、重命名、合并、更新、不变和冲突；
+- 安全重命名保持分类 ID 不变；
+- 合并分类完整迁移并去重全部 `repoTags`；
+- 迁移前保存快照，支持撤销最近一次迁移；
+- 分类管理支持搜索、项目数排序和空分类筛选；
+- 新分类自动选择尽量不重复的颜色，长名称在侧栏缩略显示。
 
-- **多用户设计**：StarHub 不预装任何个人分类体系，每位用户维护自己的注册表
-- **稳定分类 ID**：安全重命名不会改变 ID，已有项目关系不会丢失
-- **迁移预览**：导入前显示新增、重命名、合并、更新和冲突
-- **安全合并**：同义分类合并时完整保留并去重仓库关系
-- **自动备份与撤销**：每次迁移前保存完整快照，可一键恢复
-- **完整元数据**：支持中英文名称、别名、说明、示例、排除项和层级
-- **管理工具**：支持分类搜索、项目数量排序和空分类筛选
-- **AI 边界**：启用正式注册表后，模型只能选择其中的分类
+正式注册表可以包含：
 
-### 🤖 AI 智能分类
+```json
+{
+  "version": "my-taxonomy-2026-08",
+  "tags": [
+    {
+      "categoryId": "gis.web-mapping",
+      "nameZh": "WebGIS 与在线地图",
+      "nameEn": "Web GIS and Web Mapping",
+      "aliases": ["WebGIS", "在线地图"],
+      "descriptionZh": "浏览器端地图、在线空间服务与 WebGIS 应用。",
+      "descriptionEn": "Browser mapping, online spatial services, and Web GIS applications.",
+      "examples": ["Leaflet", "OpenLayers", "MapLibre"],
+      "exclusions": ["纯桌面 GIS", "仅提供空间数据库驱动"],
+      "level1": "GIS 与空间计算",
+      "level2": "WebGIS 与在线地图"
+    }
+  ]
+}
+```
 
-支持多种主流 AI 服务：
+### 重点项目
 
-| 服务商 | 默认模型 | 说明 |
-|--------|----------|------|
-| OpenAI | gpt-4o-mini | 性价比高，推荐使用 |
-| Claude | claude-sonnet-4-6 | 支持结构化输出 |
-| DeepSeek | deepseek-chat | 国产模型，速度快 |
-| 通义千问 | qwen-plus | 阿里云，中文友好 |
-| 智谱 AI | glm-4-flash | 国产模型，免费额度 |
+“重点项目”是独立于分类的轻量标记，不是第二套收藏夹：
 
-**AI 分类特性：**
-- 使用现有分类的稳定 ID，模型不能自行创建新分类
-- OpenAI/Claude 使用 JSON Schema，兼容供应商使用原生 JSON 模式
-- 严格校验仓库 ID、分类 ID、置信度和分类理由
-- 结果先进入人工审核，确认后才以单次事务写入
-- 支持撤销最近一次 AI 分类写入
-- 默认只发送名称、描述、语言和 Topics，不批量抓取 README
-- 分类任务和逐仓库草稿保存在 IndexedDB，刷新页面后可继续
-- 支持暂停、继续、取消以及只重试失败项
-- 任务锁定模型、提示词和分类注册表版本，避免混合不兼容结果
-- 可配置批次大小（默认 50 个/批）
-- 仅处理未分类仓库，不会覆盖已有分类
+- 仓库详情中一键标记或取消；
+- 仓库列表批量标记；
+- 仅查看重点项目；
+- 按重点时间排序；
+- 随备份导出，并在取消 Star 后自动清理。
 
-### 🔍 全文即时搜索
+### AI 分类任务
 
-- **多维度搜索**：支持仓库名、描述、编程语言等搜索
-- **本地存储**：基于 IndexedDB，毫秒级响应
-- **标签筛选**：可按标签过滤结果
-- **实时高亮**：搜索结果实时高亮显示
+StarHub 当前支持 OpenAI、Anthropic Claude、DeepSeek、通义千问和智谱 AI。AI 功能采用“生成草稿—人工审核—确认写入”流程，不会直接改写正式分类。
 
-### 📖 README 即时预览
+```text
+选择范围并估算用量
+→ 元数据初筛（名称、描述、语言、Topics）
+→ 严格校验仓库 ID、分类 ID、重复和遗漏
+→ 分段保存审核草稿
+→ 对低置信度或人工判错项读取 README
+→ 比较增强前后结果
+→ 用户确认
+→ 单次事务写入
+→ 可撤销
+```
 
-- 完整的 Markdown 渲染，支持 GFM 扩展
-- 代码语法高亮（100+ 种语言）
-- 图片、表格、链接完美显示
-- 无需跳转 GitHub 即可快速了解项目
+主要约束：
 
-### 🌓 深色模式 & 多语言
+- 模型只能返回当前正式注册表中的短 ID，写入前映射回稳定分类 ID；
+- 任务记录供应商、模型、提示词版本和注册表版本；
+- 默认每批 50 个仓库，大任务按有界分段执行；
+- 支持随机试验样本、暂停、继续、取消和失败项重试；
+- 暂停时可以写入当前已审核结果并结束任务；
+- 置信度低于 65% 的结果默认不选中；
+- README 只用于疑难项并写入有界缓存，不对全部仓库批量抓取。
 
-- 精心设计的深色/浅色主题
-- 支持跟随系统偏好自动切换
-- 完整的中英文双语支持
-- 界面语言可随时切换
+> AI 分类仍属于实验性辅助功能。置信度是模型自评，不是准确率；重要分类应人工抽查。
 
-### 📱 PWA 离线应用
+### 数据、备份与隐私
 
-- 支持安装到桌面，类原生应用体验
-- 数据本地存储，离线状态下也能浏览和搜索
-- 同步一次，随时可用
+当前数据库版本为 IndexedDB v8：
 
----
+| 表 | 内容 |
+|---|---|
+| `repos` | GitHub 仓库权威快照 |
+| `tags` | 分类元数据与正式注册表字段 |
+| `repoTags` | 仓库—分类关系的唯一事实来源 |
+| `classificationTasks` | AI 任务、进度、模型和版本信息 |
+| `classificationTaskItems` | 逐仓库草稿、审核、失败和增强状态 |
+| `classificationReadmeCache` | 疑难项 README 摘要缓存 |
+| `repositoryHighlights` | 重点项目 |
+| `categoryMigrationSnapshots` | 分类迁移撤销快照 |
 
-## 🏷️ 预设分类
+存储边界：
 
-StarHub 内置 18 种专业分类，覆盖主流技术领域：
+- GitHub Token：`sessionStorage`，最长 12 小时；
+- AI API Key：`sessionStorage`，对应标签页/浏览会话结束时失效，可一键清除；当前没有独立计时过期；
+- 主题、语言、AI 非敏感偏好和分类预设：`localStorage`；
+- 仓库、分类、关系、任务和重点标记：IndexedDB；
+- 备份格式：v4，包含仓库、分类关系、注册表、重点项目和分类预设；
+- AI 任务、README 缓存和迁移撤销快照目前不进入跨设备备份。
 
-| 分类 | 说明 | 分类 | 说明 |
-|------|------|------|------|
-| 🌐 Web 开发 | 前端、后端、全栈 | 📱 移动开发 | iOS、Android、跨平台 |
-| 🤖 数据科学 | ML、AI、数据分析 | 🛠️ 工具库 | 通用工具、库、框架 |
-| ⚙️ DevOps | CI/CD、容器化 | 🎮 游戏开发 | 游戏引擎、游戏工具 |
-| 💾 数据库 | SQL、NoSQL、ORM | 🔒 安全 | 网络安全、加密 |
-| ⛓️ 区块链 | Web3、智能合约 | 💻 编程语言 | 编译器、解释器 |
-| ⚡ 系统编程 | OS、底层开发 | 🎨 设计 | UI/UX、图形处理 |
-| 📚 文档 | 文档生成、知识管理 | 🧪 测试 | 测试框架、自动化 |
-| 😎 Awesome | 精选资源列表 | 🟢 Node.js | Node 生态系统 |
-| ⚛️ React | React 生态系统 | 📦 其他 | 未分类项目 |
+## 界面预览
 
----
+> **截图待补：登录页与 OAuth 入口**
+> 应展示中文/英文切换、主题按钮、GitHub 登录按钮与隐私说明，不能出现真实授权 code。
 
-<a id="在线演示"></a>
-## 🌐 在线演示
+> **截图待补：17k 级主界面与详情**
+> 应同时展示分类栏、重点筛选、仓库列表、排序分页和不覆盖描述的详情操作区。
 
-> 下面是部分应用界面截图，完整体验请本地运行或等待在线演示开放。
+> **截图待补：分类注册表迁移预览**
+> 应展示导入来源、注册表版本、新增/重命名/合并/冲突统计和禁用的冲突提交按钮。
 
-<p align="center">
-  <img src="./public/screenshot-01.png" style="max-width: 600px; box-shadow:0 2px 12px #0002" />
-</p>
-<p align="center">
-  登录界面
-</p>
-<p align="center">
-  <img src="./public/screenshot-02.png"  style="max-width: 600px; box-shadow:0 2px 12px #0002" />
-</p>
-<p align="center">
-  系统主页
-</p>
-<p align="center">
-  <img src="./public/screenshot-03.png" style="max-width: 600px; box-shadow:0 2px 12px #0002" />
-</p>
-<p align="center">
-  文档界面
-</p>
+> **截图待补：AI 分类任务与人工审核**
+> 应展示分段进度、失败重试、置信度、分类理由、人工评价和 README 增强对比。
 
+> **截图待补：重点项目与完整排序**
+> 应展示重点筛选、批量标记、1000 条分页和排序控件在深色/浅色主题下的状态。
 
-> 🚧 在线演示正在准备中，敬请期待！
-
-如果你已经部署了 StarHub，可以通过以下方式访问：
-
-- **本地开发**: `http://localhost:5173`
-- **生产环境**: 根据你的部署平台访问对应域名
-
----
-
-<a id="快速开始"></a>
-## 🚀 快速开始
+## 本地开发
 
 ### 环境要求
 
-- **Node.js** >= 22.12.0
-- **npm** >= 10.0.0
+- Node.js：以 [`.nvmrc`](.nvmrc) 为准；
+- npm：支持 `npm ci` 的当前稳定版本；
+- 一个独立的本地 GitHub OAuth App；
+- 可运行 Cloudflare Wrangler 的环境。
 
-### 安装步骤
+### 安装与启动
 
 ```bash
-# 1. 克隆项目
 git clone https://github.com/hujinghaoabcd/StarHub.git
 cd StarHub
-
-# 2. 安装依赖
-npm install
-
-# 3. 配置 GitHub OAuth（见下方说明）
-
-# 4. 启动开发服务器
-npm run dev
-
-# 5. 访问 http://localhost:5173
-```
-
-### GitHub OAuth 配置
-
-StarHub 使用 GitHub OAuth Web Flow。浏览器生成并校验 `state` 与 PKCE，Cloudflare Pages Function 在服务端使用 Client Secret 兑换访问令牌。
-
-#### 第一步：创建本地 GitHub OAuth App
-
-在 GitHub Developer Settings 中创建一个仅用于本地开发的 OAuth App：
-
-```text
-Homepage URL: http://localhost:5173/
-Authorization callback URL: http://localhost:5173/
-```
-
-#### 第二步：配置本地变量
-
-复制示例文件：
-
-```bash
+npm ci
 cp .dev.vars.example .dev.vars
 ```
 
-确认 `.dev.vars` 至少包含：
+编辑 `.dev.vars`：
 
-```env
-CLIENT_ID=your_local_client_id
-CLIENT_SECRET=your_local_client_secret
+```ini
+CLIENT_ID=你的本地_OAuth_Client_ID
+CLIENT_SECRET=你的本地_OAuth_Client_Secret
 ALLOWED_ORIGINS=http://localhost:5173
 GITHUB_REDIRECT_URI=http://localhost:5173/
 ```
 
-同时创建未提交的 `.env.local`：
+创建未提交的 `.env.local`，使用同一个本地 OAuth App 的 Client ID：
 
-```env
-VITE_GITHUB_CLIENT_ID=your_local_client_id
+```ini
+VITE_GITHUB_CLIENT_ID=你的本地_OAuth_Client_ID
 ```
 
-`.env.local` 中的值必须与 `.dev.vars` 中的 `CLIENT_ID` 完全一致。Client Secret 只能放在未提交的 `.dev.vars` 或 Cloudflare 加密 Secret 中，不能写入 `VITE_*` 变量或前端代码。
+Client Secret 绝不能写入任何 `VITE_*` 变量。
 
-#### 第三步：启动本地联调
+在两个终端分别启动：
 
 ```bash
-# 终端 1：Cloudflare Pages Functions，监听 8788
+# 终端 1：Cloudflare Pages Functions
 npm run cloudflare:dev
 
-# 终端 2：Vite 前端，监听 5173，并将 /api 代理到 8788
+# 终端 2：Vue/Vite 前端
 npm run dev
 ```
 
-详细说明见 [本地 OAuth 开发](docs/development/local-oauth.md) 和 [Cloudflare Pages Functions OAuth 后端](docs/deploy/cloudflare.md)。
-
----
-
-<a id="部署指南"></a>
-## 📦 部署指南
-
-### 方式一：GitHub Pages + Cloudflare Pages Functions（推荐）
-
-正式架构采用前后端分离：
-
-- GitHub Pages 托管 StarHub 前端与文档；
-- Cloudflare Pages 项目只承载 `/api/health` 与 `/api/oauth/token`；
-- Client Secret 只保存在 Cloudflare 加密 Secret 中。
-
-Cloudflare Pages 使用：
-
-| 设置 | 值 |
-|---|---|
-| Build command | `npm run cloudflare:build` |
-| Build output directory | `cloudflare-dist` |
-| Node.js | `22` |
-
-Production Variables and Secrets：
+本地 OAuth App 的 Homepage URL 和 callback URL 均设置为：
 
 ```text
-CLIENT_ID
-CLIENT_SECRET
-ALLOWED_ORIGINS=https://hujinghaoabcd.github.io
-GITHUB_REDIRECT_URI=https://hujinghaoabcd.github.io/StarHub/
+http://localhost:5173/
 ```
 
-GitHub Actions Variables：
+详细说明见[快速安装](docs/guide/installation.md)和[本地 OAuth 开发](docs/development/local-oauth.md)。
 
-```text
-VITE_API_BASE_URL=https://你的项目.pages.dev/api
-VITE_GITHUB_CLIENT_ID=你的 GitHub OAuth Client ID
+## 部署架构
+
+```mermaid
+flowchart LR
+  U[浏览器] --> P[GitHub Pages\n应用 + VitePress 文档]
+  U --> G[GitHub API]
+  U --> A[用户选择的 AI API]
+  U --> C[Cloudflare Pages Functions\nOAuth API]
+  C --> O[GitHub OAuth Token Endpoint]
+  U --> I[(IndexedDB v8)]
+  U --> S[sessionStorage]
 ```
 
-完整步骤见 [部署指南](docs/DEPLOYMENT.md)。
+生产环境需要：
 
-### 方式二：自托管前端
+1. Cloudflare Pages Functions 保存 `CLIENT_SECRET`；
+2. GitHub OAuth App 回调指向 Pages 根路径；
+3. GitHub Actions Variables 设置 `VITE_API_BASE_URL` 和 `VITE_GITHUB_CLIENT_ID`；
+4. `main` 合并后由 `Deploy GitHub Pages` 构建、部署并执行公网冒烟测试。
+
+完整步骤见：
+
+- [总部署指南](docs/DEPLOYMENT.md)
+- [Cloudflare OAuth 后端](docs/deploy/cloudflare.md)
+- [自托管](docs/deploy/self-host.md)
+- [GitHub OAuth 配置](docs/guide/oauth.md)
+
+## 质量检查
 
 ```bash
-VITE_API_BASE_URL=https://你的项目.pages.dev/api npm run build
+npm run check
 ```
 
-将 `dist/` 交给 Nginx、Apache 或其他静态服务器即可。推荐继续复用 Cloudflare OAuth API；若自行实现后端，必须保持 `POST /api/oauth/token`、PKCE、Origin 白名单、回调地址精确校验和服务端 Secret 存储等安全约束。详见 [自托管部署](docs/deploy/self-host.md)。
+该命令包含：ESLint、Vue/TypeScript、全部单元测试、Cloudflare Functions 类型检查、OAuth 文档一致性、GitHub Pages 子路径构建、CSP 扫描、静态安全策略、生产依赖审计和 Cloudflare 构建。
 
----
+常用单项命令：
 
-<a id="使用说明"></a>
-## 📖 使用说明
-
-### 登录
-
-1. 点击 **使用 GitHub 登录** 按钮
-2. 在弹出窗口中授权 StarHub 访问你的 GitHub 账户
-3. 授权成功后自动跳转到主页
-
-### 同步仓库
-
-- 首次登录会自动开始同步你的所有 Star 仓库
-- 同步进度会在右上角显示
-- 支持增量同步（仅获取新增的 Star）
-
-### 使用标签分类
-
-#### 手动分类
-
-1. 在仓库列表中点击任意仓库
-2. 在右侧详情面板中点击 **添加标签**
-3. 选择已有标签或创建新标签
-
-#### 批量分类
-
-1. 在仓库列表顶部点击 **选择** 按钮
-2. 勾选要分类的仓库
-3. 点击 **批量设置分类** 按钮
-4. 选择要添加的标签
-
-#### AI 自动分类
-
-1. 进入 **设置** 页面
-2. 配置 AI 服务（API Key、模型等）
-3. 返回主页，点击左侧 **AI 智能分类** 按钮
-4. 查看仓库数、批次数和 Token 上限估计，创建任务
-5. 可随时暂停、继续、取消或重试失败项
-6. 分页审核分类、置信度和理由，必要时修改或取消项目
-7. 确认后一次性写入；如发现问题，可撤销最近一次写入
-
-### 搜索仓库
-
-- 在顶部搜索框输入关键词
-- 支持按仓库名、描述、编程语言搜索
-- 点击左侧标签可筛选特定分类
-
-### 查看详情
-
-- 点击任意仓库查看详情面板
-- 包含仓库基本信息、编程语言、Star/Fork 数等
-- 点击 **查看 README** 可在应用内预览 README
-
-### 设置
-
-访问 **设置** 页面可配置：
-
-- **AI 服务配置**：选择 AI 服务商、配置 API Key
-- **分类批次大小**：调整每批 AI 分类的仓库数量
-- **任务审核**：分类草稿保存在本地，审核确认后才写入正式分类
-- **数据管理**：清空数据、重新同步
-
----
-
-<a id="技术栈"></a>
-## 🛠️ 技术栈
-
-### 前端框架
-
-| 技术 | 版本 | 说明 |
-|------|------|------|
-| Vue 3 | ^3.4 | 组合式 API，响应式系统 |
-| TypeScript | ~5.4 | 类型安全，更好的开发体验 |
-| Vite | ^5.1 | 极速构建，HMR 热更新 |
-| Pinia | ^2.1 | 直观的状态管理 |
-| Vue Router | ^4.3 | 官方路由管理 |
-| Vue I18n | ^9.14 | 国际化支持 |
-
-### UI 组件
-
-| 技术 | 版本 | 说明 |
-|------|------|------|
-| Element Plus | ^2.5 | Vue 3 组件库 |
-| SCSS | ^1.71 | CSS 预处理器 |
-
-### 数据存储
-
-| 技术 | 版本 | 说明 |
-|------|------|------|
-| Dexie.js | ^3.2 | IndexedDB 封装库 |
-| IndexedDB | - | 浏览器本地数据库 |
-
-### Markdown 渲染
-
-| 技术 | 版本 | 说明 |
-|------|------|------|
-| Marked | ^17.0 | Markdown 解析器 |
-| highlight.js | ^11.10 | 代码语法高亮 |
-| DOMPurify | ^3.0 | XSS 防护 |
-| GitHub Markdown CSS | ^5.8 | GitHub 风格样式 |
-
-### 其他依赖
-
-| 技术 | 说明 |
-|------|------|
-| Axios | HTTP 请求库 |
-| vue-virtual-scroller | 虚拟滚动，支持大量数据 |
-| query-string | URL 查询字符串解析 |
-
----
-
-## 📁 项目结构
-
-```
-StarHub/
-├── public/                   # 静态资源
-│   ├── logo.svg             # 应用 Logo
-│   ├── favicon.ico          # 网站图标
-│   └── *.js                 # 工具脚本（清理、修复等）
-├── src/                     # 源代码目录
-│   ├── api/                 # API 服务层
-│   │   ├── auth.ts          # 认证 API
-│   │   ├── backend.ts       # 后端 API
-│   │   ├── github.ts        # GitHub API
-│   │   └── request.ts       # Axios 封装
-│   ├── config/              # 配置文件
-│   │   ├── ai.ts            # AI 服务配置
-│   │   ├── categories.ts    # 预设分类配置
-│   │   └── oauth.ts         # OAuth 配置
-│   ├── db/                  # 数据库
-│   │   └── index.ts         # Dexie 数据库定义
-│   ├── i18n/                # 国际化
-│   │   ├── index.ts         # i18n 配置
-│   │   └── locales/         # 语言包
-│   │       ├── zh.ts        # 中文
-│   │       └── en.ts        # 英文
-│   ├── layouts/             # 布局组件
-│   │   └── HomeLayout.vue   # 主布局
-│   ├── pages/               # 页面组件
-│   │   ├── Login.vue        # 登录页
-│   │   ├── Home/            # 主页
-│   │   │   ├── index.vue    # 主页入口
-│   │   │   └── components/  # 主页子组件
-│   │   │       ├── BatchTagDialog.vue    # 批量标签对话框
-│   │   │       ├── DetailView.vue        # 详情视图
-│   │   │       ├── EmptyState.vue        # 空状态
-│   │   │       ├── RepoCard.vue          # 仓库卡片
-│   │   │       ├── RepoCardTags.vue      # 仓库标签
-│   │   │       ├── RepoList.vue          # 仓库列表
-│   │   │       └── SideMenu.vue          # 侧边菜单
-│   │   └── Settings/         # 设置页
-│   │       └── index.vue    # 设置入口
-│   ├── router/              # 路由配置
-│   │   └── index.ts         # Vue Router 配置
-│   ├── services/            # 业务服务
-│   │   └── ai.ts            # AI 分类服务
-│   ├── stores/              # 状态管理
-│   │   ├── repo.ts          # 仓库状态
-│   │   ├── tag.ts           # 标签状态
-│   │   ├── theme.ts         # 主题状态
-│   │   └── user.ts          # 用户状态
-│   ├── styles/              # 全局样式
-│   │   ├── main.scss        # 主样式文件
-│   │   └── variables.scss   # SCSS 变量
-│   ├── types/               # TypeScript 类型
-│   │   └── index.ts         # 类型定义
-│   ├── utils/               # 工具函数
-│   │   ├── auth.ts          # 认证工具
-│   │   ├── index.ts         # 通用工具
-│   │   └── languageColors.ts # 编程语言颜色
-│   ├── App.vue              # 根组件
-│   └── main.ts              # 应用入口
-├── docs/                    # 文档目录
-│   ├── config/              # 配置文档
-│   ├── deploy/              # 部署文档
-│   ├── guide/               # 使用指南
-│   ├── reference/           # 参考文档
-│   └── troubleshooting/     # 故障排除
-├── functions/               # Workers
-│   ├── api/
-│   │   └── oauth/
-│   │       └── token.ts      # OAuth Token 交换
-│   └── tsconfig.json        # TypeScript 配置
-├── backups/                 # 备份文件
-├── package.json             # 项目配置
-├── vite.config.ts           # Vite 配置
-├── tsconfig.json            # TypeScript 配置
-├── tsconfig.node.json       # Node.js TypeScript 配置
-├── index.html               # HTML 入口
-├── LICENSE                  # 开源协议
-├── CHANGELOG.md             # 更新日志
-├── CONTRIBUTING.md          # 贡献指南
-└── README.md                # 项目文档
+```bash
+npm run lint
+npm run type-check
+npm run test:unit
+npm run docs:build
+npm run pages:build
+npm run cloudflare:build
 ```
 
----
+## 当前状态与限制
 
-## ❓ 常见问题
+已完成的核心能力包括安全 OAuth、权威 Stars 同步、仓库详情性能修复、重点项目、AI 正确性重构、可恢复分段任务、README 疑难项增强和 D1 分类治理。
 
-### 存储空间不足
+当前限制：
 
-先导出备份，再通过浏览器 Application/Storage 面板检查或清理 StarHub 站点数据。不要在控制台运行来源不明或使用 `eval` 的修复脚本，详细步骤见[数据管理文档](docs/config/data.md)。
+- PWA/离线安装尚未启用；
+- 数据默认只存在当前浏览器，没有账户级跨设备同步；
+- AI Key 仍由浏览器直接发送给用户选择的服务商；
+- 手机端可以访问，但主要交互仍针对桌面大屏；
+- 完整浏览器 E2E、无障碍测试和大规模性能基准仍待补充；
+- 下一阶段是 D2：未分类智能队列与同步后的持续分类。
 
-### OAuth 登录失败
+详见[项目状态](docs/development/PROJECT_STATUS.md)与[后续开发和接手说明](docs/development/NEXT_PHASE_HANDOFF.md)。
 
-1. 检查 `CLIENT_ID` 是否正确配置
-2. 确认 GitHub OAuth App 的回调地址与当前地址匹配
-3. 本地开发确保 `npm run cloudflare:dev` 正在运行
-4. 检查 `.dev.vars` 中的 OAuth 变量是否完整
+## 文档入口
 
-### AI 分类失败
+| 读者 | 推荐入口 |
+|---|---|
+| 第一次使用 | [基础使用](docs/guide/basic.md) |
+| 配置 AI | [AI 服务配置](docs/config/ai.md) |
+| 整理分类 | [分类与正式注册表](docs/guide/tags.md) |
+| 备份或恢复 | [数据管理](docs/config/data.md) |
+| 部署维护 | [部署指南](docs/DEPLOYMENT.md) |
+| 排查问题 | [故障排除](docs/TROUBLESHOOTING.md) |
+| 参与开发 | [贡献指南](CONTRIBUTING.md) |
+| 接手项目 | [详细交接](docs/development/NEXT_PHASE_HANDOFF.md) |
 
-1. 确认 API Key 配置正确
-2. 检查 API 余额/配额是否充足
-3. 尝试减小批次大小（设置页面可调整）
-4. 检查网络连接
+## 安全说明
 
----
+请不要在 Issue、日志或截图中提交 GitHub Token、AI API Key、OAuth Client Secret、私人仓库名称或完整 README。自定义 AI API 地址必须使用 HTTPS，并在发送 Key 前核对目标主机。
 
-## 🤝 贡献指南
+发现安全问题时，请优先通过仓库维护者可控的私密方式报告，不要先公开可利用细节。
 
-继续开发前请先阅读 [项目状态](docs/development/PROJECT_STATUS.md) 和 [后续开发与接手说明](docs/development/NEXT_PHASE_HANDOFF.md)。后者详细记录了 D2–D5 路线图、数据约束、验收标准和发布流程。
+## 贡献与许可
 
-欢迎贡献代码！请遵循以下步骤：
+欢迎提交 Bug、文档修订、测试和功能改进。涉及数据结构、分类迁移、OAuth 或 AI 写入的变更必须附带回归测试和回滚说明。
 
-1. Fork 本仓库
-2. 创建特性分支：`git checkout -b feature/your-feature`
-3. 提交更改：`git commit -m 'Add some feature'`
-4. 推送分支：`git push origin feature/your-feature`
-5. 提交 Pull Request
-
-### 开发规范
-
-- 使用 TypeScript 编写代码
-- 遵循 ESLint 规则
-- 组件使用 Vue 3 组合式 API
-- 提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/)
-
----
-
-## 📄 开源协议
-
-本项目采用 [MIT License](LICENSE) 开源协议。
-
----
-
-## 🙏 致谢
-
-- [Vue.js](https://vuejs.org/) - 渐进式 JavaScript 框架
-- [Element Plus](https://element-plus.org/) - Vue 3 组件库
-- [Dexie.js](https://dexie.org/) - IndexedDB 封装库
-- [Marked](https://marked.js.org/) - Markdown 解析器
-- 所有贡献者和用户
-
----
-
-<p align="center">
-  如果这个项目对你有帮助，请给一个 ⭐ Star 支持一下！
-</p>
+StarHub 基于 [MIT License](LICENSE) 发布。

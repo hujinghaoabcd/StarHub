@@ -1,273 +1,61 @@
-# 技术栈
-
-StarHub 使用现代化的前端技术栈构建，本页详细介绍所使用的技术。
-
-## 核心框架
-
-### Vue 3
-
-- **版本**：^3.4
-- **特性**：组合式 API、响应式系统、Teleport、Suspense
-- **文档**：https://vuejs.org/
-
-Vue 3 是 StarHub 的核心框架，使用组合式 API 编写所有组件。
-
-```vue
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-
-const count = ref(0)
-const doubled = computed(() => count.value * 2)
-</script>
-```
-
-### TypeScript
-
-- **版本**：~5.4
-- **特性**：类型安全、IDE 支持、更好的重构体验
-- **文档**：https://www.typescriptlang.org/
-
-所有代码使用 TypeScript 编写，提供完整的类型定义。
-
-### Vite
-
-- **版本**：^5.1
-- **特性**：极速启动、HMR 热更新、优化的构建
-- **文档**：https://vitejs.dev/
-
-Vite 作为构建工具，开发体验极佳。
-
----
-
-## 状态管理
-
-### Pinia
-
-- **版本**：^2.1
-- **特性**：类型安全、DevTools 支持、模块化
-- **文档**：https://pinia.vuejs.org/
-
-```typescript
-// stores/repo.ts
-import { defineStore } from 'pinia'
-
-export const useRepoStore = defineStore('repo', {
-  state: () => ({
-    repos: [],
-    loading: false
-  }),
-  actions: {
-    async loadRepos() {
-      // ...
-    }
-  }
-})
-```
-
----
-
-## 路由
-
-### Vue Router
-
-- **版本**：^4.3
-- **特性**：路由守卫、动态路由、嵌套路由
-- **文档**：https://router.vuejs.org/
-
-```typescript
-// router/index.ts
-const routes = [
-  { path: '/login', component: Login },
-  { 
-    path: '/', 
-    component: HomeLayout,
-    children: [
-      { path: '', component: Home },
-      { path: 'settings', component: Settings }
-    ]
-  }
-]
-```
-
----
-
-## UI 组件库
-
-### Element Plus
-
-- **版本**：^2.5
-- **特性**：丰富的组件、主题定制、国际化
-- **文档**：https://element-plus.org/
-
-使用的主要组件：
-- `ElButton`、`ElInput`、`ElSelect`
-- `ElDialog`、`ElDrawer`
-- `ElTable`、`ElTree`
-- `ElMessage`、`ElNotification`
-
----
-
-## 样式
-
-### SCSS
-
-- **版本**：^1.71
-- **特性**：变量、嵌套、混入、模块化
-- **文档**：https://sass-lang.com/
-
-```scss
-// styles/variables.scss
-$primary-color: #3b82f6;
-$bg-primary: #ffffff;
-
-// 使用
-.button {
-  background: $primary-color;
-  
-  &:hover {
-    opacity: 0.9;
-  }
-}
-```
-
----
-
-## 数据存储
-
-### Dexie.js
-
-- **版本**：^3.2
-- **特性**：IndexedDB 封装、Promise API、事务支持
-- **文档**：https://dexie.org/
-
-```typescript
-// db/index.ts
-import Dexie from 'dexie'
-
-class StarHubDB extends Dexie {
-  repos!: Dexie.Table<Repo, number>
-  tags!: Dexie.Table<Tag, string>
-  
-  constructor() {
-    super('StarHubDB')
-    this.version(1).stores({
-      repos: 'id, full_name, language',
-      tags: 'id, name'
-    })
-  }
-}
-```
-
----
-
-## Markdown 渲染
-
-### Marked
-
-- **版本**：^17.0
-- **特性**：GFM 支持、可扩展、高性能
-- **文档**：https://marked.js.org/
-
-### highlight.js
-
-- **版本**：^11.10
-- **特性**：100+ 语言支持、多主题
-- **文档**：https://highlightjs.org/
-
-### DOMPurify
-
-- **版本**：^3.0
-- **特性**：XSS 防护、安全渲染
-- **文档**：https://github.com/cure53/DOMPurify
-
-```typescript
-import { marked } from 'marked'
-import DOMPurify from 'dompurify'
-import hljs from 'highlight.js'
-
-const html = DOMPurify.sanitize(marked(markdown))
-```
-
----
-
-## 国际化
-
-### Vue I18n
-
-- **版本**：^9.14
-- **特性**：响应式、多种格式、懒加载
-- **文档**：https://vue-i18n.intlify.dev/
-
-```typescript
-// i18n/index.ts
-import { createI18n } from 'vue-i18n'
-import zh from './locales/zh'
-import en from './locales/en'
-
-export const i18n = createI18n({
-  locale: 'zh',
-  messages: { zh, en }
-})
-```
-
----
-
-## HTTP 请求
-
-### Axios
-
-- **版本**：^1.6
-- **特性**：拦截器、取消请求、自动转换
-- **文档**：https://axios-http.com/
-
-```typescript
-// api/request.ts
-import axios from 'axios'
-
-const instance = axios.create({
-  baseURL: 'https://api.github.com',
-  timeout: 30000
-})
-
-instance.interceptors.request.use(config => {
-  config.headers.Authorization = `token ${token}`
-  return config
-})
-```
-
----
-
-## 虚拟滚动
-
-### vue-virtual-scroller
-
-- **版本**：^2.0.0-beta.8
-- **特性**：高性能、动态高度、水平滚动
-- **文档**：https://github.com/Akryum/vue-virtual-scroller
-
-用于渲染大量仓库列表，确保滚动流畅。
-
----
-
-## 开发工具
-
-### ESLint
-
-- **版本**：^8.57
-- **配置**：Vue 3 + TypeScript 推荐规则
-
-### Vue TSC
-
-用于 TypeScript 类型检查。
-
----
-
-## 项目配置文件
-
-| 文件 | 说明 |
-|------|------|
-| `vite.config.ts` | Vite 配置 |
-| `tsconfig.json` | TypeScript 配置 |
-| `.eslintrc.js` | ESLint 配置 |
-| `package.json` | 依赖管理 |
-
+# 技术栈与工程约束
+
+## 运行时
+
+| 领域 | 技术 | 作用 |
+|---|---|---|
+| UI | Vue 3、TypeScript、Element Plus | 组合式 API、类型安全与组件库 |
+| 状态 | Pinia | 仓库、分类、任务、重点标记与用户状态 |
+| 路由 | Vue Router hash history | 适配 GitHub Pages 子路径静态部署 |
+| 本地数据库 | Dexie / IndexedDB | 存储仓库、关系、任务、缓存和迁移快照 |
+| 国际化 | vue-i18n | 中文、英文与英文 fallback |
+| HTTP | Axios | GitHub、OAuth API 与 AI 供应商请求 |
+| Markdown | Marked、DOMPurify、highlight.js | README 解析、净化和代码高亮 |
+| 长列表 | vue-virtual-scroller | 大量仓库渲染优化 |
+| 构建 | Vite | 应用开发与静态构建 |
+| 文档 | VitePress | `/docs/` 文档站与本地搜索 |
+| OAuth API | Cloudflare Pages Functions | 保护 GitHub Client Secret 与 token 交换 |
+
+依赖的准确版本以 `package.json` 与 `package-lock.json` 为准，文档不复制易过期的完整版本表。Node.js 最低版本为 22.12.0。
+
+## 安全选择
+
+- vue-i18n 开启 JIT，满足不允许 `unsafe-eval` 的 CSP；
+- README 在 worker 中解析并经 DOMPurify 净化；
+- OAuth 使用 state、PKCE、服务端 Secret、Origin 与 redirect 白名单；
+- GitHub token 与 AI Key 使用会话级存储，而非长期明文 localStorage；
+- 自定义 AI endpoint 只接受公网 HTTPS 且禁止凭据、query、fragment 和私网主机；
+- 构建不输出 source map；
+- 生产依赖审计和 CSP bundle 检查进入 `npm run check`。
+
+## 数据模型原则
+
+- `tags` 只存分类元数据；
+- `repoTags` 是仓库—分类关系唯一事实来源；
+- UI 中的 `Tag.repos` 是加载时派生结构，不能写回当作关系源；
+- `repositoryHighlights` 与分类独立；
+- AI 结果先进入任务草稿，人工确认后才写 `repoTags`；
+- 分类治理通过稳定 ID、事务和快照保证安全迁移。
+
+## 当前非目标
+
+- PWA 插件在构建配置中仍被禁用，不能宣称完整离线安装；
+- 没有 StarHub 云端账号、服务端数据库或跨设备自动同步；
+- 没有内置个人分类体系；正式注册表由每个用户或组织维护；
+- Cloudflare Function 不是通用业务后端，不接收分类或仓库数据库。
+
+## 质量门禁
+
+`npm run check` 是合并前最低门槛，包含：
+
+1. ESLint（零 warning）；
+2. Vue/TypeScript 类型检查；
+3. 全部 Node 单元测试；
+4. Functions 类型检查；
+5. OAuth 文档与配置约束校验；
+6. Pages 应用和文档构建；
+7. CSP bundle 与静态安全校验；
+8. 生产依赖审计；
+9. Cloudflare Pages 输出构建。
+
+关键功能还需人工验证，尤其是 GitHub OAuth、真实 GitHub 限流、浏览器 IndexedDB 升级、AI 供应商差异和大规模数据性能。

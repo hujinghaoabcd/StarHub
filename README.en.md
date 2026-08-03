@@ -1,562 +1,264 @@
 <p align="center">
-  <img src="public/logo.svg" alt="StarHub Logo" width="120" height="120">
+  <img src="public/logo.svg" alt="StarHub Logo" width="112" height="112">
 </p>
 
 <h1 align="center">StarHub</h1>
 
+<p align="center"><strong>A local-first manager for large GitHub Stars collections</strong></p>
+<p align="center">Category governance · Highlights · Reviewed AI classification · README preview · Search and batch operations</p>
+
 <p align="center">
-  <strong>🌟 Professional GitHub Stars Management Tool</strong>
+  <a href="README.md">中文</a> · <a href="README.en.md">English</a> ·
+  <a href="https://hujinghaoabcd.github.io/StarHub/">Live app</a> ·
+  <a href="https://hujinghaoabcd.github.io/StarHub/docs/">Documentation</a>
 </p>
 
 <p align="center">
-  <em>Organize your GitHub Star collection and never lose track of great projects</em>
+  <a href="https://github.com/hujinghaoabcd/StarHub/actions/workflows/ci.yml"><img src="https://github.com/hujinghaoabcd/StarHub/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/hujinghaoabcd/StarHub/actions/workflows/deploy-pages.yml"><img src="https://github.com/hujinghaoabcd/StarHub/actions/workflows/deploy-pages.yml/badge.svg" alt="GitHub Pages"></a>
+  <a href="https://github.com/hujinghaoabcd/StarHub/blob/main/LICENSE"><img src="https://img.shields.io/github/license/hujinghaoabcd/StarHub" alt="MIT License"></a>
+  <img src="https://img.shields.io/badge/IndexedDB-v8-3b82f6" alt="IndexedDB v8">
+  <img src="https://img.shields.io/badge/backup-v4-3b82f6" alt="Backup v4">
 </p>
 
-<p align="center">
-  <a href="README.md">中文</a> | <a href="README.en.md">English</a>
-</p>
+## What StarHub does
 
-<p align="center">
-  <a href="https://github.com/hujinghaoabcd/StarHub/stargazers"><img src="https://img.shields.io/github/stars/hujinghaoabcd/StarHub?style=flat&logo=github" alt="GitHub Stars"></a>
-  <a href="https://github.com/hujinghaoabcd/StarHub/blob/main/LICENSE"><img src="https://img.shields.io/github/license/hujinghaoabcd/StarHub?style=flat" alt="License"></a>
-  <img src="https://img.shields.io/badge/version-1.0.0-blue?style=flat" alt="Version">
-  <img src="https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen?style=flat&logo=node.js" alt="Node.js">
-  <img src="https://img.shields.io/badge/vue-3.4-4FC08D?style=flat&logo=vue.js" alt="Vue.js">
-  <img src="https://img.shields.io/badge/typescript-5.9-3178C6?style=flat&logo=typescript" alt="TypeScript">
-  <img src="https://img.shields.io/badge/vite-8.2-646CFF?style=flat&logo=vite" alt="Vite">
-</p>
+StarHub organizes hundreds, thousands, or tens of thousands of GitHub Stars. It stores repository snapshots, category relationships, highlights, AI review drafts, and bounded README summaries in the current browser. GitHub provides the source repository data, while AI requests are sent only to the provider configured by the user.
 
-<p align="center">
-  <a href="#introduction">Introduction</a> •
-  <a href="#features">Features</a> •
-  <a href="#demo">Demo</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#deployment">Deployment</a> •
-  <a href="#usage">Usage</a> •
-  <a href="#tech-stack">Tech Stack</a>
-</p>
+StarHub is not a shared bookmarking service and does not ship one person's private taxonomy as a universal standard. Every user can create regular categories or import a formal registry containing stable IDs, bilingual names, aliases, descriptions, examples, and exclusions.
 
----
+## Live services
 
-<a id="introduction"></a>
-## 📖 Introduction
+| Service | URL | Purpose |
+|---|---|---|
+| Application | https://hujinghaoabcd.github.io/StarHub/ | Sign in, synchronize, and manage Stars |
+| Documentation | https://hujinghaoabcd.github.io/StarHub/docs/ | User, deployment, and development manuals |
+| OAuth API | https://starhub-oauth.pages.dev/api | Server-side GitHub OAuth code exchange |
+| Health check | https://starhub-oauth.pages.dev/api/health | Verify backend configuration |
 
-**StarHub** is a GitHub Stars management application designed for developers. When your Star count reaches hundreds or even thousands, finding the projects you really need becomes extremely difficult. StarHub was created to solve this problem—it not only syncs all your Star repositories but also provides powerful categorization, search, and AI-powered classification features, making your technical collection truly valuable.
+The OAuth API does not centrally store GitHub tokens, categories, or AI drafts. Its only responsibility is to keep the OAuth Client Secret off the static frontend and exchange an authorization code for a token.
 
-### 🎯 Problems It Solves
+## Feature overview
 
-- ❌ Starred many excellent projects but can't find them when needed
-- ❌ GitHub's native Star list can only be sorted by time, with no categorization
-- ❌ Manual organization is too time-consuming and hard to maintain
-- ❌ Collections become increasingly chaotic as they grow
+### Reliable repository synchronization
 
-### ✅ StarHub's Solution
+- Fetches the complete GitHub Stars collection page by page.
+- Replaces the local snapshot only after every required page succeeds.
+- Preserves the previous complete snapshot after partial failure, cancellation, or timeout.
+- Removes stale relations and highlights after a repository is unstarred.
+- Sorts the complete result set by update time, creation time, stars, name, or highlight state before pagination.
+- Supports 50, 100, 200, 500, and 1,000 repositories per page.
+- Searches names, descriptions, and languages and filters by language, category, uncategorized state, or highlight.
 
-- ✨ **Smart Tag System** - Custom categories with Emoji and colors
-- 🤖 **AI Auto-Classification** - One-click intelligent categorization
-- ⚡ **Lightning-Fast Search** - Millisecond response, precise results
-- 📖 **README Preview** - Quick project overview without leaving the app
-- 🔒 **Local Storage** - Data security, privacy control
+### Repository detail and README safety
 
----
+- One summary card contains metadata, About, GitHub Pages, GitHub, and Unstar actions.
+- README requests are abortable and stale responses are ignored during rapid switching.
+- Markdown is parsed in a Web Worker and sanitized with DOMPurify.
+- Oversized source documents and code blocks are bounded to protect the browser main thread.
 
-<a id="features"></a>
-## ✨ Features
+### Categories and formal registries
 
-### 🏷️ Smart Tag System
+- Regular categories support names, colors, emoji, and many-to-many repository relationships.
+- Batch operations can add categories or replace the selected repositories' category set.
+- Imports accept TXT, CSV, JSON, StarHub backups, and formal registry documents.
+- A migration preview distinguishes create, rename, merge, update, unchanged, and conflict operations.
+- Safe renaming preserves the category ID.
+- Merging migrates and deduplicates every `repoTags` relationship.
+- A complete category snapshot is created before migration and the latest migration can be undone.
+- The manager supports search, repository-count sorting, and empty-category filtering.
 
-- **Custom Tags**: Create unlimited tags to organize your collection
-- **Emoji Icons**: Each tag supports Emoji for visual identification
-- **Color Coding**: 18 preset colors for clear visual distinction
-- **Multi-Tag Support**: Add multiple tags to a repository for flexible categorization
-- **Batch Operations**: Add/remove tags for multiple repositories at once
+Formal registry example:
 
-### 🧭 Generic Category Registry and Safe Governance
-
-- **Multi-user design**: StarHub does not ship a personal taxonomy; each user manages their own registry
-- **Stable category IDs**: Safe renaming preserves IDs and existing repository relationships
-- **Migration preview**: Review creates, renames, merges, updates, and conflicts before applying
-- **Safe merging**: Synonymous categories retain and deduplicate every repository relationship
-- **Automatic backup and rollback**: Every migration saves a complete snapshot first
-- **Rich metadata**: Bilingual names, aliases, descriptions, examples, exclusions, and hierarchy
-- **Management tools**: Search categories, sort by repository count, and filter empty categories
-- **AI boundary**: Once enabled, AI can choose only categories in the confirmed formal registry
-
-### 🤖 AI Intelligent Classification
-
-Supports multiple mainstream AI services:
-
-| Provider | Default Model | Description |
-|----------|---------------|-------------|
-| OpenAI | gpt-4o-mini | Cost-effective, recommended |
-| Claude | claude-sonnet-4-6 | Supports structured output |
-| DeepSeek | deepseek-chat | Fast Chinese model |
-| Qwen | qwen-plus | Alibaba Cloud, Chinese-friendly |
-| Zhipu AI | glm-4-flash | Chinese model with free quota |
-
-**AI Classification Features:**
-- Uses stable IDs from existing categories; the model cannot create categories
-- Sends repository metadata only (name, description, language and topics)
-- Persists tasks and per-repository drafts in IndexedDB
-- Supports pause, resume, cancellation and failed-item retry
-- Pages large reviews in groups of 50 and commits only accepted drafts
-- Configurable batch size (default: 50 per batch)
-- Processes only uncategorized repositories and never overwrites existing tags
-
-### 🔍 Full-Text Instant Search
-
-- **Multi-dimensional Search**: Search by repository name, description, programming language, etc.
-- **Local Storage**: Based on IndexedDB, millisecond response
-- **Tag Filtering**: Filter results by tags
-- **Real-time Highlighting**: Search results highlighted in real-time
-
-### 📖 README Instant Preview
-
-- Complete Markdown rendering with GFM extensions
-- Code syntax highlighting (100+ languages)
-- Perfect display of images, tables, and links
-- Quick project overview without leaving GitHub
-
-### 🌓 Dark Mode & Multi-language
-
-- Carefully designed dark/light themes
-- Auto-switch based on system preferences
-- Full Chinese/English bilingual support
-- Switch interface language anytime
-
-### 📱 PWA Offline Application
-
-- Install to desktop for native-like experience
-- Local data storage, browse and search offline
-- Sync once, use anytime
-
----
-
-## 🏷️ Preset Categories
-
-StarHub includes 18 professional categories covering mainstream tech fields:
-
-| Category | Description | Category | Description |
-|----------|-------------|----------|-------------|
-| 🌐 Web Development | Frontend, Backend, Full-stack | 📱 Mobile Development | iOS, Android, Cross-platform |
-| 🤖 Data Science | ML, AI, Data Analysis | 🛠️ Tools & Libraries | General tools, libraries, frameworks |
-| ⚙️ DevOps | CI/CD, Containerization | 🎮 Game Development | Game engines, game tools |
-| 💾 Database | SQL, NoSQL, ORM | 🔒 Security | Network security, encryption |
-| ⛓️ Blockchain | Web3, Smart Contracts | 💻 Programming Languages | Compilers, interpreters |
-| ⚡ System Programming | OS, Low-level development | 🎨 Design | UI/UX, Graphics processing |
-| 📚 Documentation | Doc generation, Knowledge management | 🧪 Testing | Test frameworks, automation |
-| 😎 Awesome | Curated resource lists | 🟢 Node.js | Node ecosystem |
-| ⚛️ React | React ecosystem | 📦 Others | Uncategorized projects |
-
----
-
-<a id="demo"></a>
-## 🌐 Online Demo
-
-> Below are some application interface screenshots. For the full experience, please run locally or wait for the online demo to be available.
-
-<p align="center">
-  <img src="./public/screenshot-01.png" style="max-width: 600px; box-shadow:0 2px 12px #0002" />
-</p>
-<p align="center">
-  Login Interface
-</p>
-<p align="center">
-  <img src="./public/screenshot-02.png"  style="max-width: 600px; box-shadow:0 2px 12px #0002" />
-</p>
-<p align="center">
-  Main Page
-</p>
-<p align="center">
-  <img src="./public/screenshot-03.png" style="max-width: 600px; box-shadow:0 2px 12px #0002" />
-</p>
-<p align="center">
-  Documentation Interface
-</p>
-
-
-> 🚧 Online demo is being prepared, stay tuned!
-
-If you have deployed StarHub, you can access it via:
-
-- **Local Development**: `http://localhost:5173`
-- **Production**: Access via your deployment platform's domain
-
----
-
-<a id="quick-start"></a>
-## 🚀 Quick Start
-
-### Requirements
-
-- **Node.js** >= 22.12.0
-- **npm** >= 10.0.0
-
-### Installation Steps
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/hujinghaoabcd/StarHub.git
-cd StarHub
-
-# 2. Install dependencies
-npm install
-
-# 3. Configure GitHub OAuth (see instructions below)
-
-# 4. Start development server
-npm run dev
-
-# 5. Visit http://localhost:5173
+```json
+{
+  "version": "my-taxonomy-2026-08",
+  "tags": [
+    {
+      "categoryId": "gis.web-mapping",
+      "nameZh": "WebGIS 与在线地图",
+      "nameEn": "Web GIS and Web Mapping",
+      "aliases": ["WebGIS", "web maps"],
+      "descriptionZh": "浏览器端地图、在线空间服务与 WebGIS 应用。",
+      "descriptionEn": "Browser mapping, online spatial services, and Web GIS applications.",
+      "examples": ["Leaflet", "OpenLayers", "MapLibre"],
+      "exclusions": ["desktop-only GIS", "database drivers only"],
+      "level1": "GIS and Spatial Computing",
+      "level2": "Web GIS and Web Mapping"
+    }
+  ]
+}
 ```
 
-### GitHub OAuth Configuration
+### Repository highlights
 
-StarHub uses the GitHub OAuth Web Flow. The browser creates and validates `state` and PKCE values, while a Cloudflare Pages Function exchanges the authorization code with the Client Secret on the server side.
+A highlight is intentionally separate from categories and is not a second folder system. Users can toggle a highlight from the detail header, update multiple selected repositories, filter highlighted repositories, sort by marking time, export highlights in backup v4, and automatically remove stale records after unstar.
 
-#### Step 1: Create a local GitHub OAuth App
+### Reviewed and resumable AI classification
 
-Create a separate OAuth App for local development:
+StarHub supports OpenAI, Anthropic Claude, DeepSeek, Alibaba Qwen, and Zhipu AI. AI output is always a draft until the user confirms a commit.
 
 ```text
-Homepage URL: http://localhost:5173/
-Authorization callback URL: http://localhost:5173/
+Select scope and estimate usage
+→ metadata-only first pass
+→ validate repository/category IDs, duplicates, and omissions
+→ persist a bounded review segment
+→ fetch README evidence only for difficult results
+→ compare baseline and enhanced drafts
+→ user confirmation
+→ one IndexedDB transaction
+→ optional undo
 ```
 
-#### Step 2: Configure local variables
+Important safeguards:
+
+- The model can choose only IDs from the current formal registry.
+- A task records provider, model, prompt version, and registry version.
+- Large tasks are generated, reviewed, and committed one bounded segment at a time.
+- Tasks support pause, resume, cancellation, and failed-item retry.
+- A paused task can commit the currently reviewed results and then end.
+- Results below 65% confidence are unchecked by default.
+- README content is cached only for difficult cases and is treated as untrusted input.
+
+AI classification remains an experimental assistant. Model confidence is not measured accuracy; important classifications require human review.
+
+### Local data and privacy boundaries
+
+StarHub currently uses IndexedDB v8:
+
+| Table | Purpose |
+|---|---|
+| `repos` | Authoritative GitHub repository snapshot |
+| `tags` | Category metadata and formal registry fields |
+| `repoTags` | The sole source of repository-category relationships |
+| `classificationTasks` | AI task progress, provider, model, and versions |
+| `classificationTaskItems` | Per-repository drafts, evaluations, errors, and enhancements |
+| `classificationReadmeCache` | Bounded README summaries for difficult cases |
+| `repositoryHighlights` | Independent repository highlights |
+| `categoryMigrationSnapshots` | Local category migration rollback snapshots |
+
+Storage rules:
+
+- GitHub token: `sessionStorage`, hard expiry after 12 hours.
+- AI API key: `sessionStorage`, cleared when the page session ends and removable on demand.
+- Theme, language, non-secret AI preferences, and category presets: `localStorage`.
+- Repository, category, task, and highlight data: IndexedDB.
+- Backup format v4 exports repositories, category relations and registry metadata, highlights, and category presets.
+- AI tasks, README cache, and migration rollback snapshots are not yet included in portable backups.
+
+## Screenshots
+
+> **Screenshot placeholder — login and OAuth entry**
+> Show language/theme controls, the GitHub login action, and the privacy notice without exposing a real authorization code.
+
+> **Screenshot placeholder — 17k-scale workspace and detail**
+> Show categories, highlights, repository list, sorting, pagination, and a detail action bar that does not overlap the description.
+
+> **Screenshot placeholder — formal registry migration preview**
+> Show registry version, create/rename/merge/conflict counts, operation details, and a conflict-disabled apply button.
+
+> **Screenshot placeholder — AI task and human review**
+> Show segment progress, failed-item retry, confidence, reasoning, evaluation, and README enhancement comparison.
+
+> **Screenshot placeholder — highlights and large-page controls**
+> Show highlight filtering, batch marking, sorting, and 1,000-item pagination in both themes.
+
+## Local development
+
+Requirements:
+
+- Node.js version from [`.nvmrc`](.nvmrc)
+- npm with `npm ci`
+- a separate local GitHub OAuth App
+- an environment capable of running Cloudflare Wrangler
 
 ```bash
+git clone https://github.com/hujinghaoabcd/StarHub.git
+cd StarHub
+npm ci
 cp .dev.vars.example .dev.vars
 ```
 
-The local `.dev.vars` file must contain at least:
+Configure `.dev.vars`:
 
-```env
-CLIENT_ID=your_local_client_id
-CLIENT_SECRET=your_local_client_secret
+```ini
+CLIENT_ID=your_local_oauth_client_id
+CLIENT_SECRET=your_local_oauth_client_secret
 ALLOWED_ORIGINS=http://localhost:5173
 GITHUB_REDIRECT_URI=http://localhost:5173/
 ```
 
-Create an uncommitted `.env.local` file as well:
+Create an uncommitted `.env.local` with the Client ID from the same local OAuth App:
 
-```env
-VITE_GITHUB_CLIENT_ID=your_local_client_id
+```ini
+VITE_GITHUB_CLIENT_ID=your_local_oauth_client_id
 ```
 
-The value must exactly match `CLIENT_ID` in `.dev.vars`. Never put the Client Secret in a `VITE_*` variable or browser code.
+Never put the Client Secret in a `VITE_*` variable.
 
-#### Step 3: Start local integration
+Start both processes:
 
 ```bash
-# Terminal 1: Cloudflare Pages Functions on port 8788
+# terminal 1
 npm run cloudflare:dev
 
-# Terminal 2: Vite on port 5173, proxying /api to port 8788
+# terminal 2
 npm run dev
 ```
 
-See [Local OAuth Development](docs/development/local-oauth.md) and [Cloudflare Pages Functions OAuth Backend](docs/deploy/cloudflare.md).
+Set both the Homepage URL and callback URL of the local OAuth App to `http://localhost:5173/`.
 
----
+## Production architecture
 
-<a id="deployment"></a>
-## 📦 Deployment Guide
-
-### Method 1: GitHub Pages + Cloudflare Pages Functions (Recommended)
-
-The production architecture is split by responsibility:
-
-- GitHub Pages hosts the StarHub frontend and documentation;
-- Cloudflare Pages serves only `/api/health` and `/api/oauth/token`;
-- the Client Secret stays in an encrypted Cloudflare Secret.
-
-Cloudflare Pages settings:
-
-| Setting | Value |
-|---|---|
-| Build command | `npm run cloudflare:build` |
-| Build output directory | `cloudflare-dist` |
-| Node.js | `22` |
-
-Production Variables and Secrets:
-
-```text
-CLIENT_ID
-CLIENT_SECRET
-ALLOWED_ORIGINS=https://hujinghaoabcd.github.io
-GITHUB_REDIRECT_URI=https://hujinghaoabcd.github.io/StarHub/
+```mermaid
+flowchart LR
+  U[Browser] --> P[GitHub Pages\nApp + VitePress docs]
+  U --> G[GitHub API]
+  U --> A[User-selected AI API]
+  U --> C[Cloudflare Pages Functions\nOAuth API]
+  C --> O[GitHub OAuth token endpoint]
+  U --> I[(IndexedDB v8)]
+  U --> S[sessionStorage]
 ```
 
-GitHub Actions Variables:
+Production requires a Cloudflare Pages Function containing the OAuth Client Secret, a GitHub OAuth App whose callback is the Pages root, and GitHub Actions variables named `VITE_API_BASE_URL` and `VITE_GITHUB_CLIENT_ID`. Merges to `main` build the application and documentation, deploy Pages, and run a public smoke test.
 
-```text
-VITE_API_BASE_URL=https://your-project.pages.dev/api
-VITE_GITHUB_CLIENT_ID=your GitHub OAuth Client ID
-```
+See [Deployment](docs/DEPLOYMENT.md), [Cloudflare OAuth](docs/deploy/cloudflare.md), [Self-hosting](docs/deploy/self-host.md), and [OAuth configuration](docs/guide/oauth.md).
 
-See [Deployment Guide](docs/DEPLOYMENT.md) for the complete setup.
-
-### Method 2: Self-Hosted Frontend
+## Validation
 
 ```bash
-VITE_API_BASE_URL=https://your-project.pages.dev/api npm run build
+npm run check
 ```
 
-Serve `dist/` with Nginx, Apache, or another static server. Reusing the Cloudflare OAuth API is recommended. A custom backend must preserve the `POST /api/oauth/token` contract, PKCE, strict Origin checks, exact redirect URI validation, and server-side secret storage. See [Self-Hosting](docs/deploy/self-host.md).
+The complete check runs ESLint, Vue/TypeScript checks, all unit tests, Cloudflare type-checking, OAuth documentation verification, GitHub Pages subpath builds, CSP scanning, static security policy checks, the production dependency audit, and the Cloudflare bundle build.
 
----
+## Current limitations and roadmap
 
-<a id="usage"></a>
-## 📖 Usage Guide
+- PWA installation and full offline mode are not currently enabled.
+- Data is browser-local; account-level cross-device sync is not implemented.
+- AI keys are still sent directly from the browser to the selected provider.
+- The UI is primarily optimized for desktop screens.
+- Full browser E2E, accessibility coverage, and large-scale performance benchmarks remain incomplete.
+- The next planned batch is D2: a formal uncategorized queue and continuous classification after synchronization.
 
-### Login
+Read [Project Status](docs/development/PROJECT_STATUS.md) and the [Detailed Handoff](docs/development/NEXT_PHASE_HANDOFF.md) before continuing development.
 
-1. Click **Login with GitHub** button
-2. Authorize StarHub to access your GitHub account in the popup window
-3. Automatically redirect to homepage after successful authorization
+## Documentation map
 
-### Sync Repositories
+| Need | Document |
+|---|---|
+| First use | [Basic Usage](docs/guide/basic.md) |
+| AI configuration | [AI Configuration](docs/config/ai.md) |
+| Category governance | [Categories and Registries](docs/guide/tags.md) |
+| Backup and recovery | [Data Management](docs/config/data.md) |
+| Deployment | [Deployment Guide](docs/DEPLOYMENT.md) |
+| Troubleshooting | [Troubleshooting](docs/TROUBLESHOOTING.md) |
+| Contributing | [Contributing](CONTRIBUTING.md) |
+| Taking over development | [Detailed Handoff](docs/development/NEXT_PHASE_HANDOFF.md) |
 
-- First login automatically starts syncing all your Star repositories
-- Sync progress displayed in the top right corner
-- Supports incremental sync (only fetch new Stars)
+## Security and license
 
-### Using Tags for Classification
+Never include GitHub tokens, AI keys, OAuth Client Secrets, private repository names, or complete private READMEs in issues, screenshots, or logs. Custom AI endpoints must use HTTPS and the target hostname must be verified before transmitting a key.
 
-#### Manual Classification
-
-1. Click any repository in the repository list
-2. Click **Add Tag** in the right detail panel
-3. Select existing tag or create new tag
-
-#### Batch Classification
-
-1. Click **Select** button at the top of repository list
-2. Check repositories to classify
-3. Click **Batch Set Tags** button
-4. Select tags to add
-
-#### AI Auto-Classification
-
-1. Go to **Settings** page
-2. Configure AI service (API Key, model, etc.)
-3. Return to homepage, click **AI Intelligent Classification** button on the left
-4. Review the repository count, batch count and token upper estimate
-5. Pause, resume, cancel or retry failures as needed
-6. Review the paged drafts and commit only accepted results
-
-### Search Repositories
-
-- Enter keywords in the top search box
-- Support search by repository name, description, programming language
-- Click tags on the left to filter by specific category
-
-### View Details
-
-- Click any repository to view detail panel
-- Includes basic repository info, programming languages, Star/Fork counts, etc.
-- Click **View README** to preview README within the app
-
-### Settings
-
-Visit **Settings** page to configure:
-
-- **AI Service Configuration**: Select AI provider, configure API Key
-- **Classification Batch Size**: Adjust number of repositories per AI classification batch
-- **Task Review**: Drafts remain local until reviewed and committed
-- **Data Management**: Clear data, re-sync
-
----
-
-<a id="tech-stack"></a>
-## 🛠️ Tech Stack
-
-### Frontend Framework
-
-| Technology | Version | Description |
-|------------|---------|-------------|
-| Vue 3 | ^3.4 | Composition API, reactive system |
-| TypeScript | ~5.4 | Type safety, better development experience |
-| Vite | ^5.1 | Lightning-fast build, HMR |
-| Pinia | ^2.1 | Intuitive state management |
-| Vue Router | ^4.3 | Official routing |
-| Vue I18n | ^9.14 | Internationalization support |
-
-### UI Components
-
-| Technology | Version | Description |
-|------------|---------|-------------|
-| Element Plus | ^2.5 | Vue 3 component library |
-| SCSS | ^1.71 | CSS preprocessor |
-
-### Data Storage
-
-| Technology | Version | Description |
-|------------|---------|-------------|
-| Dexie.js | ^3.2 | IndexedDB wrapper library |
-| IndexedDB | - | Browser local database |
-
-### Markdown Rendering
-
-| Technology | Version | Description |
-|------------|---------|-------------|
-| Marked | ^17.0 | Markdown parser |
-| highlight.js | ^11.10 | Code syntax highlighting |
-| DOMPurify | ^3.0 | XSS protection |
-| GitHub Markdown CSS | ^5.8 | GitHub-style styling |
-
-### Other Dependencies
-
-| Technology | Description |
-|------------|-------------|
-| Axios | HTTP request library |
-| vue-virtual-scroller | Virtual scrolling for large datasets |
-| query-string | URL query string parsing |
-
----
-
-## 📁 Project Structure
-
-```
-StarHub/
-├── public/                   # Static assets
-│   ├── logo.svg             # App Logo
-│   ├── favicon.ico          # Website icon
-│   └── *.js                 # Utility scripts (cleanup, fixes, etc.)
-├── src/                     # Source code directory
-│   ├── api/                 # API service layer
-│   │   ├── auth.ts          # Authentication API
-│   │   ├── backend.ts       # Backend API
-│   │   ├── github.ts        # GitHub API
-│   │   └── request.ts       # Axios wrapper
-│   ├── config/              # Configuration files
-│   │   ├── ai.ts            # AI service configuration
-│   │   ├── categories.ts    # Preset category configuration
-│   │   └── oauth.ts         # OAuth configuration
-│   ├── db/                  # Database
-│   │   └── index.ts         # Dexie database definition
-│   ├── i18n/                # Internationalization
-│   │   ├── index.ts         # i18n configuration
-│   │   └── locales/         # Language packs
-│   │       ├── zh.ts        # Chinese
-│   │       └── en.ts        # English
-│   ├── layouts/             # Layout components
-│   │   └── HomeLayout.vue   # Main layout
-│   ├── pages/               # Page components
-│   │   ├── Login.vue        # Login page
-│   │   ├── Home/            # Home page
-│   │   │   ├── index.vue    # Home page entry
-│   │   │   └── components/  # Home page sub-components
-│   │   │       ├── BatchTagDialog.vue    # Batch tag dialog
-│   │   │       ├── DetailView.vue        # Detail view
-│   │   │       ├── EmptyState.vue        # Empty state
-│   │   │       ├── RepoCard.vue          # Repository card
-│   │   │       ├── RepoCardTags.vue      # Repository tags
-│   │   │       ├── RepoList.vue          # Repository list
-│   │   │       └── SideMenu.vue          # Side menu
-│   │   └── Settings/         # Settings page
-│   │       └── index.vue    # Settings entry
-│   ├── router/              # Routing configuration
-│   │   └── index.ts         # Vue Router configuration
-│   ├── services/            # Business services
-│   │   └── ai.ts            # AI classification service
-│   ├── stores/              # State management
-│   │   ├── repo.ts          # Repository state
-│   │   ├── tag.ts           # Tag state
-│   │   ├── theme.ts         # Theme state
-│   │   └── user.ts          # User state
-│   ├── styles/              # Global styles
-│   │   ├── main.scss        # Main stylesheet
-│   │   └── variables.scss   # SCSS variables
-│   ├── types/               # TypeScript types
-│   │   └── index.ts         # Type definitions
-│   ├── utils/               # Utility functions
-│   │   ├── auth.ts          # Authentication utilities
-│   │   ├── index.ts         # Common utilities
-│   │   └── languageColors.ts # Programming language colors
-│   ├── App.vue              # Root component
-│   └── main.ts              # Application entry
-├── docs/                    # Documentation directory
-│   ├── config/              # Configuration documentation
-│   ├── deploy/              # Deployment documentation
-│   ├── guide/               # Usage guides
-│   ├── reference/           # Reference documentation
-│   └── troubleshooting/     # Troubleshooting
-├── functions/               # Workers
-│   ├── api/
-│   │   └── oauth/
-│   │       └── token.ts      # OAuth Token exchange
-│   └── tsconfig.json        # TypeScript configuration
-├── backups/                 # Backup files
-├── package.json             # Project configuration
-├── vite.config.ts           # Vite configuration
-├── tsconfig.json            # TypeScript configuration
-├── tsconfig.node.json       # Node.js TypeScript configuration
-├── index.html               # HTML entry
-├── LICENSE                  # Open source license
-├── CHANGELOG.md             # Changelog
-├── CONTRIBUTING.md          # Contributing guide
-└── README.md                # Project documentation
-```
-
----
-
-## ❓ FAQ
-
-### OAuth Login Failed
-
-1. Check if `CLIENT_ID` is configured correctly
-2. Confirm GitHub OAuth App callback URL matches current address
-3. Ensure `npm run cloudflare:dev` is running for local development
-4. Check that all OAuth values in `.dev.vars` are present
-
-### AI Classification Failed
-
-1. Confirm API Key is configured correctly
-2. Check if API balance/quota is sufficient
-3. Try reducing batch size (adjustable in settings page)
-4. Check network connection
-
----
-
-## 🤝 Contributing
-
-Before continuing development, read [Project Status](docs/development/PROJECT_STATUS.md) and the detailed [Next-phase Handoff](docs/development/NEXT_PHASE_HANDOFF.md). They document the D2–D5 roadmap, data invariants, acceptance criteria, and release workflow.
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork this repository
-2. Create feature branch: `git checkout -b feature/your-feature`
-3. Commit changes: `git commit -m 'Add some feature'`
-4. Push branch: `git push origin feature/your-feature`
-5. Submit Pull Request
-
-### Development Guidelines
-
-- Write code in TypeScript
-- Follow ESLint rules
-- Use Vue 3 Composition API for components
-- Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/)
-
----
-
-## 📄 License
-
-This project is licensed under the [MIT License](LICENSE).
-
----
-
-## 🙏 Acknowledgments
-
-- [Vue.js](https://vuejs.org/) - Progressive JavaScript framework
-- [Element Plus](https://element-plus.org/) - Vue 3 component library
-- [Dexie.js](https://dexie.org/) - IndexedDB wrapper library
-- [Marked](https://marked.js.org/) - Markdown parser
-- All contributors and users
-
----
-
-<p align="center">
-  If this project helps you, please give it a ⭐ Star!
-</p>
+StarHub is released under the [MIT License](LICENSE).

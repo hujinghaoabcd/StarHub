@@ -1,200 +1,115 @@
-# 快速安装
+# 本地安装与开发
 
-本节介绍如何在本地安装和运行 StarHub。
+StarHub 本地开发需要同时运行 Vue 前端和 Cloudflare Pages Functions。仅运行 `npm run dev` 可以查看部分界面，但无法完成 GitHub OAuth 登录。
 
 ## 环境要求
 
-| 依赖 | 最低版本 | 推荐版本 |
-|---|---:|---:|
-| Node.js | 22.12.0 | 22.x LTS |
-| npm | 10 | 随 Node.js 22 提供的版本 |
-| 浏览器 | 支持 Web Crypto、IndexedDB 与 ES Modules | 最新稳定版 |
+| 依赖 | 要求 |
+|---|---|
+| Node.js | 使用 `.nvmrc`，当前为 22.x |
+| npm | 10+ |
+| 浏览器 | 支持 IndexedDB、Web Crypto、Web Workers 和 ES Modules |
+| GitHub OAuth App | 本地专用，callback 为 `http://localhost:5173/` |
 
-## 安装步骤
-
-### 1. 克隆仓库
+## 1. 获取代码与依赖
 
 ```bash
 git clone https://github.com/hujinghaoabcd/StarHub.git
 cd StarHub
-```
-
-### 2. 安装锁定依赖
-
-```bash
 npm ci
 ```
 
-日常开发优先使用 `npm ci`，确保安装结果与 `package-lock.json` 一致。只有明确升级依赖时才使用 `npm install` 并提交对应 lockfile。
+日常开发使用 `npm ci` 保持与 `package-lock.json` 一致。只有主动升级依赖时使用 `npm install`，并在 PR 中说明 lockfile 变化。
 
-### 3. 创建本地 GitHub OAuth App
+## 2. 创建本地 OAuth App
+
+GitHub OAuth App 设置：
 
 ```text
 Homepage URL: http://localhost:5173/
 Authorization callback URL: http://localhost:5173/
 ```
 
-本地 App 应与生产 App 分开，因为 GitHub OAuth App 只能配置一个 callback URL。
+生产与本地使用不同 callback，应创建两个 App，不要来回修改同一个生产 App。
 
-### 4. 配置服务端变量
+## 3. 配置服务端变量
 
 ```bash
 cp .dev.vars.example .dev.vars
 ```
 
-编辑 `.dev.vars`：
+编辑未提交的 `.dev.vars`：
 
-```env
+```ini
 CLIENT_ID=your_local_client_id
 CLIENT_SECRET=your_local_client_secret
 ALLOWED_ORIGINS=http://localhost:5173
 GITHUB_REDIRECT_URI=http://localhost:5173/
 ```
 
-### 5. 配置浏览器 Client ID
+## 4. 配置浏览器 Client ID
 
 创建未提交的 `.env.local`：
 
-```env
+```ini
 VITE_GITHUB_CLIENT_ID=your_local_client_id
 ```
 
-该值必须与 `.dev.vars` 中的 `CLIENT_ID` 完全一致。Client Secret 不得写入任何 `VITE_*` 变量。
+Client ID 必须与 `.dev.vars` 属于同一个 App。不要创建 `VITE_CLIENT_SECRET`：所有 `VITE_*` 变量都会进入浏览器构建产物。
 
-### 6. 启动两个进程
+本地通过 Vite `/api` 代理访问 Functions，不需要设置 `VITE_API_BASE_URL`。
+
+## 5. 启动
 
 ```bash
-# 终端 1：Cloudflare Pages Functions，端口 8788
+# 终端 1：Functions，默认 8788
 npm run cloudflare:dev
 
-# 终端 2：Vite 前端，端口 5173
+# 终端 2：前端，默认 5173
 npm run dev
 ```
 
-打开：
+访问：
 
-```text
-http://localhost:5173/
+- 应用：<http://localhost:5173/>
+- OAuth 健康检查：<http://localhost:8788/api/health>
+- 文档开发服务器：执行 `npm run docs:dev` 后访问 <http://localhost:5174/>
+
+如果 5173 被占用，Vite 可能选择其他端口，但 OAuth callback 和 `ALLOWED_ORIGINS` 不会自动改变。开发 OAuth 时应释放 5173，或同时修改 App 和变量。
+
+## 6. 开发前验证
+
+```bash
+npm run check
 ```
 
-健康检查：
+常用子命令：
 
-```text
-http://localhost:8788/api/health
-```
-
-## 常用命令
-
-| 命令 | 说明 |
+| 命令 | 用途 |
 |---|---|
-| `npm run dev` | 启动 Vite 前端 |
-| `npm run cloudflare:dev` | 构建并启动本地 Pages Functions |
-| `npm run check` | 运行 Lint、类型检查、测试、OAuth/安全校验与全部构建 |
-| `npm run test:unit` | 运行单元测试 |
-| `npm run pages:build` | 构建 GitHub Pages 应用与文档 |
-| `npm run cloudflare:build` | 构建 API-only Cloudflare Pages 输出 |
+| `npm run lint` | ESLint，警告也会导致失败 |
+| `npm run type-check` | Vue/TypeScript 类型检查 |
+| `npm run test:unit` | Node 单元测试 |
+| `npm run docs:build` | 单独检查 VitePress 文档和死链 |
+| `npm run pages:build` | 构建 Pages 应用与文档组合包 |
+| `npm run cloudflare:type-check` | Functions 类型检查 |
+| `npm run cloudflare:build` | 生成 Cloudflare Pages 输出 |
+| `npm run security:verify` | 校验静态安全策略 |
 | `npm run audit:production` | 审计生产依赖 |
 
-## 关键目录
+## 7. 本地数据隔离
 
-```text
-StarHub/
-├── functions/        # Cloudflare Pages Functions
-│   └── api/
-│       ├── health.ts
-│       └── oauth/token.ts
-├── public/           # 静态资源
-├── scripts/          # 构建与验证脚本
-├── src/              # Vue 前端
-├── tests/            # 单元测试
-└── docs/             # VitePress 文档
-```
+开发数据位于当前 Origin 的 IndexedDB。同一端口下不同分支会共用数据；调试数据库迁移前先从设置页导出备份。无痕窗口适合做干净安装验证，但关闭无痕窗口后数据会被浏览器删除。
 
-下一步阅读：[GitHub OAuth 配置](oauth.md) 与 [本地 OAuth 开发](../development/local-oauth.md)。
+下一步阅读：[OAuth 工作原理](oauth.md)、[数据管理](../config/data.md)和[贡献指南](../CONTRIBUTING.md)。
 
----
+## English quick start
 
-# Quick Install (English)
+1. Install Node 22 and run `npm ci`.
+2. Create a separate OAuth App with both local URLs set to `http://localhost:5173/`.
+3. Copy `.dev.vars.example` to `.dev.vars` and provide `CLIENT_ID`, `CLIENT_SECRET`, `ALLOWED_ORIGINS`, and `GITHUB_REDIRECT_URI`.
+4. Put the same Client ID in uncommitted `.env.local` as `VITE_GITHUB_CLIENT_ID`.
+5. Run `npm run cloudflare:dev` and `npm run dev` in separate terminals.
+6. Run `npm run check` before opening a pull request.
 
-## Requirements
-
-| Dependency | Minimum | Recommended |
-|---|---:|---:|
-| Node.js | 22.12.0 | 22.x LTS |
-| npm | 10 | Version bundled with Node.js 22 |
-| Browser | Web Crypto, IndexedDB, and ES Modules support | Latest stable release |
-
-## Installation
-
-### 1. Clone the repository
-
-```bash
-git clone https://github.com/hujinghaoabcd/StarHub.git
-cd StarHub
-```
-
-### 2. Install locked dependencies
-
-```bash
-npm ci
-```
-
-Use `npm ci` for routine development so the installation matches `package-lock.json`. Use `npm install` only when intentionally changing dependencies and commit the resulting lockfile.
-
-### 3. Create a local GitHub OAuth App
-
-```text
-Homepage URL: http://localhost:5173/
-Authorization callback URL: http://localhost:5173/
-```
-
-Use a separate local App because a GitHub OAuth App supports only one callback URL.
-
-### 4. Configure Function variables
-
-```bash
-cp .dev.vars.example .dev.vars
-```
-
-```env
-CLIENT_ID=your_local_client_id
-CLIENT_SECRET=your_local_client_secret
-ALLOWED_ORIGINS=http://localhost:5173
-GITHUB_REDIRECT_URI=http://localhost:5173/
-```
-
-### 5. Configure the browser Client ID
-
-Create an uncommitted `.env.local` file:
-
-```env
-VITE_GITHUB_CLIENT_ID=your_local_client_id
-```
-
-It must match `CLIENT_ID` in `.dev.vars`. Never place the Client Secret in a `VITE_*` variable.
-
-### 6. Start both processes
-
-```bash
-# Terminal 1: Cloudflare Pages Functions on port 8788
-npm run cloudflare:dev
-
-# Terminal 2: Vite on port 5173
-npm run dev
-```
-
-Open `http://localhost:5173/`. The health endpoint is `http://localhost:8788/api/health`.
-
-## Common commands
-
-| Command | Description |
-|---|---|
-| `npm run dev` | Start the Vite frontend |
-| `npm run cloudflare:dev` | Build and start local Pages Functions |
-| `npm run check` | Run lint, types, tests, OAuth/security verification, and all builds |
-| `npm run test:unit` | Run unit tests |
-| `npm run pages:build` | Build the GitHub Pages app and docs |
-| `npm run cloudflare:build` | Build the API-only Cloudflare Pages output |
-| `npm run audit:production` | Audit production dependencies |
-
-Next: [GitHub OAuth Setup](oauth.md) and [Local OAuth Development](../development/local-oauth.md).
+Never place the Client Secret in a `VITE_*` variable or commit `.dev.vars`.

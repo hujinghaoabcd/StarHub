@@ -1,82 +1,38 @@
-# GitHub OAuth 配置
+# GitHub OAuth 配置与安全边界
 
-StarHub 使用 GitHub OAuth Web Flow。静态前端运行在 GitHub Pages，authorization code 由 Cloudflare Pages Function 在服务端兑换为访问令牌。
+StarHub 使用 GitHub OAuth Web Flow、随机 `state` 和 PKCE S256。静态前端负责发起授权，Cloudflare Pages Function 使用服务端 Secret 兑换访问 token。
 
-## 生产地址
+## 完整流程
 
-```text
-Homepage URL:
-https://hujinghaoabcd.github.io/StarHub/
+1. 浏览器生成一次性的 `state`、`code_verifier` 和 S256 `code_challenge`；
+2. 临时验证信息写入会话级存储，然后跳转 GitHub；
+3. GitHub 授权后把 `code` 与 `state` 返回应用根 URL；
+4. 前端先校验 `state`、回调时效和 redirect URI；
+5. 前端用 JSON `POST` 把 code、verifier 与 redirect URI 发送到 `/api/oauth/token`；
+6. Function 再校验 Origin 和 redirect URI，并使用 Client Secret 调用 GitHub；
+7. 前端取得 token、验证 GitHub 用户并移除地址栏回调参数；
+8. token 保存在 `sessionStorage`，最长会话 12 小时，关闭会话或主动退出后清除。
 
-Authorization callback URL:
-https://hujinghaoabcd.github.io/StarHub/
-```
+Client Secret 从不进入浏览器；用户仓库、分类和 AI 数据也不会发送到 OAuth Function。
 
-回调地址必须包含 `/StarHub/`，并且不能使用 `#/login`。
+## 权限与影响
 
-## 安全流程
+StarHub 需要读取用户 starred repositories，并支持用户主动取消 Star。实际授权范围以登录页和 GitHub 授权页面显示为准。用户应在 GitHub 设置中随时撤销不再使用的 OAuth App 授权。
 
-1. 浏览器生成随机 `state` 与 PKCE `code_verifier`；
-2. 浏览器将 `code_challenge` 发给 GitHub；
-3. GitHub 将 `code` 和 `state` 返回 StarHub 根路径；
-4. StarHub 校验 `state`；
-5. StarHub 使用 POST 将 `code`、`code_verifier` 和回调地址发送给 Cloudflare；
-6. Cloudflare 使用加密保存的 Client Secret 向 GitHub 交换 token；
-7. 前端验证当前 GitHub 用户并进入应用。
+## 生产配置
 
-## 本地开发
-
-本地环境应使用单独的 GitHub OAuth App：
+OAuth App：
 
 ```text
-Homepage URL: http://localhost:5173/
-Authorization callback URL: http://localhost:5173/
+Homepage URL=https://hujinghaoabcd.github.io/StarHub/
+Authorization callback URL=https://hujinghaoabcd.github.io/StarHub/
 ```
 
-### Functions 变量
-
-从示例复制未提交的 `.dev.vars`：
-
-```bash
-cp .dev.vars.example .dev.vars
-```
-
-```env
-CLIENT_ID=your_local_client_id
-CLIENT_SECRET=your_local_client_secret
-ALLOWED_ORIGINS=http://localhost:5173
-GITHUB_REDIRECT_URI=http://localhost:5173/
-```
-
-### 浏览器变量
-
-创建未提交的 `.env.local`：
-
-```env
-VITE_GITHUB_CLIENT_ID=your_local_client_id
-```
-
-`.env.local` 中的 `VITE_GITHUB_CLIENT_ID` 必须与 `.dev.vars` 中的 `CLIENT_ID` 属于同一个本地 OAuth App。Client Secret 不能进入任何 `VITE_*` 变量。
-
-### 启动
-
-```bash
-# 终端 1：OAuth Functions，端口 8788
-npm run cloudflare:dev
-
-# 终端 2：Vite 前端，端口 5173
-npm run dev
-```
-
-Vite 会把 `/api` 请求代理到 `http://localhost:8788`。完整说明见 [本地 OAuth 开发](../development/local-oauth.md)。
-
-## 生产必需配置
-
-Cloudflare Production Variables and Secrets：
+Cloudflare：
 
 ```text
-CLIENT_ID
-CLIENT_SECRET
+CLIENT_ID=<production-client-id>
+CLIENT_SECRET=<encrypted-secret>
 ALLOWED_ORIGINS=https://hujinghaoabcd.github.io
 GITHUB_REDIRECT_URI=https://hujinghaoabcd.github.io/StarHub/
 ```
@@ -84,8 +40,30 @@ GITHUB_REDIRECT_URI=https://hujinghaoabcd.github.io/StarHub/
 GitHub Actions Variables：
 
 ```text
-VITE_API_BASE_URL=https://你的项目.pages.dev/api
-VITE_GITHUB_CLIENT_ID=你的生产 GitHub OAuth Client ID
+VITE_API_BASE_URL=https://starhub-oauth.pages.dev/api
+VITE_GITHUB_CLIENT_ID=<production-client-id>
 ```
 
-浏览器变量与 Cloudflare 的 `CLIENT_ID` 必须使用同一个生产 OAuth App。详细步骤见 [Cloudflare Pages Functions OAuth 后端](../deploy/cloudflare.md)。
+## 本地配置
+
+使用另一套 OAuth App：
+
+```text
+Homepage URL=http://localhost:5173/
+Authorization callback URL=http://localhost:5173/
+```
+
+服务端变量写入 `.dev.vars`，公开 Client ID 写入 `.env.local`，然后分别运行 `npm run cloudflare:dev` 和 `npm run dev`。详见[本地 OAuth 开发](../development/local-oauth.md)。
+
+## 常见配置错误
+
+| 错误 | 原因 |
+|---|---|
+| `redirect_uri_mismatch` | callback 的协议、主机、路径或末尾斜杠不一致 |
+| `bad_verification_code` | code 已使用、过期，或重复处理浏览器回调 |
+| `state` 校验失败 | 在另一标签页发起登录、会话存储被清理或回调过期 |
+| CORS 错误 | `ALLOWED_ORIGINS` 写入了路径、尾斜杠或错误域名 |
+| Client ID 不一致 | 前端变量与 Cloudflare 变量来自不同 OAuth App |
+| API 404 | `VITE_API_BASE_URL` 缺少 `/api`，或 Functions 未正确部署 |
+
+不要通过关闭 `state`、放宽到 `*` Origin、把 Secret 放进前端或改成 GET 来“解决”这些错误。正确做法是让四处配置逐字符一致。
