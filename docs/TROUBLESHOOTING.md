@@ -188,7 +188,7 @@ fetch('/force-clear-tags.js').then(r => r.text()).then(eval);
    - 在设置中开启"读取 README"选项
 
 2. **使用更强的模型**
-   - 尝试 gpt-4o 或 claude-3-5-sonnet
+   - 尝试支持结构化输出的模型，如 gpt-4o-mini 或 claude-sonnet-4-6
 
 3. **减小批次大小**
    - 小批次通常分类更准确
@@ -281,4 +281,3 @@ fetch('/emergency-clear.js').then(r => r.text()).then(eval);
    - 浏览器及版本
    - 问题的具体表现
    - 复现步骤
-
