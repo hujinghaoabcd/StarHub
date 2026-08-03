@@ -1,5 +1,7 @@
-import { getAIConfig, DEFAULT_MODELS, DEFAULT_BASE_URLS } from '@/config/ai'
+import { getAIConfig, DEFAULT_MODELS } from '@/config/ai'
 import type { Repository } from '@/types'
+import { resolveAIEndpoint } from '@/utils/aiEndpoint'
+import { validateClassificationItems } from '@/services/classificationValidation'
 
 export interface ClassificationResult {
   category: string
@@ -7,14 +9,110 @@ export interface ClassificationResult {
   confidence: number
 }
 
+export type ClassificationRunStatus = 'success' | 'partial' | 'failed' | 'cancelled'
+
+export interface ClassificationBatchFailure {
+  batchIndex: number
+  repositoryIds: number[]
+  reason: string
+}
+
+export interface ClassificationRunResult {
+  status: ClassificationRunStatus
+  categoryMap: Map<string, number[]>
+  completedBatches: number
+  totalBatches: number
+  failures: ClassificationBatchFailure[]
+}
+
+export interface ClassificationRunOptions {
+  signal?: AbortSignal
+  requestTimeoutMs?: number
+}
+
+const DEFAULT_AI_REQUEST_TIMEOUT_MS = 60_000
+
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === 'AbortError'
+    : error instanceof Error && error.name === 'AbortError'
+}
+
+function createAbortError(reason = 'Classification cancelled'): Error {
+  const error = new Error(reason)
+  error.name = 'AbortError'
+  return error
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw createAbortError(
+      typeof signal.reason === 'string' ? signal.reason : undefined
+    )
+  }
+}
+
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+  signal?: AbortSignal
+): Promise<Response> {
+  throwIfAborted(signal)
+  const controller = new AbortController()
+  let timedOut = false
+  const timeoutId = window.setTimeout(() => {
+    timedOut = true
+    controller.abort(createAbortError('AI request timed out'))
+  }, timeoutMs)
+  const abortFromCaller = () => {
+    controller.abort(createAbortError('Classification cancelled'))
+  }
+  signal?.addEventListener('abort', abortFromCaller, { once: true })
+
+  try {
+    return await fetch(input, { ...init, signal: controller.signal })
+  } catch (error) {
+    if (timedOut && !signal?.aborted) {
+      throw new Error(`AI request timed out after ${timeoutMs}ms`)
+    }
+    if (signal?.aborted) {
+      throw createAbortError('Classification cancelled')
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeoutId)
+    signal?.removeEventListener('abort', abortFromCaller)
+  }
+}
+
+async function abortableDelay(milliseconds: number, signal?: AbortSignal): Promise<void> {
+  throwIfAborted(signal)
+
+  await new Promise<void>((resolve, reject) => {
+    const finish = () => {
+      signal?.removeEventListener('abort', handleAbort)
+      resolve()
+    }
+    const timeoutId = window.setTimeout(finish, milliseconds)
+    const handleAbort = () => {
+      window.clearTimeout(timeoutId)
+      signal?.removeEventListener('abort', handleAbort)
+      reject(createAbortError('Classification cancelled'))
+    }
+    signal?.addEventListener('abort', handleAbort, { once: true })
+  })
+}
+
 // 调用 OpenAI 兼容 API
 async function callOpenAICompatible(
   messages: any[],
   apiKey: string,
   baseURL: string,
-  model: string
+  model: string,
+  options: Required<Pick<ClassificationRunOptions, 'requestTimeoutMs'>> & ClassificationRunOptions
 ): Promise<string> {
-  const response = await fetch(`${baseURL}/chat/completions`, {
+  const response = await fetchWithTimeout(`${baseURL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -26,7 +124,7 @@ async function callOpenAICompatible(
       temperature: 0.3,
       max_tokens: 2000
     })
-  })
+  }, options.requestTimeoutMs, options.signal)
 
   if (!response.ok) {
     const error = await response.text()
@@ -42,13 +140,14 @@ async function callClaude(
   messages: any[],
   apiKey: string,
   baseURL: string,
-  model: string
+  model: string,
+  options: Required<Pick<ClassificationRunOptions, 'requestTimeoutMs'>> & ClassificationRunOptions
 ): Promise<string> {
   // 提取 system message
   const systemMessage = messages.find(m => m.role === 'system')
   const userMessages = messages.filter(m => m.role !== 'system')
 
-  const response = await fetch(`${baseURL}/messages`, {
+  const response = await fetchWithTimeout(`${baseURL}/messages`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -61,7 +160,7 @@ async function callClaude(
       system: systemMessage?.content || '',
       messages: userMessages
     })
-  })
+  }, options.requestTimeoutMs, options.signal)
 
   if (!response.ok) {
     const error = await response.text()
@@ -77,9 +176,10 @@ async function callZhipu(
   messages: any[],
   apiKey: string,
   baseURL: string,
-  model: string
+  model: string,
+  options: Required<Pick<ClassificationRunOptions, 'requestTimeoutMs'>> & ClassificationRunOptions
 ): Promise<string> {
-  const response = await fetch(`${baseURL}/chat/completions`, {
+  const response = await fetchWithTimeout(`${baseURL}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -91,7 +191,7 @@ async function callZhipu(
       temperature: 0.3,
       max_tokens: 2000
     })
-  })
+  }, options.requestTimeoutMs, options.signal)
 
   if (!response.ok) {
     const error = await response.text()
@@ -107,21 +207,28 @@ export async function classifyRepositories(
   repos: Repository[],
   onProgress?: (current: number, total: number) => void,
   onBatchComplete?: (batchResult: Map<string, number[]>, batchIndex: number, totalBatches: number) => Promise<void>,
-  batchSize?: number // 可配置的批次大小
-): Promise<Map<string, number[]>> {
+  batchSize?: number, // 可配置的批次大小
+  runOptions: ClassificationRunOptions = {}
+): Promise<ClassificationRunResult> {
   const config = getAIConfig()
   
   if (!config.apiKey) {
     throw new Error('请先配置 AI API Key')
   }
 
-  const baseURL = config.baseURL || DEFAULT_BASE_URLS[config.provider]
+  const { baseURL } = resolveAIEndpoint(config)
   const model = config.model || DEFAULT_MODELS[config.provider]
+  const options = {
+    ...runOptions,
+    requestTimeoutMs: runOptions.requestTimeoutMs || DEFAULT_AI_REQUEST_TIMEOUT_MS
+  }
   
   // 分批处理：使用配置的批次大小，默认 50
   const BATCH_SIZE = batchSize || config.batchSize || 50
   const totalBatches = Math.ceil(repos.length / BATCH_SIZE)
   const allCategoryMap = new Map<string, number[]>()
+  const failures: ClassificationBatchFailure[] = []
+  let completedBatches = 0
   
   console.log(`开始分类 ${repos.length} 个仓库，分 ${totalBatches} 批处理（每批 ${BATCH_SIZE} 个）...`)
   
@@ -137,6 +244,7 @@ export async function classifyRepositories(
   }
   
   for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+    if (options.signal?.aborted) break
     const start = batchIndex * BATCH_SIZE
     const end = Math.min(start + BATCH_SIZE, repos.length)
     const batchRepos = repos.slice(start, end)
@@ -151,29 +259,22 @@ export async function classifyRepositories(
     // 重试机制：最多重试 3 次
     let retryCount = 0
     let success = false
+    let batchResult: Map<string, number[]> | null = null
     
     while (retryCount < 3 && !success) {
       try {
-        const batchCategoryMap = await classifyBatch(batchRepos, config, baseURL, model, existingCategories)
-        
-        // 合并结果到总 map
-        for (const [category, repoIds] of batchCategoryMap.entries()) {
-          if (!allCategoryMap.has(category)) {
-            allCategoryMap.set(category, [])
-          }
-          allCategoryMap.get(category)!.push(...repoIds)
-        }
-        
-        console.log(`第 ${batchIndex + 1} 批完成，已分类: ${batchCategoryMap.size} 个类别`)
+        batchResult = await classifyBatch(
+          batchRepos,
+          config,
+          baseURL,
+          model,
+          existingCategories,
+          options
+        )
         success = true
-        
-        // 立即通知批次完成（异步执行，不阻塞下一批）
-        if (onBatchComplete) {
-          onBatchComplete(batchCategoryMap, batchIndex + 1, totalBatches).catch(err => {
-            console.error('批次完成回调失败:', err)
-          })
-        }
       } catch (error: any) {
+        if (isAbortError(error) || options.signal?.aborted) break
+
         // 检查是否是速率限制错误
         if (error.message && error.message.includes('429')) {
           const waitTime = extractWaitTime(error.message)
@@ -184,29 +285,92 @@ export async function classifyRepositories(
             onProgress(batchIndex, totalBatches)
           }
           
-          await new Promise(resolve => setTimeout(resolve, waitTime * 1000))
+          try {
+            await abortableDelay(waitTime * 1000, options.signal)
+          } catch (delayError) {
+            if (!isAbortError(delayError)) throw delayError
+            break
+          }
           retryCount++
         } else {
           console.error(`第 ${batchIndex + 1} 批处理失败:`, error)
-          break // 非速率限制错误，跳过这批
+          failures.push({
+            batchIndex: batchIndex + 1,
+            repositoryIds: batchRepos.map(repo => repo.id),
+            reason: error instanceof Error ? error.message : String(error)
+          })
+          break
         }
+      }
+    }
+
+    if (options.signal?.aborted) break
+
+    if (!success && retryCount >= 3) {
+      failures.push({
+        batchIndex: batchIndex + 1,
+        repositoryIds: batchRepos.map(repo => repo.id),
+        reason: 'API rate limit retries exhausted'
+      })
+    }
+
+    if (success && batchResult) {
+      try {
+        // Persistence must finish before the next batch starts.
+        if (onBatchComplete) {
+          await onBatchComplete(batchResult, batchIndex + 1, totalBatches)
+        }
+
+        for (const [category, repoIds] of batchResult.entries()) {
+          if (!allCategoryMap.has(category)) allCategoryMap.set(category, [])
+          allCategoryMap.get(category)!.push(...repoIds)
+        }
+
+        completedBatches++
+        console.log(`第 ${batchIndex + 1} 批完成，已分类: ${batchResult.size} 个类别`)
+      } catch (error) {
+        console.error(`第 ${batchIndex + 1} 批写入失败:`, error)
+        failures.push({
+          batchIndex: batchIndex + 1,
+          repositoryIds: batchRepos.map(repo => repo.id),
+          reason: error instanceof Error ? error.message : String(error)
+        })
       }
     }
     
     // 每批之间间隔（根据 API 提供商调整）
     const delayTime = getDelayTime(config.provider)
-    if (batchIndex < totalBatches - 1) {
+    if (batchIndex < totalBatches - 1 && !options.signal?.aborted) {
       console.log(`等待 ${delayTime} 秒后处理下一批...`)
-      await new Promise(resolve => setTimeout(resolve, delayTime * 1000))
+      try {
+        await abortableDelay(delayTime * 1000, options.signal)
+      } catch (error) {
+        if (!isAbortError(error)) throw error
+        break
+      }
     }
   }
-  
-  console.log('所有批次处理完成！')
+
+  const status: ClassificationRunStatus = options.signal?.aborted
+    ? 'cancelled'
+    : failures.length === 0
+      ? 'success'
+      : completedBatches === 0
+        ? 'failed'
+        : 'partial'
+
+  console.log(`分类任务结束，状态: ${status}`)
   console.log('最终分类统计:', Object.fromEntries(
     Array.from(allCategoryMap.entries()).map(([k, v]) => [k, v.length])
   ))
   
-  return allCategoryMap
+  return {
+    status,
+    categoryMap: allCategoryMap,
+    completedBatches,
+    totalBatches,
+    failures
+  }
 }
 
 // 分类单个批次
@@ -215,7 +379,8 @@ async function classifyBatch(
   config: any,
   baseURL: string,
   model: string,
-  existingCategories: string[] = []
+  existingCategories: string[] = [],
+  options: Required<Pick<ClassificationRunOptions, 'requestTimeoutMs'>> & ClassificationRunOptions
 ): Promise<Map<string, number[]>> {
 
   // 从用户设置中获取当前的分类预设（而不是默认配置）
@@ -307,12 +472,12 @@ ${categoryList}
   let responseText: string
   
   if (config.provider === 'claude') {
-    responseText = await callClaude(messages, config.apiKey, baseURL, model)
+    responseText = await callClaude(messages, config.apiKey, baseURL, model, options)
   } else if (config.provider === 'zhipu') {
-    responseText = await callZhipu(messages, config.apiKey, baseURL, model)
+    responseText = await callZhipu(messages, config.apiKey, baseURL, model, options)
   } else {
     // OpenAI, Qwen, DeepSeek 等都使用 OpenAI 兼容接口
-    responseText = await callOpenAICompatible(messages, config.apiKey, baseURL, model)
+    responseText = await callOpenAICompatible(messages, config.apiKey, baseURL, model, options)
   }
 
   // 解析响应
@@ -377,28 +542,11 @@ ${categoryList}
   console.log('Parsed result:', result)
   console.log('Classifications count:', result.classifications?.length)
   
-  // 验证返回的数据
-  if (!result.classifications || !Array.isArray(result.classifications)) {
-    throw new Error('AI 返回的数据格式错误：缺少 classifications 数组')
-  }
-  
-  // 构建分类映射
-  const categoryMap = new Map<string, number[]>()
-  
-  for (const item of result.classifications) {
-    if (!item.id || !item.category) {
-      console.warn('跳过无效的分类项:', item)
-      continue
-    }
-    
-    const category = item.category
-    const repoId = typeof item.id === 'number' ? item.id : parseInt(item.id)
-    
-    if (!categoryMap.has(category)) {
-      categoryMap.set(category, [])
-    }
-    categoryMap.get(category)!.push(repoId)
-  }
+  // 止损校验：任何遗漏、重复、未知或无效 ID 都会使整批失败，禁止写库。
+  const categoryMap = validateClassificationItems(
+    repos.map(repo => repo.id),
+    result.classifications
+  )
   
   console.log('Category map:', Object.fromEntries(categoryMap))
   console.log('Total categories:', categoryMap.size)
@@ -466,4 +614,3 @@ export const CATEGORY_COLORS: Record<string, string> = {
   '测试': '#4caf50',
   '其他': '#9e9e9e'
 }
-
