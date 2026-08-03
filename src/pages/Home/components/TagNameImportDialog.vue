@@ -57,7 +57,7 @@ import { Upload } from '@element-plus/icons-vue'
 import { useTagStore } from '@/stores/tag'
 import { parseTagNameImport } from '@/services/tagNameImport'
 
-const props = defineProps<{
+defineProps<{
   modelValue: boolean
 }>()
 
