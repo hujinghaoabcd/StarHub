@@ -20,6 +20,10 @@ import {
   CLASSIFICATION_PROMPT_VERSION
 } from '@/services/classificationProtocol'
 import {
+  buildModelFacingClassificationRegistry,
+  restorePersistedClassificationAssignments
+} from '@/services/classificationRegistry'
+import {
   AIOutputError,
   buildOpenAICompatibleRequestBody,
   extractOpenAICompatibleText,
@@ -555,7 +559,8 @@ async function classifyBatch(
   options: Required<Pick<ClassificationRunOptions, 'requestTimeoutMs'>> &
     ClassificationRunOptions
 ): Promise<ClassificationAssignment[]> {
-  const categoryRegistry = categories.map(category => ({
+  const modelRegistry = buildModelFacingClassificationRegistry(categories)
+  const categoryRegistry = modelRegistry.categories.map(category => ({
     category_id: category.categoryId,
     name: category.name,
     description: category.description,
@@ -567,11 +572,14 @@ async function classifyBatch(
   const repositoryInfo = metadataOnlyRepositoryInfo.map(metadata => {
     if (!hasReadmeEvidence) return metadata
     const baseline = options.baselineAssignments?.get(metadata.repository_id)
+    const baselineModelCategoryId = baseline
+      ? modelRegistry.modelCategoryIdByCategoryId.get(baseline.categoryId)
+      : undefined
     return {
       ...metadata,
-      previous_classification: baseline
+      previous_classification: baseline && baselineModelCategoryId
         ? {
-            category_id: baseline.categoryId,
+            category_id: baselineModelCategoryId,
             confidence: baseline.confidence,
             reason: baseline.reason
           }
@@ -598,7 +606,7 @@ ${JSON.stringify(repositoryInfo)}`
     { role: 'system', content: systemPrompt },
     { role: 'user', content: userPrompt }
   ]
-  const schema = classificationResponseSchema(categories)
+  const schema = classificationResponseSchema(modelRegistry.categories)
   const responseText = config.provider === 'claude'
     ? await callClaude(
         messages,
@@ -621,10 +629,14 @@ ${JSON.stringify(repositoryInfo)}`
 
   try {
     const parsed = parseClassificationResponse(responseText)
-    return validateClassificationItems(
+    const modelAssignments = validateClassificationItems(
       repos.map(repository => repository.id),
-      categories.map(category => category.categoryId),
+      modelRegistry.categories.map(category => category.categoryId),
       extractClassificationItems(parsed)
+    )
+    return restorePersistedClassificationAssignments(
+      modelAssignments,
+      modelRegistry.categoryIdByModelCategoryId
     )
   } catch (error) {
     throw new AIOutputError(

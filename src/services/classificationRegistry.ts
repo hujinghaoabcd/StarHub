@@ -1,5 +1,15 @@
 import type { CategoryPreset } from '@/config/categories'
-import type { ClassificationCategory, Tag } from '@/types'
+import type {
+  ClassificationAssignment,
+  ClassificationCategory,
+  Tag
+} from '@/types'
+
+export interface ModelFacingClassificationRegistry {
+  categories: ClassificationCategory[]
+  modelCategoryIdByCategoryId: ReadonlyMap<string, string>
+  categoryIdByModelCategoryId: ReadonlyMap<string, string>
+}
 
 function normalizeName(value: string): string {
   return value.trim().toLocaleLowerCase()
@@ -72,4 +82,42 @@ export function buildClassificationRegistryVersion(
   }
 
   return `registry-v1-${(hash >>> 0).toString(16).padStart(8, '0')}`
+}
+
+/**
+ * Models are much more reliable at copying compact enum values than opaque
+ * IndexedDB tag IDs. These request-local IDs never leave the AI transport
+ * boundary and are mapped back before a draft can be persisted or reviewed.
+ */
+export function buildModelFacingClassificationRegistry(
+  categories: readonly ClassificationCategory[]
+): ModelFacingClassificationRegistry {
+  const width = Math.max(3, String(categories.length).length)
+  const modelCategoryIdByCategoryId = new Map<string, string>()
+  const categoryIdByModelCategoryId = new Map<string, string>()
+  const modelCategories = categories.map((category, index) => {
+    const modelCategoryId = `c${String(index + 1).padStart(width, '0')}`
+    modelCategoryIdByCategoryId.set(category.categoryId, modelCategoryId)
+    categoryIdByModelCategoryId.set(modelCategoryId, category.categoryId)
+    return { ...category, categoryId: modelCategoryId }
+  })
+
+  return {
+    categories: modelCategories,
+    modelCategoryIdByCategoryId,
+    categoryIdByModelCategoryId
+  }
+}
+
+export function restorePersistedClassificationAssignments(
+  assignments: readonly ClassificationAssignment[],
+  categoryIdByModelCategoryId: ReadonlyMap<string, string>
+): ClassificationAssignment[] {
+  return assignments.map(assignment => {
+    const categoryId = categoryIdByModelCategoryId.get(assignment.categoryId)
+    if (!categoryId) {
+      throw new Error(`Unknown model category ID: ${assignment.categoryId}`)
+    }
+    return { ...assignment, categoryId }
+  })
 }
