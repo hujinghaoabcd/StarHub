@@ -34,12 +34,14 @@ test('repository action buttons remain compact and equally sized', async () => {
     'src/pages/Home/components/RepositoryOverview.vue'
   )
 
-  assert.match(detail, /\.github-link\s*\{[\s\S]*height:\s*32px/)
-  assert.match(detail, /\.github-link\s*\{[\s\S]*padding:\s*0 11px/)
-  assert.match(overview, /\.unstar-button\s*\{[\s\S]*height:\s*32px/)
-  assert.match(overview, /\.unstar-button\s*\{[\s\S]*padding:\s*0 11px/)
+  assert.match(detail, /\.github-link\s*\{[\s\S]*height:\s*28px/)
+  assert.match(detail, /\.github-link\s*\{[\s\S]*padding:\s*0 8px/)
+  assert.match(overview, /\.unstar-button\s*\{[\s\S]*height:\s*28px/)
+  assert.match(overview, /\.unstar-button\s*\{[\s\S]*padding:\s*0 8px/)
   assert.equal(detail.includes('height: 44px'), false)
+  assert.equal(detail.includes('height: 32px'), false)
   assert.equal(overview.includes('height: 44px'), false)
+  assert.equal(overview.includes('height: 32px'), false)
 })
 
 test('about is shown below the description without a github pages section', async () => {
