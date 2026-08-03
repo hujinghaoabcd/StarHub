@@ -17,8 +17,9 @@ function normalizeName(value: string): string {
 
 /**
  * Build the model-facing registry exclusively from tags that already exist.
- * The persisted tag ID is the stable category ID; presets only enrich the
- * description and examples and can never create a category implicitly.
+ * Once the user has confirmed a formal registry, unmanaged legacy tags are
+ * excluded so the model can never turn an ad-hoc label into an AI category.
+ * Presets only enrich legacy tags and can never create a category implicitly.
  */
 export function buildClassificationRegistry(
   tags: readonly Tag[],
@@ -36,34 +37,58 @@ export function buildClassificationRegistry(
   const seenIds = new Set<string>()
   const isChinese = language === 'zh' || language === 'zh-CN'
 
-  return tags.flatMap(tag => {
+  const hasFormalRegistry = tags.some(tag => tag.registry?.managed)
+  const eligibleTags = hasFormalRegistry
+    ? tags.filter(tag => tag.registry?.managed)
+    : tags
+
+  return eligibleTags.flatMap(tag => {
     const categoryId = tag.id.trim()
-    const name = tag.name.trim()
+    const registry = tag.registry
+    const name = (
+      registry
+        ? isChinese
+          ? registry.nameZh
+          : registry.nameEn || registry.nameZh
+        : tag.name
+    ).trim()
     if (!categoryId || !name || seenIds.has(categoryId)) return []
     seenIds.add(categoryId)
 
-    const preset = presetsByName.get(normalizeName(name))
-    const description = preset
-      ? (isChinese
-          ? preset.description
-          : preset.descriptionEn || preset.description)
-      : isChinese
-        ? `用户创建的分类：${name}`
-        : `User-created category: ${name}`
+    const preset = registry ? undefined : presetsByName.get(normalizeName(name))
+    const description = registry
+      ? isChinese
+        ? registry.descriptionZh
+        : registry.descriptionEn || registry.descriptionZh
+      : preset
+        ? (isChinese
+            ? preset.description
+            : preset.descriptionEn || preset.description)
+        : isChinese
+          ? `用户创建的分类：${name}`
+          : `User-created category: ${name}`
 
-    return [{
+    const category: ClassificationCategory = {
       categoryId,
       name,
       description: description.trim(),
-      examples: preset?.keywords.slice(0, 12) || [],
-      exclusions: []
-    }]
+      examples: registry?.examples.slice(0, 12) || preset?.keywords.slice(0, 12) || [],
+      exclusions: registry?.exclusions.slice(0, 12) || []
+    }
+    if (registry) {
+      category.aliases = registry.aliases.slice(0, 20)
+      category.registryKey = registry.registryKey
+      category.level1 = registry.level1
+      category.level2 = registry.level2
+    }
+    return [category]
   })
 }
 
 export function buildClassificationRegistryVersion(
   categories: readonly ClassificationCategory[]
 ): string {
+  const isFormalRegistry = categories.some(category => category.registryKey)
   const stableRegistry = [...categories]
     .sort((a, b) => a.categoryId.localeCompare(b.categoryId))
     .map(category => ({
@@ -71,7 +96,15 @@ export function buildClassificationRegistryVersion(
       name: category.name,
       description: category.description,
       examples: [...category.examples],
-      exclusions: [...category.exclusions]
+      exclusions: [...category.exclusions],
+      ...(isFormalRegistry
+        ? {
+            aliases: [...(category.aliases || [])],
+            registryKey: category.registryKey || '',
+            level1: category.level1 || '',
+            level2: category.level2 || ''
+          }
+        : {})
     }))
   const input = JSON.stringify(stableRegistry)
   let hash = 0x811c9dc5
@@ -81,7 +114,7 @@ export function buildClassificationRegistryVersion(
     hash = Math.imul(hash, 0x01000193)
   }
 
-  return `registry-v1-${(hash >>> 0).toString(16).padStart(8, '0')}`
+  return `registry-v${isFormalRegistry ? 2 : 1}-${(hash >>> 0).toString(16).padStart(8, '0')}`
 }
 
 /**

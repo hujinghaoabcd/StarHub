@@ -11,7 +11,7 @@ function uniqueFiniteRepositoryIds(repositoryIds: readonly number[]): number[] {
 }
 
 export function toStoredTag(tag: StoredTag | Tag): StoredTag {
-  return {
+  const storedTag: StoredTag = {
     id: tag.id,
     name: tag.name,
     color: tag.color,
@@ -19,6 +19,15 @@ export function toStoredTag(tag: StoredTag | Tag): StoredTag {
     createdAt: tag.createdAt,
     updatedAt: tag.updatedAt
   }
+  if (tag.registry) {
+    storedTag.registry = {
+      ...tag.registry,
+      aliases: [...tag.registry.aliases],
+      examples: [...tag.registry.examples],
+      exclusions: [...tag.registry.exclusions]
+    }
+  }
+  return storedTag
 }
 
 export function deduplicateRepoTags(

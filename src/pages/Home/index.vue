@@ -19,6 +19,16 @@
               <el-button
                 class="category-tool-button"
                 size="small"
+                plain
+                :disabled="tagStore.isMutating"
+                @click="showCategoryManager = true"
+              >
+                <el-icon><Tools /></el-icon>
+                管理
+              </el-button>
+              <el-button
+                class="category-tool-button"
+                size="small"
                 type="danger"
                 plain
                 :loading="tagStore.isMutating"
@@ -62,13 +72,14 @@
     </HomeLayout>
 
     <TagNameImportDialog v-model="showImportTagDialog" />
+    <CategoryManagerDialog v-model="showCategoryManager" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Upload } from '@element-plus/icons-vue'
+import { Delete, Tools, Upload } from '@element-plus/icons-vue'
 import { useRepoStore } from '@/stores/repo'
 import { useTagStore } from '@/stores/tag'
 import { useHighlightStore } from '@/stores/highlight'
@@ -77,6 +88,7 @@ import SideMenu from './components/SideMenu.vue'
 import RepoList from './components/RepoList.vue'
 import RepositoryDetailView from './components/RepositoryDetailView.vue'
 import TagNameImportDialog from './components/TagNameImportDialog.vue'
+import CategoryManagerDialog from './components/CategoryManagerDialog.vue'
 import EmptyState from './components/EmptyState.vue'
 import type { Repository } from '@/types'
 
@@ -86,6 +98,7 @@ const highlightStore = useHighlightStore()
 
 const selectedRepo = ref<Repository | null>(null)
 const showImportTagDialog = ref(false)
+const showCategoryManager = ref(false)
 
 const filteredRepos = computed(() => repoStore.filteredRepos)
 const loading = computed(() => repoStore.isFetching)

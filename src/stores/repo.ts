@@ -548,6 +548,7 @@ export const useRepoStore = defineStore('repo', {
           db.repoTags,
           db.classificationReadmeCache,
           db.repositoryHighlights,
+          db.categoryMigrationSnapshots,
           async () => {
             await db.repos.delete(repoId)
             await db.repoTags.where('repoId').equals(repoId).delete()
@@ -621,6 +622,7 @@ export const useRepoStore = defineStore('repo', {
             await db.repoTags.clear()
             await db.classificationReadmeCache.clear()
             await db.repositoryHighlights.clear()
+            await db.categoryMigrationSnapshots.clear()
           }
         )
       )

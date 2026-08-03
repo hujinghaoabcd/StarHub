@@ -563,6 +563,7 @@ async function classifyBatch(
   const categoryRegistry = modelRegistry.categories.map(category => ({
     category_id: category.categoryId,
     name: category.name,
+    aliases: category.aliases || [],
     description: category.description,
     examples: category.examples,
     exclusions: category.exclusions
