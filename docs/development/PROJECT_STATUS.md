@@ -3,10 +3,10 @@
 ## 当前概况
 
 - 基准分支：`main`
-- `main` 当前提交：`32c23b2d30d854329c13f41159a278e02468011a`
-- 开发分支：`agent/first-priority-cleanup`
-- 当前 PR：`#16 fix: complete first priority cleanup`
-- 当前阶段：第一优先级质量修复
+- `main` 当前提交：`f967f282ef161713af928d1f60dce4a9a8cfb06a`
+- 开发分支：`agent/detail-layout-tag-import-ai-audit`
+- 当前 PR：`#18 feat: integrate repository actions and category-name import`
+- 当前阶段：详情布局、分类名称导入与 AI 分类架构审查
 - 生产前端：`https://hujinghaoabcd.github.io/StarHub/`
 - 生产文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
 - OAuth API：`https://starhub-oauth.pages.dev/api`
@@ -15,102 +15,113 @@
 
 - [x] GitHub Pages 与 Cloudflare Pages Functions 部署
 - [x] OAuth state、PKCE、严格 Origin 与 redirect URI 校验
+- [x] OAuth popup 回调在 Vue/router 启动前转发
 - [x] Stars 权威快照与 IndexedDB 原子同步
 - [x] `repoTags` 单一关系真源与 IndexedDB v3 迁移
 - [x] 12 小时会话级 token、401 清理与跨标签页退出
 - [x] 生产依赖漏洞归零、严格 CSP 与 bundle 动态执行扫描
-- [x] 本地 OAuth 开发统一到 Wrangler Pages Functions
-- [x] vue-i18n 严格 CSP 兼容
 - [x] About Website 与 GitHub Pages 实际地址展示
 - [x] 全量升降序排序与最大 1000 条分页
 - [x] 应用内取消公开仓库 Star
-- [x] 取消 Star 在后台同步期间保持可用，并安全取消旧同步
+- [x] 全局 SCSS 作用域修复与 ESLint 零 warning 门禁
 
-## 当前批次：PR #16
+## 当前批次：PR #18
 
-### 全局样式修复
+### 详情布局
 
-- [x] 移除 `src/styles/main.scss` 中全部 Vue SFC `:deep()` 选择器
-- [x] 全局 Element Plus 主题覆盖改为普通 CSS/SCSS 选择器
-- [x] 增加单元测试，禁止 `:deep()` 再次进入全局样式
-- [x] 消除 Lightning CSS 对全局 `:deep()` 的构建警告
+- [x] 删除独立的“项目链接”卡片
+- [x] 新增组合详情组件 `RepositoryDetailView.vue`
+- [x] 仓库标题、描述、语言、Star、Fork、License、更新时间保留在一个摘要卡片
+- [x] About 与 GitHub Pages 地址嵌入同一摘要卡片
+- [x] “取消 Star”移入摘要卡片操作区
+- [x] 原 README 与标签编辑能力继续复用 `DetailView.vue`
 
-### ESLint 零 warning
+### 分类名称导入
 
-- [x] 修复 7 条既有 warning
-- [x] 修复 `prefer-const`
-- [x] 删除未使用的 `defineEmits` 返回值和分类结果变量
-- [x] 修正声明文件中的未使用参数名
-- [x] `npm run lint` 增加 `--max-warnings=0`
-- [x] 后续新增 warning 将直接阻止 CI
+- [x] 主页侧栏新增“分类工具 → 导入分类”入口
+- [x] 支持直接粘贴分类名称
+- [x] 支持 TXT、CSV 和 JSON 文件
+- [x] 支持从 StarHub 备份文件提取标签名称
+- [x] 大小写不敏感去重
+- [x] 忽略空名称和超过 80 字符的名称
+- [x] 仅写入 `tags` 表，不写入 `repoTags`
+- [x] 不读取或恢复任何仓库分类关系
+- [x] 不覆盖现有分类颜色、emoji 或成员关系
 
-### 自动验证
+### AI 分类审查
 
-一次性修改工作流已通过：
+- [x] 审查 AI 配置、供应商调用、提示词、README 获取、批处理、停止、重试和数据写入链路
+- [x] 识别自由文本 JSON 修复、输出未校验和未知分类自动创建风险
+- [x] 识别 API Key 长期存储、自定义 baseURL 与第三方数据披露风险
+- [x] 识别停止按钮不取消网络请求、批次回调未等待和失败批次被跳过问题
+- [x] 提出稳定 category ID、结构化输出、人工审核、原子提交和可恢复任务架构
+- [x] 形成 `docs/development/AI_CLASSIFICATION_AUDIT.md`
+
+本批不直接重写 AI 分类执行引擎，避免在没有人工金标准数据集和回归评测的情况下同时改变模型、提示词和数据库行为。
+
+## 当前自动验证
 
 ```text
-npm ci                              PASS
-Lint --max-warnings=0               PASS
-Frontend type-check                 PASS
-Unit tests                          PASS
-Cloudflare Functions type-check     PASS
-OAuth documentation verification   PASS
-Application + docs build            PASS
-CSP bundle verification             PASS
-Static security verification        PASS
-Production dependency audit         PASS，0 vulnerabilities
-Cloudflare Pages bundle             PASS
+PR head                         61d7c1c34e4e296780080b8fe3b3161443521149
+CI run                          30776242027  PASS
+GitHub Pages PR run             30776241662  PASS
+Lint                            PASS，0 warning
+Frontend type-check             PASS
+Unit tests                      PASS
+Cloudflare Functions type-check PASS
+OAuth documentation verification PASS
+Application + docs build        PASS
+CSP bundle verification         PASS
+Static security verification    PASS
+Production dependency audit     PASS，0 vulnerabilities
+Cloudflare Pages bundle         PASS
 ```
 
-普通文档提交将再次触发最终 CI 和 GitHub Pages PR 构建。
+## 合并前检查
 
-## 尚未完成的人工验收
+- [x] 临时工作流未进入 PR 文件清单
+- [x] 旧 `SideMenu.vue` AI 批处理逻辑未被修改
+- [x] 旧 `tagStore` 未新增分类导入旁路
+- [x] 分类导入持久化不引用 `repoTags` 或 `repoId`
+- [x] 详情页不再渲染独立链接卡片
+- [ ] 更新 PR 最终说明
+- [ ] 标记 Ready 并 squash 合并到 `main`
+- [ ] 生产环境人工检查布局和分类名称导入
 
-### 取消 Star 生产链路
+## 后续优先级
 
-- [ ] 使用生产站点登录真实 GitHub 账户
-- [ ] 在后台同步尚未结束时打开一个公开仓库详情
-- [ ] 确认“取消 Star”按钮可点击
-- [ ] 首次操作时确认 `public_repo` 权限说明
-- [ ] 完成 GitHub OAuth 授权并确认操作自动重试
-- [ ] 确认 GitHub 仓库页面已取消 Star
-- [ ] 确认 StarHub 列表、IndexedDB `repos` 和 `repoTags` 同时删除
-- [ ] 刷新或重新同步后仓库不再出现
-- [ ] 拒绝授权或关闭 popup 时仓库保持不变
+### P0：AI 分类止损批次
 
-自动测试不能替代真实 OAuth popup 和 GitHub 写操作，因此该项必须保留为人工生产验收。
+- [ ] 将 AI 分类明确标记为实验性功能
+- [ ] 暂停或隐藏“全部重新分类”入口
+- [ ] 将 AI API Key 从长期 `localStorage` 改为有期限会话存储，增加立即清除按钮
+- [ ] 增加 HTTPS 与自定义 API 主机确认
+- [ ] 为所有 GitHub 与 AI 请求加入 timeout 和 `AbortController`
+- [ ] 修复批次回调未等待和部分失败仍显示完整成功
 
-## 仍需后续处理
+### P1：AI 分类第二版
 
-### P1
+- [ ] 建立稳定 `category_id` registry
+- [ ] 使用 JSON Schema/Structured Output
+- [ ] 校验输入仓库 ID、重复 ID、遗漏 ID 与非法分类 ID
+- [ ] 结果先进入审核队列，不直接写库
+- [ ] 审核通过后一次性事务提交并支持回滚
+- [ ] README 仅用于低置信度二次分类并进行缓存
+
+### P1：性能与 E2E
 
 - [ ] 为 1000 条列表接入虚拟滚动
 - [ ] 增加 Playwright 浏览器 E2E
-- [ ] 为 Stars 同步请求加入 `AbortController`，真正终止网络请求
+- [ ] 为 Stars 同步请求加入真正的网络取消
 - [ ] 拆分超过 1 MB 的 Element Plus 与公共依赖 chunk
-
-### P2
-
-- [ ] 为 About/Pages 查询增加缓存、请求去重与限流提示
-- [ ] 评估 HttpOnly Cookie + BFF 的长期认证架构
-- [ ] 升级 `vue-i18n` 与 ESLint 维护线
-- [ ] 在 VitePress 2 稳定版发布后退出 alpha
-- [ ] 清理 Vite、主题初始化和文档高亮构建警告
-
-### P3
-
-- [ ] 删除已合并的开发与热修分支
-- [ ] 删除仓库中的备份文件
-- [ ] 将剩余技术债建立为 GitHub Issues
 
 ## 下一步
 
-1. 确认 PR #16 最终 CI 与 Pages 构建；
-2. squash 合并到 `main`；
-3. 等待生产 Pages 发布；
-4. 完成取消 Star 真实账户人工验收；
-5. 进入虚拟滚动与 Playwright E2E 批次。
+1. 完成 PR #18 最终说明并合并；
+2. 在生产环境检查合并后的详情卡片；
+3. 导入一份仅含分类名称的 TXT/JSON，确认所有分类成员数量均为 0；
+4. 开始 AI 分类阶段 A 止损改造。
 
 ## 更新规则
 
-每一批记录：已完成、未完成、修改文件、验证结果、已知风险、人工验收和下一步。自动检查通过不得表述为真实 GitHub 账户行为已经完成验收。
+每一批记录：已完成、未完成、修改文件、验证结果、已知风险、人工验收和下一步。自动检查通过不得表述为真实浏览器行为已经完成人工验收。
