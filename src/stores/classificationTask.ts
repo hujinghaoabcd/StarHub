@@ -5,6 +5,7 @@ import {
   errorMessage,
   executeClassificationTask,
   getAcceptedClassificationAssignments,
+  getClassificationEvaluationSummary,
   getClassificationReviewPage,
   isAbortError,
   loadClassificationTask,
@@ -17,7 +18,9 @@ import {
 } from '@/services/classificationTasks'
 import type {
   ClassificationCategory,
+  ClassificationEvaluation,
   ClassificationTask,
+  ClassificationTaskSelectionMode,
   Repository
 } from '@/types'
 
@@ -44,12 +47,17 @@ export const useClassificationTaskStore = defineStore('classificationTask', {
     async create(
       repositories: readonly Repository[],
       categories: readonly ClassificationCategory[],
-      batchSize: number
+      batchSize: number,
+      options?: {
+        selectionMode?: ClassificationTaskSelectionMode
+        sampleSeed?: number
+      }
     ) {
       this.activeTask = await createClassificationTask(
         repositories,
         categories,
-        batchSize
+        batchSize,
+        options
       )
       return this.activeTask
     },
@@ -143,9 +151,18 @@ export const useClassificationTaskStore = defineStore('classificationTask', {
       return getClassificationReviewPage(this.activeTask.id, page, pageSize)
     },
 
+    async evaluationSummary() {
+      if (!this.activeTask) return null
+      return getClassificationEvaluationSummary(this.activeTask.id)
+    },
+
     async updateReviewItem(
       repositoryId: number,
-      updates: { categoryId?: string; accepted?: boolean }
+      updates: {
+        categoryId?: string
+        accepted?: boolean
+        evaluation?: ClassificationEvaluation | null
+      }
     ) {
       if (!this.activeTask) return
       this.activeTask = await updateClassificationReviewItem(

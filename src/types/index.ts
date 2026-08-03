@@ -110,6 +110,24 @@ export type ClassificationTaskStatus =
   | 'cancelled'
 
 export type ClassificationTaskItemStatus = 'pending' | 'success' | 'failed'
+export type ClassificationTaskSelectionMode = 'random' | 'ordered' | 'all'
+export type ClassificationEvaluation = 'correct' | 'incorrect'
+
+export interface ClassificationCorrectionSummary {
+  modelCategoryId: string
+  reviewedCategoryId: string
+  count: number
+}
+
+export interface ClassificationEvaluationSummary {
+  evaluatedCount: number
+  correctCount: number
+  incorrectCount: number
+  unreviewedCount: number
+  lowConfidenceCount: number
+  accuracy: number | null
+  corrections: ClassificationCorrectionSummary[]
+}
 
 export interface ClassificationTask {
   id: string
@@ -117,6 +135,8 @@ export interface ClassificationTask {
   provider: 'openai' | 'claude' | 'qwen' | 'zhipu' | 'deepseek'
   model: string
   batchSize: number
+  selectionMode?: ClassificationTaskSelectionMode
+  sampleSeed?: number
   registryVersion: string
   promptVersion: string
   totalCount: number
@@ -139,8 +159,10 @@ export interface ClassificationTaskItem {
   repositoryId: number
   status: ClassificationTaskItemStatus
   categoryId?: string
+  modelCategoryId?: string
   confidence?: number
   reason?: string
+  evaluation?: ClassificationEvaluation
   error?: string
   attempts: number
   /** IndexedDB-compatible boolean: 1 is accepted, 0 is not accepted. */

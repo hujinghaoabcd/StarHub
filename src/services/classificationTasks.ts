@@ -10,11 +10,15 @@ import {
   estimateClassificationUsage
 } from '@/services/classificationProtocol'
 import { buildClassificationRegistryVersion } from '@/services/classificationRegistry'
+import { buildClassificationEvaluationSummary } from '@/services/classificationEvaluation'
 import type {
   ClassificationAssignment,
   ClassificationCategory,
+  ClassificationEvaluation,
+  ClassificationEvaluationSummary,
   ClassificationTask,
   ClassificationTaskItem,
+  ClassificationTaskSelectionMode,
   ClassificationTaskStatus,
   Repository
 } from '@/types'
@@ -37,7 +41,11 @@ function errorMessage(error: unknown): string {
 export async function createClassificationTask(
   repositories: readonly Repository[],
   categories: readonly ClassificationCategory[],
-  batchSize: number
+  batchSize: number,
+  options?: {
+    selectionMode?: ClassificationTaskSelectionMode
+    sampleSeed?: number
+  }
 ): Promise<ClassificationTask> {
   await ensureDatabaseOpen()
   const config = getAIConfig()
@@ -55,6 +63,8 @@ export async function createClassificationTask(
     provider: config.provider,
     model,
     batchSize: resolvedBatchSize,
+    selectionMode: options?.selectionMode,
+    sampleSeed: options?.sampleSeed,
     registryVersion: buildClassificationRegistryVersion(categories),
     promptVersion: CLASSIFICATION_PROMPT_VERSION,
     totalCount: repositories.length,
@@ -207,6 +217,7 @@ export async function saveClassificationBatchResult(
               ...item,
               status: 'success',
               categoryId: assignment.categoryId,
+              modelCategoryId: item.modelCategoryId || assignment.categoryId,
               confidence: assignment.confidence,
               reason: assignment.reason,
               error: undefined,
@@ -273,10 +284,25 @@ export async function getClassificationReviewPage(
     .toArray()
 }
 
+export async function getClassificationEvaluationSummary(
+  id: string
+): Promise<ClassificationEvaluationSummary> {
+  await ensureDatabaseOpen()
+  const items = await db.classificationTaskItems
+    .where('[taskId+status]')
+    .equals([id, 'success'])
+    .toArray()
+  return buildClassificationEvaluationSummary(items, CONFIDENCE_THRESHOLD)
+}
+
 export async function updateClassificationReviewItem(
   id: string,
   repositoryId: number,
-  updates: { categoryId?: string; accepted?: boolean }
+  updates: {
+    categoryId?: string
+    accepted?: boolean
+    evaluation?: ClassificationEvaluation | null
+  }
 ): Promise<ClassificationTask> {
   await ensureDatabaseOpen()
   return db.transaction(
@@ -297,11 +323,16 @@ export async function updateClassificationReviewItem(
         : updates.accepted ? 1 : 0
       const categoryId = updates.categoryId || item.categoryId
       if (!categoryId) throw new Error('A category is required')
+      const evaluation = updates.evaluation === undefined
+        ? item.evaluation
+        : updates.evaluation || undefined
       const acceptedDelta = accepted - item.accepted
       const now = Date.now()
       await db.classificationTaskItems.put({
         ...item,
         categoryId,
+        modelCategoryId: item.modelCategoryId || item.categoryId,
+        evaluation,
         accepted: accepted as 0 | 1,
         updatedAt: now
       })
