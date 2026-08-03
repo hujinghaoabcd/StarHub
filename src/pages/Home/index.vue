@@ -4,18 +4,29 @@
       <template #sidebar>
         <div class="sidebar-panel">
           <div class="category-import-bar">
-            <div>
-              <div class="category-import-title">分类工具</div>
-              <div class="category-import-note">只导入名称，不分配项目</div>
+            <div class="category-import-title">分类工具</div>
+            <div class="category-import-actions">
+              <el-button
+                size="small"
+                plain
+                :disabled="tagStore.isMutating"
+                @click="showImportTagDialog = true"
+              >
+                <el-icon><Upload /></el-icon>
+                导入分类
+              </el-button>
+              <el-button
+                size="small"
+                type="danger"
+                plain
+                :loading="tagStore.isMutating"
+                :disabled="tagStore.tags.length === 0"
+                @click="handleDeleteAllTags"
+              >
+                <el-icon><Delete /></el-icon>
+                删除全部
+              </el-button>
             </div>
-            <el-button
-              size="small"
-              plain
-              @click="showImportTagDialog = true"
-            >
-              <el-icon><Upload /></el-icon>
-              导入分类
-            </el-button>
           </div>
           <SideMenu class="side-menu-content" />
         </div>
@@ -54,8 +65,8 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Upload } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Delete, Upload } from '@element-plus/icons-vue'
 import { useRepoStore } from '@/stores/repo'
 import { useTagStore } from '@/stores/tag'
 import HomeLayout from '@/layouts/HomeLayout.vue'
@@ -119,6 +130,35 @@ const handleRepoUnstarred = (repoId: number) => {
   }
 }
 
+const handleDeleteAllTags = async () => {
+  const tagCount = tagStore.tags.length
+  if (tagCount === 0) return
+
+  try {
+    await ElMessageBox.confirm(
+      `将删除全部 ${tagCount} 个分类及其项目关联，但不会删除任何项目。此操作无法撤销，是否继续？`,
+      '删除所有分类',
+      {
+        confirmButtonText: '全部删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger'
+      }
+    )
+  } catch {
+    return
+  }
+
+  try {
+    await tagStore.replaceAllTags([])
+    repoStore.setSelectedTag(null)
+    ElMessage.success(`已删除全部 ${tagCount} 个分类`)
+  } catch (error) {
+    console.error('Failed to delete all categories:', error)
+    ElMessage.error('删除全部分类失败，原有分类已保留。')
+  }
+}
+
 onMounted(async () => {
   try {
     await tagStore.loadTags()
@@ -179,15 +219,18 @@ onMounted(async () => {
 }
 
 .category-import-title {
+  flex-shrink: 0;
   color: var(--text-primary);
   font-size: 0.82rem;
   font-weight: 600;
 }
 
-.category-import-note {
-  margin-top: 2px;
-  color: var(--text-tertiary);
-  font-size: 0.68rem;
+.category-import-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  gap: 6px;
 }
 
 .side-menu-content {
