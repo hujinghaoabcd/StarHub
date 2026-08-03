@@ -167,18 +167,18 @@ async function handleUnstar() {
 
 <style lang="scss" scoped>
 .unstar-button {
-  height: 32px;
-  padding: 0 11px;
+  height: 28px;
+  padding: 0 8px;
   color: var(--el-color-danger);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
   line-height: 1;
   background: transparent;
   border: 1px solid var(--el-color-danger);
-  border-radius: 4px;
+  border-radius: 3px;
 
   :deep(.el-icon) {
-    font-size: 0.85rem;
+    font-size: 0.76rem;
   }
 
   &:hover,
