@@ -83,7 +83,7 @@
       </div>
     </div>
 
-    <DetailView class="readme-only" :repo="repo" />
+    <DetailView class="readme-only" :repo="repo" :readme-only="true" />
   </div>
 </template>
 
@@ -127,28 +127,29 @@ function safeHttpUrl(value: string | undefined | null): string | null {
 
 const homepageUrl = computed(() => safeHttpUrl(props.repo.homepage))
 const pagesUrl = ref<string | null>(null)
+const PAGES_SELECTION_DEBOUNCE_MS = 140
 let pagesRequestId = 0
 let pagesController: AbortController | null = null
+let pagesDebounceTimer: number | null = null
 
-async function loadPagesUrl() {
-  const requestId = ++pagesRequestId
-  pagesController?.abort()
+interface PagesRepositorySnapshot {
+  owner: string
+  repoName: string
+}
+
+async function loadPagesUrl(
+  requestId: number,
+  snapshot: PagesRepositorySnapshot
+) {
+  if (requestId !== pagesRequestId) return
+
   const controller = new AbortController()
   pagesController = controller
-  pagesUrl.value = null
-
-  if (props.repo.has_pages === false) {
-    pagesController = null
-    return
-  }
-
-  const [owner, repoName] = props.repo.full_name.split('/')
-  if (!owner || !repoName) return
 
   try {
     const response = await githubApi.getRepositoryPages(
-      owner,
-      repoName,
+      snapshot.owner,
+      snapshot.repoName,
       controller.signal
     )
     if (requestId === pagesRequestId && !controller.signal.aborted) {
@@ -169,10 +170,36 @@ async function loadPagesUrl() {
   }
 }
 
-watch(() => props.repo.id, loadPagesUrl, { immediate: true })
+function schedulePagesUrlLoad() {
+  const requestId = ++pagesRequestId
+  if (pagesDebounceTimer !== null) {
+    window.clearTimeout(pagesDebounceTimer)
+    pagesDebounceTimer = null
+  }
+  pagesController?.abort()
+  pagesController = null
+  pagesUrl.value = null
+
+  if (props.repo.has_pages === false) return
+
+  const [owner, repoName] = props.repo.full_name.split('/')
+  if (!owner || !repoName) return
+
+  const snapshot = { owner, repoName }
+  pagesDebounceTimer = window.setTimeout(() => {
+    pagesDebounceTimer = null
+    void loadPagesUrl(requestId, snapshot)
+  }, PAGES_SELECTION_DEBOUNCE_MS)
+}
+
+watch(() => props.repo.id, schedulePagesUrlLoad, { immediate: true })
 
 onUnmounted(() => {
   pagesRequestId++
+  if (pagesDebounceTimer !== null) {
+    window.clearTimeout(pagesDebounceTimer)
+    pagesDebounceTimer = null
+  }
   pagesController?.abort()
   pagesController = null
 })
@@ -348,10 +375,6 @@ onUnmounted(() => {
 .readme-only {
   flex: 1;
   min-height: 0;
-
-  :deep(.repo-card) {
-    display: none;
-  }
 
   :deep(.detail-content) {
     padding-top: 16px;
