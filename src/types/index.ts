@@ -105,6 +105,7 @@ export type ClassificationTaskStatus =
   | 'running'
   | 'paused'
   | 'partial'
+  | 'segment_ready'
   | 'completed'
   | 'committed'
   | 'cancelled'
@@ -182,6 +183,14 @@ export interface ClassificationTask {
   lastError?: string
   committedAt?: number
   committedCount?: number
+  /** Large tasks are processed and reviewed one bounded segment at a time. */
+  segmentSize?: number
+  segmentCount?: number
+  currentSegmentIndex?: number
+  segmentProcessedCount?: number
+  segmentSuccessCount?: number
+  segmentFailedCount?: number
+  autoEnhanceLowConfidence?: boolean
   enhancementStatus?: ClassificationEnhancementStatus
   enhancementPromptVersion?: string
   enhancementTargetCount?: number
@@ -198,6 +207,9 @@ export interface ClassificationTask {
 export interface ClassificationTaskItem {
   taskId: string
   repositoryId: number
+  segmentIndex?: number
+  /** IndexedDB-compatible boolean used to distinguish closed segments. */
+  committed?: 0 | 1
   status: ClassificationTaskItemStatus
   categoryId?: string
   modelCategoryId?: string

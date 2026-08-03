@@ -17,7 +17,7 @@
           </el-tag>
           <span>{{ task.provider }} / {{ task.model }}</span>
           <span>
-            {{ task.enhancementTargetCount
+            {{ task.autoEnhanceLowConfidence || task.enhancementTargetCount
               ? t('tag.metadataWithReadmeEnhancement')
               : t('tag.metadataOnly') }}
           </span>
@@ -27,6 +27,14 @@
               count: task.totalCount
             }) }}
           </span>
+          <el-tag v-if="task.segmentSize" type="primary" effect="plain">
+            {{ t('tag.segmentProgress', {
+              current: currentSegmentNumber,
+              total: task.segmentCount || 1,
+              processed: task.segmentProcessedCount || 0,
+              size: currentSegmentTarget
+            }) }}
+          </el-tag>
         </div>
 
         <el-progress
@@ -39,6 +47,9 @@
           <span>{{ t('tag.taskSucceeded') }} {{ task.successCount }}</span>
           <span>{{ t('tag.taskFailed') }} {{ task.failedCount }}</span>
           <span>{{ t('tag.taskAccepted') }} {{ task.acceptedCount }}</span>
+          <span v-if="task.segmentSize">
+            {{ t('tag.segmentCommittedTotal') }} {{ task.committedCount || 0 }}
+          </span>
           <span>{{ t('tag.taskBatches') }} {{ task.estimatedBatches }}</span>
           <span>
             {{ t('tag.taskTokenEstimate') }}
@@ -74,7 +85,7 @@
           {{ t('tag.pauseTask') }}
         </el-button>
         <el-button
-          v-if="task.status === 'paused' && task.failedCount === 0 && !task.committedAt"
+          v-if="task.status === 'paused' && reviewFailedCount === 0 && !task.committedAt"
           type="primary"
           :loading="actionBusy"
           @click="emit('resume')"
@@ -82,12 +93,12 @@
           {{ t('tag.resumeTask') }}
         </el-button>
         <el-button
-          v-if="(task.status === 'partial' || task.status === 'paused') && task.failedCount > 0 && !task.committedAt"
+          v-if="(task.status === 'partial' || task.status === 'paused') && reviewFailedCount > 0 && !task.committedAt"
           type="warning"
           :loading="actionBusy"
           @click="emit('retry')"
         >
-          {{ t('tag.retryFailed', { count: task.failedCount }) }}
+          {{ t('tag.retryFailed', { count: reviewFailedCount }) }}
         </el-button>
         <el-button
           v-if="(task.status === 'running' || task.status === 'paused') && !task.committedAt"
@@ -108,7 +119,7 @@
         </el-button>
       </div>
 
-      <template v-if="task.successCount > 0">
+      <template v-if="reviewSuccessCount > 0">
         <el-alert
           :title="t('tag.reviewNotice', { threshold: confidenceThresholdPercent })"
           type="warning"
@@ -249,7 +260,7 @@
           <span>
             {{ t('tag.reviewSelectedCount', {
               selected: task.acceptedCount,
-              total: task.successCount
+              total: reviewSuccessCount
             }) }}
           </span>
         </div>
@@ -416,7 +427,7 @@
         <el-pagination
           v-model:current-page="currentPage"
           :page-size="PAGE_SIZE"
-          :total="task.successCount"
+          :total="reviewSuccessCount"
           layout="prev, pager, next, jumper, total"
           class="review-pagination"
           @current-change="loadPage"
@@ -431,13 +442,15 @@
         {{ t('common.close') }}
       </el-button>
       <el-button
-        v-if="task && task.successCount > 0 && !task.committedAt"
+        v-if="task && reviewSuccessCount > 0 && !task.committedAt"
         type="primary"
         :loading="commitBusy || taskStore.enhancing"
         :disabled="task.acceptedCount === 0 || task.status === 'running'"
         @click="handleConfirm"
       >
-        {{ task.status === 'paused'
+        {{ task.segmentSize && task.status !== 'paused'
+          ? t('tag.reviewCommitSegment', { count: task.acceptedCount })
+          : task.status === 'paused'
           ? t('tag.reviewCommitPaused', { count: task.acceptedCount })
           : t('tag.reviewCommit', { count: task.acceptedCount }) }}
       </el-button>
@@ -529,6 +542,27 @@ const progressPercent = computed(() => {
   if (!props.task || props.task.totalCount === 0) return 0
   return Math.round(props.task.processedCount / props.task.totalCount * 100)
 })
+const currentSegmentNumber = computed(() =>
+  (props.task?.currentSegmentIndex || 0) + 1
+)
+const currentSegmentTarget = computed(() => {
+  if (!props.task?.segmentSize) return props.task?.totalCount || 0
+  return Math.min(
+    props.task.segmentSize,
+    props.task.totalCount -
+      (props.task.currentSegmentIndex || 0) * props.task.segmentSize
+  )
+})
+const reviewSuccessCount = computed(() =>
+  props.task?.segmentSize
+    ? props.task.segmentSuccessCount || 0
+    : props.task?.successCount || 0
+)
+const reviewFailedCount = computed(() =>
+  props.task?.segmentSize
+    ? props.task.segmentFailedCount || 0
+    : props.task?.failedCount || 0
+)
 const enhancementProgressPercent = computed(() => {
   if (!props.task?.enhancementTargetCount) return 0
   return Math.round(
@@ -540,6 +574,7 @@ const statusTagType = computed(() => {
   if (!props.task) return 'info'
   if (
     props.task.status === 'completed' ||
+    props.task.status === 'segment_ready' ||
     props.task.status === 'committed'
   ) return 'success'
   if (props.task.status === 'partial' || props.task.status === 'paused') {
@@ -614,13 +649,16 @@ watch(
   () => [
     props.modelValue,
     props.task?.id,
+    props.task?.currentSegmentIndex,
     props.task?.successCount,
     props.task?.enhancementProcessedCount,
     props.task?.enhancementStatus
   ] as const,
-  ([visible, taskId], previous) => {
+  ([visible, taskId, segmentIndex], previous) => {
     if (!visible || !taskId) return
-    if (taskId !== previous?.[1]) currentPage.value = 1
+    if (taskId !== previous?.[1] || segmentIndex !== previous?.[2]) {
+      currentPage.value = 1
+    }
     void Promise.all([
       loadPage(),
       loadEvaluationSummary(),
@@ -736,7 +774,7 @@ async function handleConfirm() {
           count: props.task.acceptedCount,
           remaining: Math.max(
             0,
-            props.task.totalCount - props.task.acceptedCount
+            props.task.totalCount - props.task.processedCount
           )
         }),
         t('tag.commitPausedTitle'),

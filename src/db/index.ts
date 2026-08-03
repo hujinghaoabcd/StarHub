@@ -90,6 +90,16 @@ class StarHubDatabase extends Dexie {
         '[taskId+repositoryId], taskId, [taskId+status], [taskId+accepted], status, updatedAt',
       classificationReadmeCache: 'repositoryId, fullName, fetchedAt'
     })
+
+    this.version(6).stores({
+      repos: 'id, full_name, language, updated_at',
+      tags: 'id, name, createdAt',
+      repoTags: '[repoId+tagId], repoId, tagId',
+      classificationTasks: 'id, status, updatedAt',
+      classificationTaskItems:
+        '[taskId+repositoryId], taskId, [taskId+status], [taskId+accepted], [taskId+segmentIndex+status], [taskId+segmentIndex+accepted], [taskId+segmentIndex+committed], status, updatedAt',
+      classificationReadmeCache: 'repositoryId, fullName, fetchedAt'
+    })
   }
 }
 

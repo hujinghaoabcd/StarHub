@@ -823,6 +823,8 @@ html[data-theme='dark'],
   --el-color-primary-light-8: rgba(96, 165, 250, 0.8);
   --el-color-primary-light-9: rgba(96, 165, 250, 0.9);
   --el-color-primary-dark-2: #3b82f6;
+  // Dark text keeps selected controls readable on the light-blue primary fill.
+  --control-on-primary: #0f172a;
   
   // 文本颜色
   --el-text-color-primary: #e8e8e8;
@@ -1055,6 +1057,10 @@ body.dark {
     .el-checkbox__input.is-checked .el-checkbox__inner {
       background-color: #60a5fa !important;
       border-color: #60a5fa !important;
+
+      &::after {
+        border-color: var(--control-on-primary) !important;
+      }
     }
     
     .el-checkbox__inner {
@@ -1102,7 +1108,7 @@ body.dark {
     &.is-active .el-radio-button__inner {
       background-color: #60a5fa !important;
       border-color: #60a5fa !important;
-      color: #fff !important;
+      color: var(--control-on-primary) !important;
     }
   }
   
@@ -1116,7 +1122,8 @@ body.dark {
     }
     
     .el-pager li.is-active {
-      color: #60a5fa !important;
+      background-color: #60a5fa !important;
+      color: var(--control-on-primary) !important;
     }
     
     .el-pager li:hover {
@@ -1167,7 +1174,7 @@ body.dark {
   .el-button--primary {
     background-color: #60a5fa !important;
     border-color: #60a5fa !important;
-    color: #fff !important;
+    color: var(--control-on-primary) !important;
     
     &:hover {
       background-color: #3b82f6 !important;
@@ -1181,7 +1188,7 @@ body.dark {
       
       &:hover {
         background-color: #60a5fa !important;
-        color: #fff !important;
+        color: var(--control-on-primary) !important;
       }
     }
   }
@@ -1361,4 +1368,3 @@ body.dark {
     }
   }
 }
-

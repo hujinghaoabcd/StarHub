@@ -64,6 +64,8 @@ export const useClassificationTaskStore = defineStore('classificationTask', {
       options?: {
         selectionMode?: ClassificationTaskSelectionMode
         sampleSeed?: number
+        segmentSize?: number
+        autoEnhanceLowConfidence?: boolean
       }
     ) {
       this.activeTask = await createClassificationTask(
@@ -99,6 +101,42 @@ export const useClassificationTaskStore = defineStore('classificationTask', {
         )
         if (this.activeTask?.id === taskId) {
           this.activeTask = completedTask
+        }
+
+        if (
+          !controller.signal.aborted &&
+          completedTask.autoEnhanceLowConfidence &&
+          (completedTask.status === 'segment_ready' || completedTask.status === 'partial')
+        ) {
+          this.running = false
+          if (activeController === controller) activeController = null
+          const enhancementController = new AbortController()
+          activeEnhancementController = enhancementController
+          this.enhancing = true
+          try {
+            const enhancedTask = await executeClassificationEnhancement(
+              taskId,
+              repositories,
+              categories,
+              enhancementController.signal,
+              updated => {
+                if (this.activeTask?.id === taskId) this.activeTask = updated
+              }
+            )
+            if (this.activeTask?.id === taskId) this.activeTask = enhancedTask
+          } catch (error) {
+            if (!enhancementController.signal.aborted && this.activeTask?.id === taskId) {
+              this.activeTask = await setClassificationEnhancementStatus(
+                taskId,
+                'paused'
+              )
+            }
+          } finally {
+            if (activeEnhancementController === enhancementController) {
+              activeEnhancementController = null
+              this.enhancing = false
+            }
+          }
         }
         return this.activeTask
       } catch (error) {
@@ -227,12 +265,24 @@ export const useClassificationTaskStore = defineStore('classificationTask', {
 
     async reviewPage(page: number, pageSize: number) {
       if (!this.activeTask) return []
-      return getClassificationReviewPage(this.activeTask.id, page, pageSize)
+      return getClassificationReviewPage(
+        this.activeTask.id,
+        page,
+        pageSize,
+        this.activeTask.segmentSize
+          ? this.activeTask.currentSegmentIndex || 0
+          : undefined
+      )
     },
 
     async evaluationSummary() {
       if (!this.activeTask) return null
-      return getClassificationEvaluationSummary(this.activeTask.id)
+      return getClassificationEvaluationSummary(
+        this.activeTask.id,
+        this.activeTask.segmentSize
+          ? this.activeTask.currentSegmentIndex || 0
+          : undefined
+      )
     },
 
     async updateReviewItem(
@@ -265,7 +315,12 @@ export const useClassificationTaskStore = defineStore('classificationTask', {
 
     async acceptedAssignments() {
       if (!this.activeTask) return []
-      return getAcceptedClassificationAssignments(this.activeTask.id)
+      return getAcceptedClassificationAssignments(
+        this.activeTask.id,
+        this.activeTask.segmentSize
+          ? this.activeTask.currentSegmentIndex || 0
+          : undefined
+      )
     },
 
     async markCommitted(count: number) {
