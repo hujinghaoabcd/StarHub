@@ -22,7 +22,7 @@
 
         <div class="repo-count">
           <template v-if="selectMode && selectedRepos.size > 0">
-            {{ selectedRepos.size }} / {{ totalCount }} {{ t('common.selected') }}
+            {{ selectedRepos.size }} / {{ repos.length }} {{ t('common.selected') }}
           </template>
           <template v-else>
             {{ totalCount }} {{ totalCount === 1 ? t('home.repo') : t('home.repos') }}
@@ -332,33 +332,27 @@ const handleBatchTagConfirm = async (
     duration: 0
   })
 
-  let successCount = 0
-  let totalOperations = 0
+  const failedRepoIds: number[] = []
+  let changedCount = 0
 
   try {
     for (const repoId of repoIds) {
       try {
         const currentTags = await tagStore.getRepoTags(repoId)
-        const currentTagIds = new Set(currentTags.map(tag => tag.id))
+        const currentTagIds = currentTags.map(tag => tag.id)
+        const nextTagIds = mode === 'replace'
+          ? [...new Set(selectedTagIds)]
+          : [...new Set([...currentTagIds, ...selectedTagIds])]
+        const unchanged =
+          currentTagIds.length === nextTagIds.length &&
+          currentTagIds.every(tagId => nextTagIds.includes(tagId))
 
-        if (mode === 'replace') {
-          for (const tagId of currentTagIds) {
-            if (!selectedTagIds.includes(tagId)) {
-              await tagStore.removeTagFromRepo(repoId, tagId)
-              totalOperations++
-            }
-          }
+        if (!unchanged) {
+          await tagStore.replaceTagsForRepo(repoId, nextTagIds)
+          changedCount++
         }
-
-        for (const tagId of selectedTagIds) {
-          if (!currentTagIds.has(tagId)) {
-            await tagStore.addTagToRepo(repoId, tagId)
-            totalOperations++
-          }
-        }
-
-        successCount++
       } catch (error) {
+        failedRepoIds.push(repoId)
         console.error(`Failed to update tags for repo ${repoId}:`, error)
       }
     }
@@ -366,13 +360,19 @@ const handleBatchTagConfirm = async (
     await tagStore.loadTags()
     loadingMessage.close()
 
-    if (totalOperations > 0) {
+    const successCount = repoIds.length - failedRepoIds.length
+    if (failedRepoIds.length > 0) {
+      ElMessage.warning(
+        `批量分类部分完成：成功 ${successCount} 个，失败 ${failedRepoIds.length} 个。失败项目已保留选中，可直接重试。`
+      )
+      selectedRepos.value = new Set(failedRepoIds)
+    } else if (changedCount > 0) {
       ElMessage.success(`成功更新 ${successCount} 个仓库的分类`)
+      clearSelection()
     } else {
       ElMessage.info('所选仓库的分类无需更新')
+      clearSelection()
     }
-
-    clearSelection()
   } catch (error) {
     loadingMessage.close()
     ElMessage.error('批量设置分类失败')
@@ -404,13 +404,12 @@ const handleSizeChange = (size: number) => {
 }
 
 watch(
-  () => new Set(repoStore.repos.map(repo => repo.id)),
-  validIds => {
-    for (const repoId of selectedRepos.value) {
-      if (!validIds.has(repoId)) {
-        selectedRepos.value.delete(repoId)
-      }
-    }
+  () => props.repos.map(repo => repo.id),
+  visibleIds => {
+    const visibleIdSet = new Set(visibleIds)
+    selectedRepos.value = new Set(
+      [...selectedRepos.value].filter(repoId => visibleIdSet.has(repoId))
+    )
   }
 )
 </script>
