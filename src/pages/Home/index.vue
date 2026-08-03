@@ -7,6 +7,7 @@
             <div class="category-import-title">分类工具</div>
             <div class="category-import-actions">
               <el-button
+                class="category-tool-button"
                 size="small"
                 plain
                 :disabled="tagStore.isMutating"
@@ -16,6 +17,7 @@
                 导入分类
               </el-button>
               <el-button
+                class="category-tool-button"
                 size="small"
                 type="danger"
                 plain
@@ -212,8 +214,8 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  gap: 10px;
-  padding: 10px 16px;
+  gap: 6px;
+  padding: 7px 10px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
 }
@@ -221,8 +223,9 @@ onMounted(async () => {
 .category-import-title {
   flex-shrink: 0;
   color: var(--text-primary);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .category-import-actions {
@@ -230,7 +233,21 @@ onMounted(async () => {
   align-items: center;
   justify-content: flex-end;
   min-width: 0;
-  gap: 6px;
+  gap: 4px;
+}
+
+.category-tool-button {
+  height: 28px;
+  margin-left: 0;
+  padding: 0 8px;
+  font-size: 0.7rem;
+  line-height: 1;
+  border-radius: 4px;
+
+  :deep(.el-icon) {
+    margin-right: 3px;
+    font-size: 0.78rem;
+  }
 }
 
 .side-menu-content {
