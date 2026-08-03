@@ -21,13 +21,10 @@
             @mousedown="startContentResize"
           ></div>
           <div class="detail-wrapper" v-if="selectedRepo">
-            <RepositoryOverview
-              :repo="selectedRepo"
-              @unstarred="handleRepoUnstarred"
-            />
             <DetailView
               :repo="selectedRepo"
               @close="handleCloseDetail"
+              @unstarred="handleRepoUnstarred"
             />
           </div>
           <EmptyState v-else />
@@ -46,7 +43,6 @@ import HomeLayout from '@/layouts/HomeLayout.vue'
 import SideMenu from './components/SideMenu.vue'
 import RepoList from './components/RepoList.vue'
 import DetailView from './components/DetailView.vue'
-import RepositoryOverview from './components/RepositoryOverview.vue'
 import EmptyState from './components/EmptyState.vue'
 import type { Repository } from '@/types'
 
