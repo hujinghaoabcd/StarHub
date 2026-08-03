@@ -214,24 +214,29 @@ const homepageUrl = computed(() => safeHttpUrl(props.repo.homepage))
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  gap: 10px;
+  gap: 7px;
 }
 
 .github-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  height: 44px;
+  height: 32px;
   flex-shrink: 0;
-  gap: 7px;
-  padding: 0 18px;
+  gap: 5px;
+  padding: 0 11px;
   color: #fff;
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   font-weight: 600;
+  line-height: 1;
   text-decoration: none;
   background: var(--el-color-primary);
   border: 1px solid var(--el-color-primary);
-  border-radius: 5px;
+  border-radius: 4px;
+
+  .el-icon {
+    font-size: 0.85rem;
+  }
 
   &:hover,
   &:focus-visible {
