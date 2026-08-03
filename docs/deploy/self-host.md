@@ -1,34 +1,46 @@
-# 自托管部署
+# 自托管前端与文档
 
-StarHub 前端可以部署在任意静态服务器，但 GitHub OAuth code 交换必须由可信服务端完成。推荐的最小维护方案是：**自托管前端 + 复用 Cloudflare Pages Functions OAuth API**。
+StarHub 是静态 Vue 应用，可以放在 Nginx、Caddy、对象存储或其他静态平台。GitHub OAuth code 交换仍必须由可信服务端完成；最简单的方案是复用本仓库的 Cloudflare Pages Functions。
 
-## 环境要求
-
-- Node.js >= 22.12.0
-- npm >= 10
-- Nginx、Apache、Caddy 或其他静态服务器
-
-## 1. 构建前端
-
-将 OAuth API 地址注入构建：
+## 根域名部署
 
 ```bash
 npm ci
-VITE_API_BASE_URL=https://你的项目.pages.dev/api npm run build
+VITE_API_BASE_URL=https://oauth.example.com/api \
+VITE_GITHUB_CLIENT_ID=<client-id> \
+VITE_BASE_PATH=/ \
+npm run build
 ```
 
-构建结果位于 `dist/`。
+将 `dist/` 部署到站点根目录。若也部署 VitePress 文档：
 
-## 2. Nginx 示例
+```bash
+VITEPRESS_BASE_PATH=/docs/ npm run docs:build
+```
+
+将 `docs/.vitepress/dist/` 放到站点 `/docs/`。
+
+## 子路径部署
+
+例如部署到 `https://example.com/tools/starhub/`：
+
+```bash
+VITE_API_BASE_URL=https://oauth.example.com/api \
+VITE_GITHUB_CLIENT_ID=<client-id> \
+VITE_BASE_PATH=/tools/starhub/ \
+npm run build
+
+VITEPRESS_BASE_PATH=/tools/starhub/docs/ npm run docs:build
+```
+
+应用和文档的 base path 必须以 `/` 开头并结尾。构建后检查 HTML 中的资源路径，不要依赖服务器猜测子路径。
+
+## Nginx 示例
 
 ```nginx
 server {
     listen 443 ssl http2;
     server_name starhub.example.com;
-
-    ssl_certificate /etc/letsencrypt/live/starhub.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/starhub.example.com/privkey.pem;
-
     root /var/www/starhub/dist;
     index index.html;
 
@@ -43,43 +55,43 @@ server {
 }
 ```
 
-不需要在 Nginx 中代理已删除的旧 Node OAuth 服务。浏览器会直接访问构建时配置的 Cloudflare API 地址。
+StarHub 当前路由使用 hash history，通常不会因直接刷新产生 SPA 404；保留 `try_files` 仍有利于未来路由调整。
 
-## 3. OAuth 配置
+## 调整 OAuth 配置
 
-GitHub OAuth App 的 Homepage URL 与 Authorization callback URL 都应指向自托管前端根地址，例如：
+OAuth App 的 Homepage URL 与 callback 指向新的前端根地址，例如：
 
 ```text
 https://starhub.example.com/
 ```
 
-Cloudflare Production Variables and Secrets 同步改为：
+Cloudflare 变量同步修改为：
 
 ```text
 ALLOWED_ORIGINS=https://starhub.example.com
 GITHUB_REDIRECT_URI=https://starhub.example.com/
 ```
 
-修改后重新部署 Cloudflare Pages，并重新构建前端。
+随后重新部署 Cloudflare API，并用新的 `VITE_GITHUB_CLIENT_ID` 和 API 地址重新构建前端。
 
-## 4. 完全自建 OAuth 后端
+## 完全自建 OAuth API
 
-本仓库不再维护第二套 Node OAuth 服务。自行实现时必须兼容以下契约：
+本仓库不维护传统 Node/PM2 OAuth 服务。自建实现必须兼容 `POST /api/oauth/token` 契约，并满足：
 
-- `POST /api/oauth/token`；
-- JSON 请求体包含 `code`、`codeVerifier`、`redirectUri`；
-- 服务端执行 PKCE token 交换；
-- 严格校验 Origin 与 redirect URI；
-- Client Secret 只保存在服务端 Secret；
-- 响应使用 `Cache-Control: no-store`；
-- 错误响应不得泄露 Client Secret、authorization code 或 access token。
+- JSON 输入包含授权 code、PKCE verifier 和 redirect URI；
+- 精确校验 Origin 与 redirect URI；
+- GitHub Client Secret 只存在于服务端 Secret；
+- 错误和成功响应均禁止缓存；
+- 不记录授权 code、访问 token 与 Secret；
+- 正确处理 CORS 预检和超时；
+- 返回格式与 `functions/api/oauth/token.ts` 保持兼容。
 
-可参考 `functions/api/oauth/token.ts` 的实现，但不要把该 TypeScript 文件直接当作普通 Node/PM2 脚本运行。
+## 自托管验收
 
-## 5. 验证
-
-1. 前端静态资源正常加载；
-2. OAuth 回调返回前端根路径；
-3. token 请求发往正确的 API 域名；
-4. Cloudflare 的 `ALLOWED_ORIGINS` 与自托管域名一致；
-5. 浏览器开发者工具中看不到 Client Secret。
+- 从全新浏览器完成 GitHub 登录；
+- 刷新、直接打开子页面和文档链接均正常；
+- 静态资源路径没有引用 `/StarHub/`；
+- token 请求只发往预期 API 主机；
+- Client Secret 不在 JavaScript、HTML、source map 或服务器访问日志中；
+- 导出备份后可在另一浏览器实例导入；
+- HTTPS 与安全响应头由宿主平台正确提供。

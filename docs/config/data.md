@@ -1,88 +1,179 @@
-# 数据管理
+# 数据管理、备份与隐私
 
-StarHub 是本地优先应用。仓库、分类、审核草稿和迁移快照默认保存在当前浏览器的 IndexedDB 中；只有同步 GitHub 或调用用户选择的 AI 服务时，相关请求才会离开浏览器。
+StarHub 是本地优先应用。理解每类数据的真实存储位置，是备份、迁移和故障恢复的前提。
 
-## 当前数据库结构
+## IndexedDB v8
 
-当前数据库版本为 **v8**。`repoTags` 是仓库—分类关系的唯一事实来源，禁止再次把仓库 ID 数组写回 `tags`。
+数据库名称：`StarHubDB`。
 
-| 表 | 作用 | 重要说明 |
+| 表 | 主键/索引 | 内容 | 是否进入备份 v4 |
+|---|---|---|---|
+| `repos` | `id` | GitHub Stars 仓库快照 | 是 |
+| `tags` | `id` | 分类和正式注册表元数据 | 是，通过导出的 `tags` |
+| `repoTags` | `[repoId+tagId]` | 仓库—分类唯一关系真源 | 是，转换为每个 tag 的 `repos` |
+| `classificationTasks` | `id` | AI 任务、模型、版本、进度 | 否 |
+| `classificationTaskItems` | `[taskId+repositoryId]` | 草稿、审核、错误、增强结果 | 否 |
+| `classificationReadmeCache` | `repositoryId` | 疑难项 README 摘要 | 否 |
+| `repositoryHighlights` | `repositoryId` | 重点项目和标记时间 | 是 |
+| `categoryMigrationSnapshots` | `id` | 最近分类迁移撤销快照 | 否 |
+
+`Tag.repos` 是 UI 派生字段。任何新代码都不能同时把关系写入 `tags` 和 `repoTags`。
+
+## Web Storage
+
+| 数据 | 存储 | 生命周期 |
 |---|---|---|
-| `repos` | GitHub Star 仓库快照 | 完整同步时以 GitHub 返回结果为准 |
-| `tags` | 分类及正式注册表字段 | 包含稳定 ID、名称、别名、说明、示例、排除项等 |
-| `repoTags` | 仓库—分类关系 | 关系的唯一事实来源 |
-| `classificationTasks` | AI 分类任务 | 保存任务状态、分段和注册表版本 |
-| `classificationTaskItems` | 逐仓库审核草稿 | 同时保存人工评价和 README 增强状态，确认前不进入正式关系表 |
-| `classificationReadmeCache` | 疑难项 README 摘要缓存 | 仓库推送时间变化后失效 |
-| `repositoryHighlights` | 重点项目 | 与 GitHub Star 状态相互独立 |
-| `categoryMigrationSnapshots` | 分类迁移快照 | 合并、重命名等操作的撤销依据 |
+| GitHub OAuth 会话 | `sessionStorage` | 最长 12 小时或当前页面会话 |
+| AI API Key | `sessionStorage` | 当前页面会话，可手动清除 |
+| OAuth state 和 PKCE verifier | `sessionStorage` | 单次登录回调 |
+| 主题和语言 | `localStorage` | 跨会话保留 |
+| AI 非敏感偏好 | `localStorage` | 服务商、地址、模型和批次 |
+| 分类预设 | `localStorage` | 设置页的模板分类 |
 
-数据库升级必须是向前兼容迁移。不要删除旧表重建，也不要改变已有分类 ID。
-
-## 浏览器存储与密钥
-
-| 数据 | 位置 | 生命周期 |
-|---|---|---|
-| 仓库、分类及任务数据 | IndexedDB | 直到用户清除站点数据 |
-| 主题、语言和非敏感偏好 | `localStorage` | 跨浏览器会话保留 |
-| GitHub OAuth Token | `sessionStorage` | 当前标签页会话 |
-| AI API Key | `sessionStorage` | 当前标签页会话，可一键清除 |
-
-页面关闭或浏览器清理会话数据后，需要重新授权或重新填写密钥。不要把 GitHub Token、AI API Key 或 OAuth Client Secret迁移回 `localStorage`，也不要把它们写入备份文件、日志或错误报告。
+浏览器阻止存储时，Token 或 Key 可以回退到当前页面内存，但刷新后会丢失。
 
 ## GitHub 同步语义
 
-首次登录和手动重新抓取都会分页读取用户当前的 Stars。完整同步使用权威快照语义：只有所有分页成功后才原子替换仓库快照；请求失败或取消时保留旧数据，不能用半份结果覆盖本地仓库。
+StarHub 不做“只追加新 Star”的简单增量同步，而是构建当前权威快照：
 
-同步完成后会清理已经取消 Star 的失效仓库关系，但不能修改仍存在仓库的分类、重点标记或审核数据。
+1. 分页读取 GitHub 当前全部 Stars；
+2. 清洗和按仓库 ID 去重；
+3. 计算新增、更新、取消 Star 数量；
+4. 只有完整快照成功后才替换 `repos`；
+5. 清理已不存在仓库的 `repoTags` 和 `repositoryHighlights`；
+6. 失败或取消时保留旧快照。
 
-:::warning
-“清空所有数据并重新抓取”是破坏性操作，会删除本地分类和关系。操作前先导出备份；普通“同步”不应被当作重置工具。
+同步不会清空仍存在仓库的分类和重点标记。
+
+## 备份 v4
+
+设置页点击“导出数据”，生成：
+
+```text
+starhub-backup-YYYY-MM-DD.json
+```
+
+结构示例：
+
+```json
+{
+  "version": "4.0",
+  "exportDate": "2026-08-04T00:00:00.000Z",
+  "data": {
+    "repos": [],
+    "tags": [],
+    "highlights": [],
+    "categoryPresets": []
+  },
+  "stats": {}
+}
+```
+
+分类关系被内嵌为每个导出 tag 的 `repos` 数组，以兼容旧备份并保持文件可读；导入后会重新构建规范化的 `repoTags`。
+
+### 备份不包含
+
+- GitHub Token；
+- AI API Key；
+- AI 任务和逐仓库草稿；
+- README 缓存；
+- 分类迁移撤销快照；
+- 浏览器主题和语言。
+
+因此，备份适合迁移“仓库快照 + 分类体系 + 重点项目”，不是完整浏览器镜像。
+
+## 导入备份
+
+导入会显示仓库、分类、重点项目和导出时间，然后要求确认覆盖。
+
+提交时：
+
+- 检查 `version` 和 `data` 字段存在；当前尚未做严格 JSON Schema/版本白名单校验；
+- 规范化分类、关系和重点标记；仓库数组目前主要信任备份来源；
+- 恢复正式注册表元数据；
+- 从 tag 的 `repos` 重建关系；
+- 只保留仍存在仓库的重点标记；
+- 在事务中覆盖仓库、分类、关系、重点和迁移快照；
+- 恢复分类预设；
+- 重载 Store 并返回主页。
+
+::: danger 当前已知限制
+覆盖导入目前不会清理 `classificationTasks`、`classificationTaskItems` 和 `classificationReadmeCache`。导入后若出现旧任务，应删除旧任务或清除整个站点数据后重新导入。该问题已列入后续优先修复。
 :::
 
-## 备份与恢复
+## 只导入分类
 
-建议在分类合并、大规模 AI 写入或清空数据前导出 StarHub 备份。当前备份格式版本为 **v4**，应包含：
+只需要迁移分类体系时，使用主页“分类工具 → 导入分类”，不要使用全量备份覆盖导入。
 
-- 仓库与 `repoTags` 关系；
-- 分类及注册表字段；
-- 重点项目；
-- 与用户数据有关的分类预设信息。
+分类注册表导入会：
 
-导入时先校验格式并显示预览，再在单一事务中提交。失败时必须完整回滚。`categoryMigrationSnapshots` 是设备内的短期撤销机制，不代替可下载备份，也不需要导出到跨设备备份。
+- 预览新增、重命名、合并、更新和冲突；
+- 保留已有仓库关系；
+- 创建本地迁移快照；
+- 失败时回滚。
 
-仅需要迁移分类名称时，使用“分类工具 → 导入分类”。它不会导入仓库、创建关系、覆盖已有颜色或 emoji。
+详见[分类与正式注册表](../guide/tags.md)。
 
-## 分类数据安全规则
+## 分类迁移快照
 
-1. 分类 `id` 一经建立保持稳定；重命名只修改显示名称。
-2. AI 只能返回当前正式注册表中的 `category_id`，不能创建名称。
-3. 合并分类时，把来源分类的全部 `repoTags` 去重迁移到目标分类。
-4. 合并、批量重命名和注册表导入前自动创建迁移快照。
-5. 任一写入失败时，分类、关系和注册表版本必须一起回滚。
-6. 所有本地数据变更通过共享写入队列串行执行，避免竞态。
+每次注册表迁移、安全编辑或合并前，保存完整 `tags` 和 `repoTags`。最多保留最近 10 份。
 
-## 空间不足和故障恢复
+快照只提供短期本机撤销，不替代下载备份。大量关系会增加 IndexedDB 用量。
 
-遇到 `QuotaExceededError` 或数据库异常时：
+## 清空全部数据
 
-1. 先导出仍可读取的备份。
-2. 关闭其他占用大量站点存储的页面，并检查浏览器可用空间。
-3. 刷新后重试同步或导入。
-4. 仍无法恢复时，在浏览器开发者工具的 Application/Storage 页面删除 StarHub 站点数据，再重新登录并导入备份。
+设置页“清空所有数据”会先停止同步，清空 UI，再尝试在事务中删除：
 
-不要在控制台运行来源不明的脚本，也不要使用 `eval` 型“修复脚本”。这既违反内容安全策略，也可能泄露当前会话中的访问令牌。
+- `repos`；
+- `tags`；
+- `repoTags`；
+- `repositoryHighlights`；
+- `categoryMigrationSnapshots`。
 
-## 隐私边界
+常规事务失败时，界面会询问是否删除并重建整个 `StarHubDB`。
 
-- GitHub 仓库信息发送给 GitHub API；AI 分类输入发送给用户明确选择的 AI 服务商。
-- 自定义 AI 地址必须使用 HTTPS，并在保存前显示目标主机、由用户确认。
-- README 和仓库元数据是不可信输入；系统会提示模型忽略其中的指令。
-- StarHub 静态前端不会集中收集用户的分类库。不同用户可以维护不同注册表，产品不得内置某位用户的个人分类体系作为全局标准。
+::: danger 当前已知限制
+常规清表路径没有清理 AI 任务和 README 缓存。若目标是彻底恢复初始状态，应使用浏览器 Application/Storage 面板删除整个 StarHub 站点数据，而不是只清理几张表。
+:::
 
-## 维护者入口
+清空 IndexedDB 不一定退出 GitHub 或清除 AI Key；公共设备上应同时退出登录、点击清除 Key，并关闭页面。
 
+## 空间不足
+
+遇到 `QuotaExceededError`：
+
+1. 导出仍可读取的备份；
+2. 暂停 AI 和 README 增强；
+3. 关闭其他 StarHub 标签页；
+4. 检查磁盘和站点存储；
+5. 必要时删除旧 AI 任务/缓存；
+6. 最后通过浏览器 Storage 面板删除整个站点数据，再重新登录和导入备份。
+
+不要运行通过网络下载并 `eval` 的“修复脚本”，也不要手工只清理部分关系表。
+
+## 隐私与外发数据
+
+| 目标 | 发送内容 |
+|---|---|
+| GitHub API | Token、仓库/README/Pages 请求 |
+| Cloudflare OAuth API | OAuth code、PKCE verifier、redirect URI |
+| AI 服务商 | 仓库元数据、正式注册表；疑难项可能发送 README 摘要 |
+| StarHub GitHub Pages | 静态应用和文档请求，不集中保存分类库 |
+
+私人仓库用户应注意：仓库名称、描述、Topics 和 README 可能包含敏感信息。使用 AI 前先确认服务商政策。
+
+## 数据操作安全规则
+
+1. 重命名保持分类 ID；
+2. 合并在单一事务中迁移和去重关系；
+3. AI 只添加审核通过的关系；
+4. 全量同步只有成功后才替换快照；
+5. 所有本地写操作通过共享 `dataMutationQueue` 串行化；
+6. 大规模操作前导出备份；
+7. 恢复后核对仓库数、分类数、关系数和重点数。
+
+## 下一步
+
+- [存储故障排查](../troubleshooting/storage.md)
 - [分类与正式注册表](../guide/tags.md)
-- [AI 分类](../guide/ai-classification.md)
-- [项目当前状态](../development/PROJECT_STATUS.md)
-- [下一阶段详细交接](../development/NEXT_PHASE_HANDOFF.md)
+- [部署与数据版本检查](../DEPLOYMENT.md)

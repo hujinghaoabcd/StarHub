@@ -1,53 +1,62 @@
-# 故障排除
+# 故障排除总览
 
-本页是维护者和用户的快速入口。执行破坏性恢复前先导出备份；错误报告、截图和日志中不要包含 GitHub Token、AI API Key 或私人仓库内容。
+排查前先不要清空浏览器数据。StarHub 的仓库关系、重点标记和 AI 任务主要保存在本机 IndexedDB，贸然清空会失去尚未导出的本地整理结果。
 
-## 页面无法加载或无响应
+## 安全排查顺序
 
-1. 强制刷新，并关闭其他 StarHub 标签页。
-2. 使用最新版 Chrome、Edge、Firefox 或 Safari 重试。
-3. 打开开发者工具 Console，记录第一条错误及复现步骤。
-4. 若只有仓库详情连续切换后卡顿，记录仓库数量、点击次数和是否展开 README，提交性能问题；不要直接清空数据。
+1. 记录页面提示、操作步骤、浏览器版本和发生时间；
+2. 截图 Console 与 Network 中相关错误，但遮盖 token、API Key 和 OAuth code；
+3. 从设置页导出 StarHub v4 备份；
+4. 刷新页面或在同一浏览器重新打开；
+5. 根据下表进入专项排查；
+6. 只有在确认备份有效后才考虑清除数据。
 
-## GitHub 登录或同步失败
+## 症状索引
 
-1. 检查部署变量 `VITE_API_BASE_URL` 与 `VITE_GITHUB_CLIENT_ID`。
-2. 访问 Cloudflare `/api/health`，确认 `configured: true`。
-3. 核对 OAuth App Homepage 和 callback URL 均指向实际 GitHub Pages 根路径。
-4. 同步中断时保留旧快照，等待速率限制恢复后重试。
+| 症状 | 专项文档 | 常见原因 |
+|---|---|---|
+| GitHub 登录失败、回调循环、CORS | [登录问题](troubleshooting/login.md) | OAuth 四处配置不一致、会话过期 |
+| 仓库数量不对、同步中断 | [常见问题](troubleshooting/faq.md#同步与仓库数量) | GitHub 限流、同步尚未结束、取消 Star 后待同步 |
+| 点击多个项目后卡顿 | [常见问题](troubleshooting/faq.md#详情与-readme-卡顿) | README 渲染、旧浏览器缓存或异常大文档 |
+| AI JSON 错误、未知分类 ID | [常见问题](troubleshooting/faq.md#ai-分类) | 输出截断、注册表版本改变、供应商能力差异 |
+| 暂停后不能写入 | [常见问题](troubleshooting/faq.md#ai-分类) | 没有有效草稿，或任务状态不允许提交 |
+| 分类重复、合并冲突 | [存储与数据](troubleshooting/storage.md) | 导入清单冲突、普通分类尚未治理 |
+| 数据不见、备份导入异常 | [存储与数据](troubleshooting/storage.md) | Origin 改变、浏览器清理、格式不受支持 |
+| 页面空白、资源 404 | [部署手册](DEPLOYMENT.md#部署故障快速定位) | 子路径 base 配置错误、部署尚未完成 |
 
-详见[登录问题](troubleshooting/login.md)和[部署指南](DEPLOYMENT.md)。
+## 可以安全尝试的操作
 
-## AI 分类失败或部分失败
+- 关闭详情面板后重新打开一个项目；
+- 取消当前未提交的 AI 任务并保留已写入分类；
+- 重新连接 AI 服务，但不要立即保存未知自定义地址；
+- 重新同步 GitHub Stars；
+- 在无痕窗口打开生产站点判断是否为本地数据问题；
+- 对分类迁移使用内置快照撤销；
+- 查看 `deployment-info.json` 判断生产版本。
 
-1. 检查当前会话中的 API Key、账户余额、HTTPS API 地址和模型 ID。
-2. 减小批次；JSON 截断或未知 `category_id` 不得自动修补或写入。
-3. 查看任务中的成功、失败和可重试数量。
-4. 暂停时可确认写入当前审核项，写入后结束本次任务；剩余仓库以后创建新任务。
-5. 疑难项使用 README 增强，不要对全部仓库抓取 README。
+## 不要这样处理
 
-详见[AI 分类指南](guide/ai-classification.md)。
+- 不要在没有备份时删除 IndexedDB 或浏览器站点数据；
+- 不要运行来源不明的 Console 修复脚本；
+- 不要把 GitHub token、AI Key、OAuth code 或备份文件上传到公开 Issue；
+- 不要通过关闭 CORS、PKCE、state 或 CSP 绕过登录问题；
+- 不要手工编辑 `repoTags` 关系来处理分类合并；
+- 不要把 AI JSON 自动修补后直接写入数据库。
 
-## 存储空间或 IndexedDB 错误
+## 报告问题需要的信息
 
-1. 先导出备份。
-2. 关闭其他 StarHub 标签页并检查磁盘、站点存储空间。
-3. 刷新重试；仍失败时记录浏览器版本和错误。
-4. 最后手段是在浏览器 Application/Storage 面板删除整个 StarHub 站点数据，再重新登录并导入备份。
+```text
+StarHub 地址与 deployment-info.json commit：
+浏览器与版本：
+操作系统：
+问题发生前的操作：
+期望结果：
+实际结果：
+是否可稳定复现：
+仓库数量级：
+AI 供应商/模型（不要提供 Key）：
+任务状态与成功/失败数量：
+Console/Network 错误（敏感值已遮盖）：
+```
 
-不要运行使用 `eval`、远程下载代码或只清理部分 IndexedDB 表的“修复脚本”。详见[存储问题](troubleshooting/storage.md)和[数据管理](config/data.md)。
-
-## 分类迁移异常
-
-- 不要手工删除 `tags` 或 `repoTags` 记录。
-- 在分类管理中使用最近迁移快照撤销。
-- 若撤销失败，停止继续写入，保留控制台错误并从迁移前备份恢复。
-- 验证分类 ID、仓库关系和注册表版本一起恢复。
-
-## 提交有效问题报告
-
-请提供：StarHub 版本或 main commit、浏览器及版本、可复现步骤、预期与实际结果、第一条控制台错误，以及是否能在新浏览器配置中复现。敏感数据应脱敏。
-
-- [GitHub Issues](https://github.com/hujinghaoabcd/StarHub/issues)
-- [项目当前状态](development/PROJECT_STATUS.md)
-- [下一阶段详细交接](development/NEXT_PHASE_HANDOFF.md)
+公开报告：<https://github.com/hujinghaoabcd/StarHub/issues>。

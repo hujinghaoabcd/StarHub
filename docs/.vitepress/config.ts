@@ -19,7 +19,7 @@ export default defineConfig({
     /^https:\/\/localhost/,
   ],
   title: 'StarHub',
-  description: '专业的 GitHub Stars 管理工具',
+  description: '本地优先、可治理、可审核的 GitHub Stars 管理工具',
   lang: 'zh-CN',
 
   head: [
@@ -34,12 +34,15 @@ export default defineConfig({
       { text: '首页', link: '/' },
       { text: '指南', link: '/guide/installation' },
       { text: '配置', link: '/config/ai' },
-      { text: '部署', link: '/deploy/cloudflare' },
+      { text: '部署', link: '/DEPLOYMENT' },
+      { text: '排障', link: '/TROUBLESHOOTING' },
       {
         text: '更多',
         items: [
-          { text: '更新日志', link: '/changelog' },
-          { text: '贡献指南', link: '/contributing' },
+          { text: '架构', link: '/reference/architecture' },
+          { text: '功能成熟度', link: '/reference/features' },
+          { text: '更新日志', link: '/CHANGELOG' },
+          { text: '贡献指南', link: '/CONTRIBUTING' },
           { text: '开发状态与交接', link: '/development/PROJECT_STATUS' },
         ]
       }
@@ -78,6 +81,7 @@ export default defineConfig({
         {
           text: '部署指南',
           items: [
+            { text: '生产部署总览', link: '/DEPLOYMENT' },
             { text: 'Cloudflare Pages', link: '/deploy/cloudflare' },
             { text: '自托管', link: '/deploy/self-host' },
           ]
@@ -97,6 +101,8 @@ export default defineConfig({
         {
           text: '参考',
           items: [
+            { text: '架构与数据流', link: '/reference/architecture' },
+            { text: '功能清单与成熟度', link: '/reference/features' },
             { text: '技术栈', link: '/reference/tech-stack' },
             { text: '项目结构', link: '/reference/structure' },
           ]
@@ -110,6 +116,7 @@ export default defineConfig({
             { text: '后续路线图与接手', link: '/development/NEXT_PHASE_HANDOFF' },
             { text: 'AI 分类审计', link: '/development/AI_CLASSIFICATION_AUDIT' },
             { text: '本地 OAuth', link: '/development/local-oauth' },
+            { text: '文档维护规范', link: '/development/DOCUMENTATION_MAINTENANCE' },
           ]
         }
       ]
@@ -121,7 +128,7 @@ export default defineConfig({
 
     footer: {
       message: '基于 MIT 许可发布',
-      copyright: 'Copyright © 2024 StarHub'
+      copyright: 'Copyright © 2024–2026 StarHub'
     },
 
     search: {

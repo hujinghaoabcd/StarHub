@@ -1,339 +1,87 @@
 # 贡献指南
 
-感谢你对 StarHub 项目的关注！我们欢迎任何形式的贡献，包括但不限于：
+欢迎提交缺陷、文档、测试、性能改进和功能。StarHub 保存用户本地整理数据并能调用 GitHub 与 AI API，因此数据安全、可恢复和明确的用户控制优先于功能数量。
 
-- 🐛 报告 Bug
-- 💡 提出新功能建议
-- 📖 改进文档
-- 🔧 提交代码修复
-- ✨ 开发新功能
+## 开始前
 
-## 📋 行为准则
+1. 搜索现有 [Issues](https://github.com/hujinghaoabcd/StarHub/issues) 和 Pull Requests；
+2. 阅读[项目状态](docs/development/PROJECT_STATUS.md)与[路线图](docs/development/NEXT_PHASE_HANDOFF.md)；
+3. 对 schema、OAuth、安全边界或大规模 AI 改动，先用 Issue 对齐设计；
+4. 不要在 Issue、截图、日志或测试夹具中提交 token、API Key、Secret、OAuth code、私有仓库或个人备份。
 
-请保持友善和尊重。我们致力于营造一个开放、包容的社区环境。
-
-## 🚀 快速开始
-
-### 1. Fork 仓库
-
-点击 GitHub 页面右上角的 Fork 按钮。
-
-### 2. 克隆到本地
+## 本地环境
 
 ```bash
-git clone hhttps://github.com/hujinghaoabcd/StarHub.git
-cd starhub
+git clone https://github.com/<your-account>/StarHub.git
+cd StarHub
+npm ci
+cp .dev.vars.example .dev.vars
 ```
 
-### 3. 安装依赖
+创建本地 GitHub OAuth App，Homepage 与 callback 都设为 `http://localhost:5173/`。把服务端四个变量写入 `.dev.vars`，同一 Client ID 写入未提交的 `.env.local`：
 
-```bash
-npm install
+```ini
+VITE_GITHUB_CLIENT_ID=your_local_client_id
 ```
 
-### 4. 配置开发环境
-
-参考 [README.md](README.md) 中的 OAuth 配置说明。
-
-### 5. 启动开发服务器
+分别启动：
 
 ```bash
-# 终端 1：启动 OAuth 代理
 npm run cloudflare:dev
-
-# 终端 2：启动前端
 npm run dev
 ```
 
-## 💻 开发规范
+完整步骤见[本地安装](docs/guide/installation.md)。
 
-### 代码风格
+## 工程规则
 
-- 使用 **TypeScript** 编写所有代码
-- 遵循项目的 **ESLint** 配置
-- Vue 组件使用 **组合式 API** (`<script setup>`)
-- CSS 使用 **SCSS**，遵循 BEM 命名规范
-
-### 运行代码检查
-
-```bash
-# 运行 ESLint
-npm run lint
-
-# 类型检查
-npm run type-check
-```
-
-### 目录结构
-
-```
-src/
-├── api/          # API 服务层 - GitHub API、认证等
-├── components/   # 公共组件 - 可复用组件
-├── config/       # 配置文件 - AI、OAuth、分类预设等
-├── db/           # 数据库 - IndexedDB 定义
-├── i18n/         # 国际化 - 语言包
-├── layouts/      # 布局组件 - 页面布局
-├── pages/        # 页面组件 - 路由页面
-├── router/       # 路由配置
-├── services/     # 业务服务 - AI 分类等业务逻辑
-├── stores/       # 状态管理 - Pinia stores
-├── styles/       # 全局样式 - SCSS 变量、主题
-├── types/        # 类型定义 - TypeScript 接口
-└── utils/        # 工具函数 - 通用工具
-```
-
-### 组件开发规范
-
-```vue
-<template>
-  <!-- 使用语义化的 class 名称 -->
-  <div class="component-name">
-    <!-- 内容 -->
-  </div>
-</template>
-
-<script setup lang="ts">
-// 1. 导入语句
-import { ref, computed, onMounted } from 'vue'
-import { useI18n } from 'vue-i18n'
-
-// 2. Props 定义
-interface Props {
-  title: string
-  count?: number
-}
-const props = withDefaults(defineProps<Props>(), {
-  count: 0
-})
-
-// 3. Emits 定义
-const emit = defineEmits<{
-  (e: 'update', value: number): void
-}>()
-
-// 4. 响应式状态
-const isLoading = ref(false)
-
-// 5. 计算属性
-const displayCount = computed(() => props.count.toLocaleString())
-
-// 6. 方法
-function handleClick() {
-  emit('update', props.count + 1)
-}
-
-// 7. 生命周期钩子
-onMounted(() => {
-  // 初始化逻辑
-})
-</script>
-
-<style lang="scss" scoped>
-.component-name {
-  // 样式
-}
-</style>
-```
-
-### 国际化
-
-添加新的文本时，请同时更新中英文语言包：
-
-```typescript
-// src/i18n/locales/zh.ts
-export default {
-  newFeature: {
-    title: '新功能',
-    description: '这是新功能的描述'
-  }
-}
-
-// src/i18n/locales/en.ts
-export default {
-  newFeature: {
-    title: 'New Feature',
-    description: 'This is the description of new feature'
-  }
-}
-```
-
-### 提交规范
-
-使用 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
-
-```
-<type>(<scope>): <subject>
-
-<body>
-
-<footer>
-```
-
-#### Type 类型
-
-| 类型 | 说明 |
-|------|------|
-| `feat` | 新功能 |
-| `fix` | Bug 修复 |
-| `docs` | 文档更新 |
-| `style` | 代码格式（不影响功能） |
-| `refactor` | 代码重构 |
-| `perf` | 性能优化 |
-| `test` | 测试相关 |
-| `chore` | 构建/工具相关 |
-
-#### 示例
-
-```bash
-# 新功能
-git commit -m "feat(tag): add batch tag operation"
-
-# Bug 修复
-git commit -m "fix(sync): resolve duplicate repos issue"
-
-# 文档更新
-git commit -m "docs: update deployment guide"
-```
-
-## 🔀 提交 Pull Request
-
-### 1. 创建分支
-
-```bash
-# 从 main 分支创建新分支
-git checkout -b feature/your-feature main
-```
-
-分支命名规范：
-- `feature/xxx` - 新功能
-- `fix/xxx` - Bug 修复
-- `docs/xxx` - 文档更新
-- `refactor/xxx` - 代码重构
-
-### 2. 开发和提交
-
-```bash
-# 开发完成后
-git add .
-git commit -m "feat: your feature description"
-```
-
-### 3. 推送分支
-
-```bash
-git push origin feature/your-feature
-```
-
-### 4. 创建 Pull Request
-
-1. 访问你的 Fork 仓库
-2. 点击 **Compare & pull request**
-3. 填写 PR 描述，说明改动内容
-4. 提交 PR
-
-### PR 描述模板
-
-```markdown
-## 改动说明
-
-简要描述这个 PR 做了什么。
-
-## 改动类型
-
-- [ ] 新功能
-- [ ] Bug 修复
-- [ ] 文档更新
-- [ ] 代码重构
-- [ ] 其他
-
-## 相关 Issue
-
-关联的 Issue 编号（如有）：#xxx
+- TypeScript 与 Vue Composition API；
+- 通过现有 service/store 边界写数据，不在组件中直接拼接 Dexie 事务；
+- `repoTags` 是分类关系唯一事实源；
+- 网络请求具有 timeout、AbortSignal、可理解错误和安全日志；
+- AI 结果先验证和审核，不能直接写分类；
+- 新持久表/字段同时覆盖 schema 升级、备份、导入、清空、回滚、测试和文档；
+- 新文案同时加入 `zh.ts` 与 `en.ts`，英文 fallback 不代替完整翻译；
+- 不新增 `unsafe-eval`，不把 Secret 放入 `VITE_*`；
+- 产品保持通用，不提交个人分类清单作为所有用户默认注册表。
 
 ## 测试
 
-描述如何测试这些改动。
+提交前必须运行：
 
-## 截图
-
-如有 UI 改动，请附上截图。
+```bash
+npm run check
 ```
 
-## 🐛 报告 Bug
+UI 或真实集成改动还需记录人工测试。数据迁移至少覆盖旧数据升级、正常迁移、冲突、失败回滚和重复执行；大规模功能应使用合成数据测试 10k+ 场景。
 
-请通过 [GitHub Issues](https://github.com/hujinghaoabcd/StarHub/issues) 报告 Bug。
+## 文档与截图
 
-### Bug 报告模板
+功能 PR 同时更新用户指南、配置/数据文档、CHANGELOG、项目状态和必要的中英文 README。截图暂缺时写清入口、关键状态和验收内容；不得继续使用与当前界面不一致的旧截图。详见[文档维护规范](docs/development/DOCUMENTATION_MAINTENANCE.md)。
 
-```markdown
-## 问题描述
+## 提交与 Pull Request
 
-简要描述遇到的问题。
+建议分支：`feature/...`、`fix/...`、`docs/...`、`refactor/...`。使用 Conventional Commits，例如：
 
-## 复现步骤
-
-1. 进入 '...'
-2. 点击 '...'
-3. 滚动到 '...'
-4. 看到错误
-
-## 期望行为
-
-描述你期望发生的事情。
-
-## 实际行为
-
-描述实际发生的事情。
-
-## 环境信息
-
-- 操作系统：
-- 浏览器及版本：
-- Node.js 版本：
-
-## 截图
-
-如有必要，请附上截图。
-
-## 控制台错误
-
-如有控制台错误，请粘贴相关日志。
+```text
+feat(classification): add incremental queue preview
+fix(storage): clear persisted AI task tables on full reset
+docs: refresh deployment and handoff guides
 ```
 
-## 💡 功能建议
+PR 描述至少包括：
 
-欢迎通过 [GitHub Issues](https://github.com/hujinghaoabcd/StarHub/issues) 提出功能建议。
+- 问题与改动范围；
+- 不做什么；
+- 数据结构/备份影响；
+- 安全与隐私影响；
+- 自动与人工验证；
+- 中文/英文文案状态；
+- 截图或截图待补说明；
+- 回滚方式和后续未完成项。
 
-### 功能建议模板
+保持 PR 小而可独立发布。不要混入格式化全仓库、无关依赖升级或个人数据。
 
-```markdown
-## 功能描述
+## 报告缺陷
 
-简要描述你希望添加的功能。
-
-## 使用场景
-
-描述这个功能的使用场景和解决的问题。
-
-## 可能的实现方案
-
-如果有想法，描述可能的实现方案。
-
-## 附加信息
-
-任何其他相关信息或截图。
-```
-
-## 📚 相关资源
-
-- [Vue 3 文档](https://cn.vuejs.org/)
-- [TypeScript 文档](https://www.typescriptlang.org/docs/)
-- [Element Plus 文档](https://element-plus.org/zh-CN/)
-- [Pinia 文档](https://pinia.vuejs.org/zh/)
-- [Dexie.js 文档](https://dexie.org/docs/)
-
----
-
-再次感谢你的贡献！🎉
-
+提供 StarHub 地址、`deployment-info.json` 提交、浏览器/系统、复现步骤、期望与实际行为、数据量级和已脱敏错误。AI 问题可提供供应商与模型 ID，但不要提供 Key；数据问题不要上传完整备份，可构造最小脱敏样本。
