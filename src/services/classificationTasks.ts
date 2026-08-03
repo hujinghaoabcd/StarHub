@@ -326,6 +326,11 @@ export async function updateClassificationReviewItem(
       const evaluation = updates.evaluation === undefined
         ? item.evaluation
         : updates.evaluation || undefined
+      const rejectsEnhancedResult = item.enhancementStatus === 'success' && (
+        (updates.categoryId !== undefined &&
+          updates.categoryId !== item.enhancedCategoryId) ||
+        updates.evaluation === 'incorrect'
+      )
       const acceptedDelta = accepted - item.accepted
       const now = Date.now()
       await db.classificationTaskItems.put({
@@ -333,6 +338,12 @@ export async function updateClassificationReviewItem(
         categoryId,
         modelCategoryId: item.modelCategoryId || item.categoryId,
         evaluation,
+        enhancementEvaluation: rejectsEnhancedResult
+          ? 'incorrect'
+          : item.enhancementEvaluation,
+        enhancementAdopted: rejectsEnhancedResult
+          ? 0
+          : item.enhancementAdopted,
         accepted: accepted as 0 | 1,
         updatedAt: now
       })

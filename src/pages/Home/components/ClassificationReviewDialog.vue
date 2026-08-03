@@ -2,19 +2,25 @@
   <el-dialog
     :model-value="modelValue"
     :title="t('tag.taskTitle')"
-    width="min(1040px, 96vw)"
+    width="min(1440px, 96vw)"
+    top="3vh"
     :close-on-click-modal="false"
     destroy-on-close
     @close="closeDialog"
   >
-    <template v-if="task">
+    <div class="dialog-scroll-content">
+      <template v-if="task">
       <div class="task-summary">
         <div class="task-heading">
           <el-tag :type="statusTagType" effect="plain">
             {{ t(`tag.taskStatus.${task.status}`) }}
           </el-tag>
           <span>{{ task.provider }} / {{ task.model }}</span>
-          <span>{{ t('tag.metadataOnly') }}</span>
+          <span>
+            {{ task.enhancementTargetCount
+              ? t('tag.metadataWithReadmeEnhancement')
+              : t('tag.metadataOnly') }}
+          </span>
           <span v-if="task.selectionMode">
             {{ t('tag.taskScope', {
               mode: t(`tag.taskSelectionMode.${task.selectionMode}`),
@@ -162,6 +168,75 @@
           </p>
         </section>
 
+        <section
+          v-if="enhancementSummary.candidateCount > 0"
+          class="enhancement-panel"
+        >
+          <div class="enhancement-heading">
+            <div>
+              <h4>{{ t('tag.enhancementTitle') }}</h4>
+              <p>{{ t('tag.enhancementDescription') }}</p>
+            </div>
+            <div class="enhancement-actions">
+              <el-button
+                v-if="taskStore.enhancing"
+                type="warning"
+                :loading="enhancementBusy"
+                @click="emit('pause-enhancement')"
+              >
+                {{ t('tag.enhancementPause') }}
+              </el-button>
+              <el-button
+                v-else-if="enhancementSummary.pendingCount > 0 || enhancementSummary.failedCount > 0"
+                type="primary"
+                :loading="enhancementBusy"
+                :disabled="task.status === 'running' || task.status === 'cancelled' || task.committedAt !== undefined"
+                @click="emit('enhance')"
+              >
+                {{ task.enhancementProcessedCount
+                  ? t('tag.enhancementContinue')
+                  : t('tag.enhancementStart', { count: enhancementSummary.candidateCount }) }}
+              </el-button>
+            </div>
+          </div>
+          <div class="enhancement-metrics">
+            <span>{{ t('tag.enhancementCandidates') }} {{ enhancementSummary.candidateCount }}</span>
+            <span>{{ t('tag.enhancementSucceeded') }} {{ enhancementSummary.successCount }}</span>
+            <span>{{ t('tag.enhancementFailed') }} {{ enhancementSummary.failedCount }}</span>
+            <span>{{ t('tag.enhancementChanged') }} {{ enhancementSummary.changedCount }}</span>
+            <span>{{ t('tag.enhancementReviewed') }} {{ enhancementSummary.reviewedCount }}</span>
+            <span>{{ t('tag.enhancementCorrected') }} {{ enhancementSummary.correctedCount }}</span>
+            <span>{{ t('tag.enhancementRegressed') }} {{ enhancementSummary.regressionCount }}</span>
+            <span>
+              {{ t('tag.enhancementTokenEstimate') }}
+              {{ formatNumber(
+                (task.enhancementEstimatedInputTokens || 0) +
+                  (task.enhancementEstimatedOutputTokens || 0)
+              ) }}
+            </span>
+            <span v-if="task.enhancementStartedAt">
+              {{ t('tag.enhancementElapsed') }}
+              {{ formatDuration(
+                (task.enhancementCompletedAt || task.updatedAt) -
+                  task.enhancementStartedAt
+              ) }}
+            </span>
+          </div>
+          <el-progress
+            v-if="task.enhancementTargetCount"
+            :percentage="enhancementProgressPercent"
+            :status="task.enhancementStatus === 'completed' ? 'success' : undefined"
+          />
+          <el-alert
+            v-if="task.enhancementLastError"
+            :title="task.enhancementLastError"
+            type="warning"
+            :closable="false"
+            show-icon
+            class="enhancement-alert"
+          />
+        </section>
+
         <div class="review-toolbar">
           <el-checkbox
             :model-value="allPageSelected"
@@ -270,6 +345,72 @@
             min-width="260"
             show-overflow-tooltip
           />
+
+          <el-table-column
+            :label="t('tag.enhancementResult')"
+            min-width="330"
+          >
+            <template #default="{ row }">
+              <div
+                v-if="row.enhancementStatus === 'success'"
+                class="enhancement-result"
+              >
+                <div class="enhancement-comparison">
+                  <el-tag effect="plain" type="info">
+                    {{ categoryName(row.modelCategoryId || row.baselineCategoryId || row.categoryId) }}
+                  </el-tag>
+                  <span>→</span>
+                  <el-tag
+                    :type="row.baselineCategoryId === row.enhancedCategoryId ? 'success' : 'warning'"
+                    effect="plain"
+                  >
+                    {{ categoryName(row.enhancedCategoryId) }}
+                    · {{ Math.round((row.enhancedConfidence || 0) * 100) }}%
+                  </el-tag>
+                </div>
+                <el-tooltip
+                  :content="row.enhancedReason"
+                  placement="top"
+                >
+                  <p class="enhancement-reason">{{ row.enhancedReason }}</p>
+                </el-tooltip>
+                <div class="enhancement-review-actions">
+                  <el-button
+                    size="small"
+                    type="success"
+                    :plain="row.enhancementEvaluation !== 'correct'"
+                    :disabled="task.committedAt !== undefined"
+                    @click="reviewEnhancement(row, 'correct')"
+                  >
+                    {{ t('tag.enhancementAdopt') }}
+                  </el-button>
+                  <el-button
+                    size="small"
+                    type="danger"
+                    :plain="row.enhancementEvaluation !== 'incorrect'"
+                    :disabled="task.committedAt !== undefined"
+                    @click="reviewEnhancement(row, 'incorrect')"
+                  >
+                    {{ t('tag.enhancementReject') }}
+                  </el-button>
+                </div>
+              </div>
+              <el-tag
+                v-else-if="row.enhancementStatus === 'failed'"
+                type="danger"
+                effect="plain"
+              >
+                {{ t('tag.enhancementItemFailed') }}：{{ row.enhancementError }}
+              </el-tag>
+              <span
+                v-else-if="isEnhancementCandidate(row)"
+                class="enhancement-waiting"
+              >
+                {{ t('tag.enhancementWaiting') }}
+              </span>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
         </el-table>
 
         <el-pagination
@@ -280,9 +421,10 @@
           class="review-pagination"
           @current-change="loadPage"
         />
+        </template>
+        <el-empty v-else :description="t('tag.taskNoDrafts')" />
       </template>
-      <el-empty v-else :description="t('tag.taskNoDrafts')" />
-    </template>
+    </div>
 
     <template #footer>
       <el-button @click="closeDialog">
@@ -291,7 +433,7 @@
       <el-button
         v-if="task && task.successCount > 0 && !task.committedAt"
         type="primary"
-        :loading="commitBusy"
+        :loading="commitBusy || taskStore.enhancing"
         :disabled="task.acceptedCount === 0 || task.status === 'running'"
         @click="handleConfirm"
       >
@@ -308,9 +450,14 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ElMessageBox } from 'element-plus'
 import { useClassificationTaskStore } from '@/stores/classificationTask'
+import {
+  CLASSIFICATION_ENHANCEMENT_CONFIDENCE_THRESHOLD,
+  isClassificationEnhancementCandidate
+} from '@/services/classificationEnhancementPolicy'
 import type {
   ClassificationAssignment,
   ClassificationCategory,
+  ClassificationEnhancementSummary,
   ClassificationEvaluation,
   ClassificationEvaluationSummary,
   ClassificationTask,
@@ -318,7 +465,7 @@ import type {
   Repository
 } from '@/types'
 
-const CONFIDENCE_THRESHOLD = 0.65
+const CONFIDENCE_THRESHOLD = CLASSIFICATION_ENHANCEMENT_CONFIDENCE_THRESHOLD
 const PAGE_SIZE = 50
 
 const props = defineProps<{
@@ -327,6 +474,7 @@ const props = defineProps<{
   categories: ClassificationCategory[]
   repositories: Repository[]
   actionBusy: boolean
+  enhancementBusy: boolean
   commitBusy: boolean
 }>()
 
@@ -337,6 +485,8 @@ const emit = defineEmits<{
   retry: []
   'cancel-task': []
   discard: []
+  enhance: []
+  'pause-enhancement': []
   confirm: [assignments: ClassificationAssignment[]]
 }>()
 
@@ -358,6 +508,19 @@ const emptyEvaluationSummary = (): ClassificationEvaluationSummary => ({
 const evaluationSummary = ref<ClassificationEvaluationSummary>(
   emptyEvaluationSummary()
 )
+const emptyEnhancementSummary = (): ClassificationEnhancementSummary => ({
+  candidateCount: 0,
+  pendingCount: 0,
+  successCount: 0,
+  failedCount: 0,
+  reviewedCount: 0,
+  correctedCount: 0,
+  regressionCount: 0,
+  changedCount: 0
+})
+const enhancementSummary = ref<ClassificationEnhancementSummary>(
+  emptyEnhancementSummary()
+)
 
 const repositoryNames = computed(() => new Map(
   props.repositories.map(repository => [repository.id, repository.full_name])
@@ -365,6 +528,13 @@ const repositoryNames = computed(() => new Map(
 const progressPercent = computed(() => {
   if (!props.task || props.task.totalCount === 0) return 0
   return Math.round(props.task.processedCount / props.task.totalCount * 100)
+})
+const enhancementProgressPercent = computed(() => {
+  if (!props.task?.enhancementTargetCount) return 0
+  return Math.round(
+    (props.task.enhancementProcessedCount || 0) /
+      props.task.enhancementTargetCount * 100
+  )
 })
 const statusTagType = computed(() => {
   if (!props.task) return 'info'
@@ -400,6 +570,12 @@ function formatNumber(value: number) {
   return new Intl.NumberFormat().format(value)
 }
 
+function formatDuration(milliseconds: number) {
+  const seconds = Math.max(0, Math.round(milliseconds / 1_000))
+  if (seconds < 60) return `${seconds}s`
+  return `${Math.floor(seconds / 60)}m ${seconds % 60}s`
+}
+
 function repositoryName(repositoryId: number) {
   return repositoryNames.value.get(repositoryId) || `#${repositoryId}`
 }
@@ -429,16 +605,27 @@ async function loadEvaluationSummary() {
   evaluationSummary.value = summary || emptyEvaluationSummary()
 }
 
+async function loadEnhancementSummary() {
+  const summary = await taskStore.enhancementSummary()
+  enhancementSummary.value = summary || emptyEnhancementSummary()
+}
+
 watch(
   () => [
     props.modelValue,
     props.task?.id,
-    props.task?.successCount
+    props.task?.successCount,
+    props.task?.enhancementProcessedCount,
+    props.task?.enhancementStatus
   ] as const,
   ([visible, taskId], previous) => {
     if (!visible || !taskId) return
     if (taskId !== previous?.[1]) currentPage.value = 1
-    void Promise.all([loadPage(), loadEvaluationSummary()])
+    void Promise.all([
+      loadPage(),
+      loadEvaluationSummary(),
+      loadEnhancementSummary()
+    ])
   },
   { immediate: true }
 )
@@ -463,7 +650,14 @@ async function setCategory(item: ClassificationTaskItem, categoryId: string) {
   item.categoryId = categoryId
   item.evaluation = 'incorrect'
   item.accepted = 1
-  await loadEvaluationSummary()
+  if (
+    item.enhancementStatus === 'success' &&
+    categoryId !== item.enhancedCategoryId
+  ) {
+    item.enhancementEvaluation = 'incorrect'
+    item.enhancementAdopted = 0
+  }
+  await Promise.all([loadEvaluationSummary(), loadEnhancementSummary()])
 }
 
 async function setEvaluation(
@@ -481,8 +675,41 @@ async function setEvaluation(
   })
   item.evaluation = evaluation || undefined
   if (evaluation === 'correct') item.accepted = 1
-  if (evaluation === 'incorrect') item.accepted = 0
-  await loadEvaluationSummary()
+  if (evaluation === 'incorrect') {
+    item.accepted = 0
+    if (item.enhancementStatus === 'success') {
+      item.enhancementEvaluation = 'incorrect'
+      item.enhancementAdopted = 0
+    }
+  }
+  await Promise.all([loadEvaluationSummary(), loadEnhancementSummary()])
+}
+
+function isEnhancementCandidate(item: ClassificationTaskItem) {
+  return isClassificationEnhancementCandidate(item)
+}
+
+async function reviewEnhancement(
+  item: ClassificationTaskItem,
+  evaluation: ClassificationEvaluation
+) {
+  await taskStore.reviewEnhancedItem(item.repositoryId, evaluation)
+  item.enhancementEvaluation = evaluation
+  item.enhancementAdopted = evaluation === 'correct' ? 1 : 0
+  if (evaluation === 'correct') {
+    item.categoryId = item.enhancedCategoryId
+    item.confidence = item.enhancedConfidence
+    item.reason = item.enhancedReason
+    item.evaluation = 'correct'
+    item.accepted = 1
+  } else {
+    item.categoryId = item.baselineCategoryId || item.categoryId
+    item.confidence = item.baselineConfidence ?? item.confidence
+    item.reason = item.baselineReason || item.reason
+    item.evaluation = item.baselineEvaluation
+    item.accepted = item.baselineAccepted ?? item.accepted
+  }
+  await Promise.all([loadEvaluationSummary(), loadEnhancementSummary()])
 }
 
 async function togglePage(value: boolean | string | number) {
@@ -529,6 +756,12 @@ async function handleConfirm() {
 </script>
 
 <style lang="scss" scoped>
+.dialog-scroll-content {
+  max-height: calc(94vh - 150px);
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
 .task-summary {
   padding: 14px;
   margin-bottom: 12px;
@@ -559,6 +792,77 @@ async function handleConfirm() {
     color: var(--text-primary);
     font-size: 0.92rem;
   }
+}
+
+.enhancement-panel {
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+}
+
+.enhancement-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+
+  h4,
+  p {
+    margin: 0;
+  }
+
+  h4 {
+    color: var(--text-primary);
+    font-size: 0.92rem;
+  }
+
+  p {
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+  }
+}
+
+.enhancement-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 12px 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.enhancement-alert {
+  margin-top: 10px;
+}
+
+.enhancement-result {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.enhancement-comparison,
+.enhancement-review-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.enhancement-reason {
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.enhancement-waiting {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
 }
 
 .evaluation-metrics {

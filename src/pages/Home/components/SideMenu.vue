@@ -196,12 +196,15 @@
       :categories="classificationCategories"
       :repositories="repoStore.repos"
       :action-busy="classificationActionBusy"
+      :enhancement-busy="classificationEnhancementBusy"
       :commit-busy="classificationCommitBusy"
       @pause="handleStopClassifying"
       @resume="handleResumeClassification"
       @retry="handleRetryClassification"
       @cancel-task="handleCancelClassification"
       @discard="handleDiscardClassification"
+      @enhance="handleEnhanceClassification"
+      @pause-enhancement="handlePauseClassificationEnhancement"
       @confirm="handleClassificationReviewConfirm"
     />
   </div>
@@ -266,6 +269,7 @@ const classificationCategories = ref<ClassificationCategory[]>([])
 const classificationStartRepositories = ref<Repository[]>([])
 const classificationStartBatchSize = ref(50)
 const classificationActionBusy = ref(false)
+const classificationEnhancementBusy = ref(false)
 const classificationCommitBusy = ref(false)
 const lastClassificationCommit = ref<ClassificationCommitReceipt | null>(null)
 
@@ -533,6 +537,75 @@ const handleRetryClassification = async () => {
   }
 }
 
+const handleEnhanceClassification = async () => {
+  const task = classificationTaskStore.activeTask
+  if (!task || classificationTaskStore.running || classificationTaskStore.enhancing) {
+    return
+  }
+  const config = await ensureAIReady()
+  if (!config) return
+  const registry = await buildCurrentClassificationRegistry()
+  try {
+    assertClassificationReviewCompatible(task, registry)
+    const summary = await classificationTaskStore.enhancementSummary()
+    if (!summary || summary.candidateCount === 0) {
+      ElMessage.info(t('tag.enhancementNoCandidates'))
+      return
+    }
+    await ElMessageBox.confirm(
+      t('tag.enhancementConfirmMessage', { count: summary.candidateCount }),
+      t('tag.enhancementConfirmTitle'),
+      {
+        confirmButtonText: t('tag.enhancementConfirm'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : String(error))
+    }
+    return
+  }
+
+  classificationEnhancementBusy.value = true
+  try {
+    const runPromise = classificationTaskStore.enhance(
+      repoStore.repos,
+      registry
+    )
+    void runPromise
+      .then(async () => {
+        const summary = await classificationTaskStore.enhancementSummary()
+        if (!summary) return
+        ElNotification({
+          title: t('tag.enhancementTitle'),
+          message: t('tag.enhancementReady', {
+            success: summary.successCount,
+            failed: summary.failedCount
+          }),
+          type: summary.failedCount > 0 ? 'warning' : 'success',
+          duration: 6000
+        })
+      })
+      .catch(error => {
+        ElMessage.error(error instanceof Error ? error.message : String(error))
+      })
+  } finally {
+    classificationEnhancementBusy.value = false
+  }
+}
+
+const handlePauseClassificationEnhancement = async () => {
+  classificationEnhancementBusy.value = true
+  try {
+    await classificationTaskStore.pauseEnhancement()
+    ElMessage.warning(t('tag.enhancementPaused'))
+  } finally {
+    classificationEnhancementBusy.value = false
+  }
+}
+
 const handleCancelClassification = async () => {
   try {
     await ElMessageBox.confirm(
@@ -712,6 +785,9 @@ onMounted(() => {
 onUnmounted(() => {
   if (classificationTaskStore.running) {
     void classificationTaskStore.pause()
+  }
+  if (classificationTaskStore.enhancing) {
+    void classificationTaskStore.pauseEnhancement()
   }
 })
 </script>
