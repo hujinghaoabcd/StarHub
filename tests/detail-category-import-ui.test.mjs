@@ -6,17 +6,41 @@ async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 }
 
-test('repository links and unstar are composed into one summary card', async () => {
+test('github and unstar actions share the repository header', async () => {
   const home = await source('src/pages/Home/index.vue')
   const detail = await source(
     'src/pages/Home/components/RepositoryDetailView.vue'
   )
+  const overview = await source(
+    'src/pages/Home/components/RepositoryOverview.vue'
+  )
 
   assert.equal(home.includes('<RepositoryOverview'), false)
   assert.match(home, /<RepositoryDetailView/)
-  assert.match(detail, /<RepositoryOverview[\s\S]*@unstarred=/)
-  assert.match(detail, /class="summary-card"/)
+  assert.match(
+    detail,
+    /class="summary-actions"[\s\S]*class="github-link"[\s\S]*<RepositoryOverview/
+  )
   assert.match(detail, /unstarred: \[repoId: number\]/)
+  assert.match(overview, /class="unstar-button"/)
+  assert.equal(overview.includes('permission-note'), false)
+})
+
+test('about is shown below the description without a github pages section', async () => {
+  const detail = await source(
+    'src/pages/Home/components/RepositoryDetailView.vue'
+  )
+  const overview = await source(
+    'src/pages/Home/components/RepositoryOverview.vue'
+  )
+
+  assert.match(
+    detail,
+    /class="repo-description"[\s\S]*class="repo-about"[\s\S]*class="summary-actions"/
+  )
+  assert.equal(detail.includes('GitHub Pages'), false)
+  assert.equal(overview.includes('GitHub Pages'), false)
+  assert.equal(overview.includes('link-list'), false)
 })
 
 test('category name import is exposed from the home category tools', async () => {
