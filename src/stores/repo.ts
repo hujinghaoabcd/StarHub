@@ -19,6 +19,8 @@ import {
   type RepoSyncStatus
 } from '@/services/repoSync'
 
+let activeRepositorySyncController: AbortController | null = null
+
 const EMPTY_PROGRESS = {
   current: 0,
   total: 0,
@@ -171,6 +173,7 @@ export const useRepoStore = defineStore('repo', {
       }
 
       const syncId = Date.now()
+      const syncController = new AbortController()
       let localRepositories: Repository[] = []
       let fetchedPages = 0
       let totalPages = 0
@@ -182,6 +185,7 @@ export const useRepoStore = defineStore('repo', {
       this.$state.syncStatus = 'syncing'
       this.$state.lastSyncResult = null
       this.$state.syncProgress = { ...EMPTY_PROGRESS }
+      activeRepositorySyncController = syncController
 
       const isCurrentSync = () => this.$state.currentSyncId === syncId
       const remoteCount = () => buildRepositorySnapshot(remotePages).length
@@ -204,7 +208,11 @@ export const useRepoStore = defineStore('repo', {
           this.$state.repos = []
         }
 
-        const firstPageResponse = await githubApi.getLoginUserStarred(100, 1)
+        const firstPageResponse = await githubApi.getLoginUserStarred(
+          100,
+          1,
+          syncController.signal
+        )
         if (!isCurrentSync()) {
           return cancelledResult(
             localRepositories.length,
@@ -242,7 +250,9 @@ export const useRepoStore = defineStore('repo', {
             (_, index) => firstPage + index
           )
           const settledPages = await Promise.allSettled(
-            pageNumbers.map(page => githubApi.getLoginUserStarred(100, page))
+            pageNumbers.map(page =>
+              githubApi.getLoginUserStarred(100, page, syncController.signal)
+            )
           )
 
           if (!isCurrentSync()) {
@@ -354,6 +364,16 @@ export const useRepoStore = defineStore('repo', {
         this.$state.lastSyncResult = result
         return result
       } catch (error) {
+        if (syncController.signal.aborted || !isCurrentSync()) {
+          return cancelledResult(
+            localRepositories.length,
+            fetchedPages,
+            totalPages,
+            remoteCount(),
+            'Repository sync was cancelled and its network requests were stopped.'
+          )
+        }
+
         const message = errorMessage(error)
         const result: RepoSyncResult = {
           status: 'error',
@@ -389,6 +409,9 @@ export const useRepoStore = defineStore('repo', {
 
         return result
       } finally {
+        if (activeRepositorySyncController === syncController) {
+          activeRepositorySyncController = null
+        }
         if (this.$state.currentSyncId === syncId) {
           this.$state.currentSyncId = 0
           this.$state.isSyncing = false
@@ -454,6 +477,8 @@ export const useRepoStore = defineStore('repo', {
         message
       )
 
+      activeRepositorySyncController?.abort()
+      activeRepositorySyncController = null
       this.$state.currentSyncId = 0
       this.$state.isSyncing = false
       this.$state.isFetching = false
@@ -497,6 +522,9 @@ export const useRepoStore = defineStore('repo', {
     },
 
     async clearAndReload() {
+      this.cancelRepositorySync(
+        'Repository sync was cancelled before clearing local data.'
+      )
       this.$state.currentSyncId = 0
       this.$state.isSyncing = false
       this.$state.isFetching = false
