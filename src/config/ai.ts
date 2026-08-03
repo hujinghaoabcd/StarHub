@@ -35,7 +35,7 @@ export const DEFAULT_AI_CONFIG: AIConfig = {
 // 各平台默认模型
 export const DEFAULT_MODELS = {
   openai: 'gpt-4o-mini',
-  claude: 'claude-3-5-sonnet-20241022',
+  claude: 'claude-sonnet-4-6',
   qwen: 'qwen-plus',
   zhipu: 'glm-4-flash',
   deepseek: 'deepseek-chat'
