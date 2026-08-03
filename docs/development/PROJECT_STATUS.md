@@ -3,9 +3,9 @@
 ## 当前概况
 
 - 基准分支：`main`
-- `main` 当前提交：`eb83325774c0e718c7e11465b06439a982f23300`
-- 开发分支：`agent/ai-classification-correctness`
-- 当前阶段：AI 分类阶段 B——输出与数据正确性
+- `main` 当前提交：`3c233f8d8573c46226f484aa3d973cab3da2274f`
+- 开发分支：`agent/repository-detail-performance`
+- 当前阶段：仓库详情连续切换性能热修复
 - 生产前端：`https://hujinghaoabcd.github.io/StarHub/`
 - 生产文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
 - OAuth API：`https://starhub-oauth.pages.dev/api`
@@ -24,7 +24,22 @@
 - [x] 应用内取消公开仓库 Star
 - [x] 全局 SCSS 作用域修复与 ESLint 零 warning 门禁
 
-## 当前批次：AI 分类阶段 B
+## 当前批次：仓库详情连续切换性能热修复
+
+- [x] README 请求在项目连续切换时增加 140ms 去抖
+- [x] 新项目选择后立即取消旧 README、Pages 请求和渲染任务
+- [x] 在路径替换、Markdown 解析前检查请求是否已经过期
+- [x] 将 Marked 与 Highlight.js 移入独立 Web Worker
+- [x] Worker 完成后复用；取消、超时或离开详情时才终止
+- [x] Highlight.js 改用常用语言集，Worker 产物由 971 KB 降至约 209 KB
+- [x] Worker 支持 `AbortSignal`、12 秒超时和强制终止
+- [x] 超大 README 与超长代码块增加渲染上限
+- [x] README 图片改为延迟加载和异步解码
+- [x] 屏幕外 README 内容启用 `content-visibility`
+- [x] 组合详情不再创建仅由 CSS 隐藏的重复摘要卡片和标签对话框
+- [x] 增加连续渲染与取消架构回归测试
+
+## 已完成批次：AI 分类阶段 B（PR #24）
 
 ### 输出契约
 
@@ -92,28 +107,26 @@
 ```text
 Lint                            PASS，0 warning
 Frontend type-check             PASS
-Unit tests                      PASS，52/52
+Unit tests                      PASS，57/57
 Cloudflare Functions type-check PASS
 OAuth documentation verification PASS
 Application + docs build        PASS
-CSP bundle verification         PASS，16 个生产脚本
+CSP bundle verification         PASS，17 个生产脚本
 Static security verification    PASS
 Production dependency audit     PASS，0 vulnerabilities
 Cloudflare Pages bundle         PASS
 GitHub Actions / Pages          待 PR 创建后执行
 ```
 
-## 合并前检查
+## 当前批次合并前检查
 
-- [x] 生成阶段不创建、修改分类或写入仓库—分类关系
-- [x] 只有审核确认操作可以调用事务提交
-- [x] 分类结果严格绑定当前批次仓库与现有分类 ID
-- [x] 自动修补或截取模型 JSON 的旧逻辑已删除
-- [x] 低置信度结果默认不提交
-- [x] 最新一次 AI 提交支持撤销新增关系
+- [x] 旧项目响应在任何主线程解析前退出
+- [x] 每次离线程渲染完成、取消或超时后都终止 Worker
+- [x] 组合详情不再执行不使用的标签关系查询
+- [x] 超大内容保留 GitHub 跳转，不尝试强行渲染
 - [ ] 更新 PR 最终说明
 - [ ] 标记 Ready 并 squash 合并到 `main`
-- [ ] 生产环境检查版本与 AI 分类审核入口
+- [ ] 生产环境检查 Worker 产物和部署版本
 
 ## 后续优先级
 
@@ -144,8 +157,8 @@ GitHub Actions / Pages          待 PR 创建后执行
 
 ## 下一步
 
-1. 完成阶段 B 自动检查、PR 与生产部署；
-2. 用 10–30 个仓库人工检查一次审核与撤销流程；
+1. 完成仓库详情性能热修复的 PR 与生产部署；
+2. 在生产环境连续切换 30–50 个仓库，确认页面保持响应；
 3. 开始阶段 C：元数据优先、低置信度 README 二次分类与缓存；
 4. 为万级任务增加可恢复进度和失败项重试。
 
