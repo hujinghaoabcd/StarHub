@@ -26,6 +26,22 @@ test('github and unstar actions share the repository header', async () => {
   assert.equal(overview.includes('permission-note'), false)
 })
 
+test('repository action buttons remain compact and equally sized', async () => {
+  const detail = await source(
+    'src/pages/Home/components/RepositoryDetailView.vue'
+  )
+  const overview = await source(
+    'src/pages/Home/components/RepositoryOverview.vue'
+  )
+
+  assert.match(detail, /\.github-link\s*\{[\s\S]*height:\s*32px/)
+  assert.match(detail, /\.github-link\s*\{[\s\S]*padding:\s*0 11px/)
+  assert.match(overview, /\.unstar-button\s*\{[\s\S]*height:\s*32px/)
+  assert.match(overview, /\.unstar-button\s*\{[\s\S]*padding:\s*0 11px/)
+  assert.equal(detail.includes('height: 44px'), false)
+  assert.equal(overview.includes('height: 44px'), false)
+})
+
 test('about is shown below the description without a github pages section', async () => {
   const detail = await source(
     'src/pages/Home/components/RepositoryDetailView.vue'
