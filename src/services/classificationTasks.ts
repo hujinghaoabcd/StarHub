@@ -25,6 +25,8 @@ import type {
 
 const CONFIDENCE_THRESHOLD = 0.65
 const TASK_ITEM_WRITE_CHUNK_SIZE = 1_000
+const MIN_SEGMENT_SIZE = 100
+const MAX_SEGMENT_SIZE = 2_000
 
 async function ensureDatabaseOpen() {
   if (!db.isOpen()) await db.open()
@@ -45,6 +47,8 @@ export async function createClassificationTask(
   options?: {
     selectionMode?: ClassificationTaskSelectionMode
     sampleSeed?: number
+    segmentSize?: number
+    autoEnhanceLowConfidence?: boolean
   }
 ): Promise<ClassificationTask> {
   await ensureDatabaseOpen()
@@ -57,6 +61,15 @@ export async function createClassificationTask(
     resolvedBatchSize
   )
   const now = Date.now()
+  const segmentSize = options?.segmentSize === undefined
+    ? undefined
+    : Math.min(
+        MAX_SEGMENT_SIZE,
+        Math.max(MIN_SEGMENT_SIZE, Math.trunc(options.segmentSize))
+      )
+  const segmentCount = segmentSize
+    ? Math.max(1, Math.ceil(repositories.length / segmentSize))
+    : undefined
   const task: ClassificationTask = {
     id: taskId(),
     status: 'paused',
@@ -75,12 +88,23 @@ export async function createClassificationTask(
     estimatedBatches: usage.batchCount,
     estimatedInputTokens: usage.estimatedInputTokens,
     estimatedOutputTokens: usage.estimatedOutputTokens,
+    segmentSize,
+    segmentCount,
+    currentSegmentIndex: segmentSize ? 0 : undefined,
+    segmentProcessedCount: segmentSize ? 0 : undefined,
+    segmentSuccessCount: segmentSize ? 0 : undefined,
+    segmentFailedCount: segmentSize ? 0 : undefined,
+    autoEnhanceLowConfidence: segmentSize
+      ? options?.autoEnhanceLowConfidence !== false
+      : false,
     createdAt: now,
     updatedAt: now
   }
-  const items: ClassificationTaskItem[] = repositories.map(repository => ({
+  const items: ClassificationTaskItem[] = repositories.map((repository, index) => ({
     taskId: task.id,
     repositoryId: repository.id,
+    segmentIndex: segmentSize ? Math.floor(index / segmentSize) : undefined,
+    committed: segmentSize ? 0 : undefined,
     status: 'pending',
     attempts: 0,
     accepted: 0,
@@ -158,9 +182,17 @@ export async function deleteClassificationTask(id: string): Promise<void> {
 
 export async function getPendingClassificationTaskItems(
   id: string,
-  limit: number
+  limit: number,
+  segmentIndex?: number
 ): Promise<ClassificationTaskItem[]> {
   await ensureDatabaseOpen()
+  if (segmentIndex !== undefined) {
+    return db.classificationTaskItems
+      .where('[taskId+segmentIndex+status]')
+      .equals([id, segmentIndex, 'pending'])
+      .limit(limit)
+      .toArray()
+  }
   return db.classificationTaskItems
     .where('[taskId+status]')
     .equals([id, 'pending'])
@@ -259,6 +291,15 @@ export async function saveClassificationBatchResult(
         successCount: task.successCount + successDelta,
         failedCount: task.failedCount + failedDelta,
         acceptedCount: task.acceptedCount + acceptedDelta,
+        segmentProcessedCount: task.segmentSize
+          ? (task.segmentProcessedCount || 0) + processedDelta
+          : undefined,
+        segmentSuccessCount: task.segmentSize
+          ? (task.segmentSuccessCount || 0) + successDelta
+          : undefined,
+        segmentFailedCount: task.segmentSize
+          ? (task.segmentFailedCount || 0) + failedDelta
+          : undefined,
         updatedAt: now,
         lastError: lastFailure || task.lastError
       }
@@ -271,27 +312,37 @@ export async function saveClassificationBatchResult(
 export async function getClassificationReviewPage(
   id: string,
   page: number,
-  pageSize: number
+  pageSize: number,
+  segmentIndex?: number
 ): Promise<ClassificationTaskItem[]> {
   await ensureDatabaseOpen()
   const safePage = Math.max(1, Math.trunc(page))
   const safePageSize = Math.min(100, Math.max(1, Math.trunc(pageSize)))
-  return db.classificationTaskItems
-    .where('[taskId+status]')
-    .equals([id, 'success'])
+  const collection = segmentIndex === undefined
+    ? db.classificationTaskItems.where('[taskId+status]').equals([id, 'success'])
+    : db.classificationTaskItems
+        .where('[taskId+segmentIndex+status]')
+        .equals([id, segmentIndex, 'success'])
+  return collection
     .offset((safePage - 1) * safePageSize)
     .limit(safePageSize)
     .toArray()
 }
 
 export async function getClassificationEvaluationSummary(
-  id: string
+  id: string,
+  segmentIndex?: number
 ): Promise<ClassificationEvaluationSummary> {
   await ensureDatabaseOpen()
-  const items = await db.classificationTaskItems
-    .where('[taskId+status]')
-    .equals([id, 'success'])
-    .toArray()
+  const items = segmentIndex === undefined
+    ? await db.classificationTaskItems
+        .where('[taskId+status]')
+        .equals([id, 'success'])
+        .toArray()
+    : await db.classificationTaskItems
+        .where('[taskId+segmentIndex+status]')
+        .equals([id, segmentIndex, 'success'])
+        .toArray()
   return buildClassificationEvaluationSummary(items, CONFIDENCE_THRESHOLD)
 }
 
@@ -398,13 +449,19 @@ export async function setClassificationReviewItemsAccepted(
 }
 
 export async function getAcceptedClassificationAssignments(
-  id: string
+  id: string,
+  segmentIndex?: number
 ): Promise<ClassificationAssignment[]> {
   await ensureDatabaseOpen()
-  const items = await db.classificationTaskItems
-    .where('[taskId+accepted]')
-    .equals([id, 1])
-    .toArray()
+  const items = segmentIndex === undefined
+    ? await db.classificationTaskItems
+        .where('[taskId+accepted]')
+        .equals([id, 1])
+        .toArray()
+    : await db.classificationTaskItems
+        .where('[taskId+segmentIndex+accepted]')
+        .equals([id, segmentIndex, 1])
+        .toArray()
   return items.flatMap(item =>
     item.status === 'success' &&
     item.categoryId &&
@@ -434,10 +491,15 @@ export async function retryFailedClassificationItems(
       if (task.committedAt) {
         throw new Error('Committed classification tasks cannot be retried')
       }
-      const failedItems = await db.classificationTaskItems
-        .where('[taskId+status]')
-        .equals([id, 'failed'])
-        .toArray()
+      const failedItems = task.segmentSize
+        ? await db.classificationTaskItems
+            .where('[taskId+segmentIndex+status]')
+            .equals([id, task.currentSegmentIndex || 0, 'failed'])
+            .toArray()
+        : await db.classificationTaskItems
+            .where('[taskId+status]')
+            .equals([id, 'failed'])
+            .toArray()
       const now = Date.now()
       if (failedItems.length > 0) {
         await db.classificationTaskItems.bulkPut(failedItems.map(item => ({
@@ -453,6 +515,12 @@ export async function retryFailedClassificationItems(
         status: 'paused',
         processedCount: Math.max(0, task.processedCount - failedItems.length),
         failedCount: Math.max(0, task.failedCount - failedItems.length),
+        segmentProcessedCount: task.segmentSize
+          ? Math.max(0, (task.segmentProcessedCount || 0) - failedItems.length)
+          : undefined,
+        segmentFailedCount: task.segmentSize
+          ? Math.max(0, (task.segmentFailedCount || 0) - failedItems.length)
+          : undefined,
         lastError: undefined,
         updatedAt: now
       }
@@ -468,16 +536,87 @@ export async function markClassificationTaskCommitted(
 ): Promise<ClassificationTask> {
   await ensureDatabaseOpen()
   const now = Date.now()
-  await db.classificationTasks.update(id, {
-    status: 'committed',
-    committedAt: now,
-    committedCount,
-    lastError: undefined,
-    updatedAt: now
-  })
-  const updated = await db.classificationTasks.get(id)
-  if (!updated) throw new Error('Classification task no longer exists')
-  return updated
+  return db.transaction(
+    'rw',
+    db.classificationTasks,
+    db.classificationTaskItems,
+    async () => {
+      const task = await db.classificationTasks.get(id)
+      if (!task) throw new Error('Classification task no longer exists')
+      const cumulativeCommittedCount = (task.committedCount || 0) + committedCount
+      if (!task.segmentSize || task.currentSegmentIndex === undefined) {
+        const updated = {
+          ...task,
+          status: 'committed' as const,
+          committedAt: now,
+          committedCount: cumulativeCommittedCount,
+          lastError: undefined,
+          updatedAt: now
+        }
+        await db.classificationTasks.put(updated)
+        return updated
+      }
+
+      const segmentIndex = task.currentSegmentIndex
+      const segmentTarget = Math.min(
+        task.segmentSize,
+        task.totalCount - segmentIndex * task.segmentSize
+      )
+      const pausedBeforeSegmentFinished = task.status === 'paused' &&
+        (task.segmentProcessedCount || 0) < segmentTarget
+      const finalSegment = segmentIndex + 1 >= (task.segmentCount || 1)
+      const segmentItems = await db.classificationTaskItems
+        .where('[taskId+segmentIndex+committed]')
+        .equals([id, segmentIndex, 0])
+        .toArray()
+      if (segmentItems.length > 0) {
+        await db.classificationTaskItems.bulkPut(segmentItems.map(item => ({
+          ...item,
+          committed: 1 as const,
+          updatedAt: now
+        })))
+      }
+
+      if (pausedBeforeSegmentFinished || finalSegment) {
+        const updated = {
+          ...task,
+          status: 'committed' as const,
+          committedAt: now,
+          committedCount: cumulativeCommittedCount,
+          lastError: undefined,
+          updatedAt: now
+        }
+        await db.classificationTasks.put(updated)
+        return updated
+      }
+
+      const updated: ClassificationTask = {
+        ...task,
+        status: 'paused',
+        committedCount: cumulativeCommittedCount,
+        currentSegmentIndex: segmentIndex + 1,
+        segmentProcessedCount: 0,
+        segmentSuccessCount: 0,
+        segmentFailedCount: 0,
+        acceptedCount: 0,
+        enhancementStatus: undefined,
+        enhancementPromptVersion: undefined,
+        enhancementTargetCount: undefined,
+        enhancementProcessedCount: undefined,
+        enhancementSuccessCount: undefined,
+        enhancementFailedCount: undefined,
+        enhancementEstimatedInputTokens: undefined,
+        enhancementEstimatedOutputTokens: undefined,
+        enhancementStartedAt: undefined,
+        enhancementCompletedAt: undefined,
+        enhancementLastError: undefined,
+        lastError: undefined,
+        updatedAt: now
+      }
+      await db.classificationTasks.put(updated)
+      return updated
+    }
+  )
 }
 
 export function assertClassificationTaskCompatible(
@@ -526,7 +665,11 @@ export async function executeClassificationTask(
   )
 
   while (!signal.aborted) {
-    const pendingItems = await getPendingClassificationTaskItems(id, task.batchSize)
+    const pendingItems = await getPendingClassificationTaskItems(
+      id,
+      task.batchSize,
+      task.segmentSize ? task.currentSegmentIndex || 0 : undefined
+    )
     if (pendingItems.length === 0) break
     const pendingIds = pendingItems.map(item => item.repositoryId)
     const batchRepositories = pendingIds.flatMap(repositoryId => {
@@ -591,9 +734,9 @@ export async function executeClassificationTask(
   if (signal.aborted) {
     return await loadClassificationTask(id) || task
   }
-  const status: ClassificationTaskStatus = task.failedCount > 0
-    ? 'partial'
-    : 'completed'
+  const status: ClassificationTaskStatus = task.segmentSize
+    ? (task.segmentFailedCount || 0) > 0 ? 'partial' : 'segment_ready'
+    : task.failedCount > 0 ? 'partial' : 'completed'
   task = await setClassificationTaskStatus(id, status, task.lastError)
   onUpdate?.(task)
   return task

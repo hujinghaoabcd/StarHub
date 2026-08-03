@@ -31,7 +31,19 @@ export async function getClassificationEnhancementSummary(
   id: string
 ): Promise<ClassificationEnhancementSummary> {
   await ensureDatabaseOpen()
-  const items = await db.classificationTaskItems.where('taskId').equals(id).toArray()
+  const task = await db.classificationTasks.get(id)
+  if (!task) throw new Error('Classification task no longer exists')
+  const items = task.segmentSize
+    ? await db.classificationTaskItems
+        .where('[taskId+segmentIndex+status]')
+        .between(
+          [id, task.currentSegmentIndex || 0, ''],
+          [id, task.currentSegmentIndex || 0, '\uffff'],
+          true,
+          true
+        )
+        .toArray()
+    : await db.classificationTaskItems.where('taskId').equals(id).toArray()
   return buildClassificationEnhancementSummary(items)
 }
 
@@ -58,10 +70,20 @@ export async function recoverInterruptedClassificationEnhancement(
 async function prepareEnhancementItems(
   task: ClassificationTask
 ): Promise<ClassificationTaskItem[]> {
-  const allItems = await db.classificationTaskItems
-    .where('taskId')
-    .equals(task.id)
-    .toArray()
+  const allItems = task.segmentSize
+    ? await db.classificationTaskItems
+        .where('[taskId+segmentIndex+status]')
+        .between(
+          [task.id, task.currentSegmentIndex || 0, ''],
+          [task.id, task.currentSegmentIndex || 0, '\uffff'],
+          true,
+          true
+        )
+        .toArray()
+    : await db.classificationTaskItems
+        .where('taskId')
+        .equals(task.id)
+        .toArray()
   const allCandidates = allItems.filter(item =>
     isClassificationEnhancementCandidate(item)
   )
@@ -153,13 +175,23 @@ async function saveEnhancementBatch(
         }
       }))
 
-      const storedItems = await db.classificationTaskItems
-        .where('taskId')
-        .equals(taskId)
-        .toArray()
-      const summary = buildClassificationEnhancementSummary(storedItems)
       const task = await db.classificationTasks.get(taskId)
       if (!task) throw new Error('Classification task no longer exists')
+      const storedItems = task.segmentSize
+        ? await db.classificationTaskItems
+            .where('[taskId+segmentIndex+status]')
+            .between(
+              [taskId, task.currentSegmentIndex || 0, ''],
+              [taskId, task.currentSegmentIndex || 0, '\uffff'],
+              true,
+              true
+            )
+            .toArray()
+        : await db.classificationTaskItems
+            .where('taskId')
+            .equals(taskId)
+            .toArray()
+      const summary = buildClassificationEnhancementSummary(storedItems)
       const updated: ClassificationTask = {
         ...task,
         enhancementProcessedCount: summary.successCount + summary.failedCount,

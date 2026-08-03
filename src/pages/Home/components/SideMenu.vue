@@ -271,6 +271,7 @@ const classificationStartBatchSize = ref(50)
 const classificationActionBusy = ref(false)
 const classificationEnhancementBusy = ref(false)
 const classificationCommitBusy = ref(false)
+const confirmedCustomEndpointHost = ref<string | null>(null)
 const lastClassificationCommit = ref<ClassificationCommitReceipt | null>(null)
 
 const tags = computed(() => {
@@ -416,7 +417,10 @@ async function ensureAIReady() {
   try {
     const { resolveAIEndpoint } = await import('@/utils/aiEndpoint')
     const endpoint = resolveAIEndpoint(config)
-    if (endpoint.isCustom) {
+    if (
+      endpoint.isCustom &&
+      confirmedCustomEndpointHost.value !== endpoint.host
+    ) {
       await ElMessageBox.confirm(
         t('settings.customEndpointConfirm', { host: endpoint.host }),
         t('settings.customEndpointTitle'),
@@ -426,6 +430,7 @@ async function ensureAIReady() {
           type: 'warning'
         }
       )
+      confirmedCustomEndpointHost.value = endpoint.host
     }
     return config
   } catch (error) {
@@ -442,12 +447,12 @@ async function ensureAIReady() {
 function notifyTaskResult() {
   const task = classificationTaskStore.activeTask
   if (!task) return
-  if (task.status === 'completed') {
+  if (task.status === 'completed' || task.status === 'segment_ready') {
     ElNotification({
       title: t('tag.reviewTitle'),
       message: t('tag.reviewReady', {
-        success: task.successCount,
-        failed: task.failedCount
+        success: task.segmentSize ? task.segmentSuccessCount || 0 : task.successCount,
+        failed: task.segmentSize ? task.segmentFailedCount || 0 : task.failedCount
       }),
       type: 'success',
       duration: 6000
@@ -456,8 +461,8 @@ function notifyTaskResult() {
     ElNotification({
       title: t('tag.classifyPartial'),
       message: t('tag.classifyPartialMessage', {
-        success: task.successCount,
-        failed: task.failedCount
+        success: task.segmentSize ? task.segmentSuccessCount || 0 : task.successCount,
+        failed: task.segmentSize ? task.segmentFailedCount || 0 : task.failedCount
       }),
       type: 'warning',
       duration: 6000
@@ -692,6 +697,8 @@ const handleClassificationTaskStart = async (payload: {
   repositories: Repository[]
   selectionMode: ClassificationTaskSelectionMode
   sampleSeed?: number
+  segmentSize?: number
+  autoEnhanceLowConfidence?: boolean
 }) => {
   const registry = classificationCategories.value
   if (registry.length === 0 || payload.repositories.length === 0) return
@@ -704,7 +711,9 @@ const handleClassificationTaskStart = async (payload: {
       classificationStartBatchSize.value,
       {
         selectionMode: payload.selectionMode,
-        sampleSeed: payload.sampleSeed
+        sampleSeed: payload.sampleSeed,
+        segmentSize: payload.segmentSize,
+        autoEnhanceLowConfidence: payload.autoEnhanceLowConfidence
       }
     )
     showClassificationStart.value = false
@@ -725,6 +734,7 @@ const handleClassificationReviewConfirm = async (
   const task = classificationTaskStore.activeTask
   if (!task) return
   classificationCommitBusy.value = true
+  let continueWithNextSegment = false
 
   try {
     const registry = await buildCurrentClassificationRegistry()
@@ -732,16 +742,26 @@ const handleClassificationReviewConfirm = async (
 
     const receipt = await tagStore.applyClassificationAssignments(assignments)
     await classificationTaskStore.markCommitted(receipt.addedRelations.length)
+    const updatedTask = classificationTaskStore.activeTask
+    continueWithNextSegment = Boolean(
+      updatedTask?.segmentSize && !updatedTask.committedAt
+    )
     lastClassificationCommit.value = receipt.addedRelations.length > 0
       ? receipt
       : null
     repoStore.setCurrentPage(1)
-    showClassificationReview.value = false
+    showClassificationReview.value = continueWithNextSegment
     ElNotification({
       title: t('tag.classifySuccess'),
-      message: t('tag.classificationCommitted', {
-        count: receipt.addedRelations.length
-      }),
+      message: continueWithNextSegment
+        ? t('tag.segmentCommitted', {
+            count: receipt.addedRelations.length,
+            current: (updatedTask?.currentSegmentIndex || 0) + 1,
+            total: updatedTask?.segmentCount || 1
+          })
+        : t('tag.classificationCommitted', {
+            count: receipt.addedRelations.length
+          }),
       type: 'success',
       duration: 5000
     })
@@ -751,6 +771,7 @@ const handleClassificationReviewConfirm = async (
   } finally {
     classificationCommitBusy.value = false
   }
+  if (continueWithNextSegment) void startActiveClassification()
 }
 const handleUndoClassification = async () => {
   const receipt = lastClassificationCommit.value
