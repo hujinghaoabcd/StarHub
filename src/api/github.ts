@@ -44,8 +44,13 @@ export const githubApi = {
   },
 
   // Get repository README
-  getReadme(owner: string, repo: string): Promise<AxiosResponse<string>> {
+  getReadme(
+    owner: string,
+    repo: string,
+    signal?: AbortSignal
+  ): Promise<AxiosResponse<string>> {
     return http.get(`/repos/${owner}/${repo}/readme`, {
+      signal,
       headers: {
         Accept: 'application/vnd.github.VERSION.raw'
       }

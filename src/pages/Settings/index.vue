@@ -64,8 +64,20 @@
         <template #header>
           <div class="card-header">
             <span>{{ t('settings.aiClassification') }}</span>
+            <el-tag size="small" type="warning" effect="plain">
+              {{ t('tag.experimental') }}
+            </el-tag>
           </div>
         </template>
+
+        <el-alert
+          :title="t('settings.aiExperimentalTitle')"
+          :description="t('settings.aiExperimentalDescription')"
+          type="warning"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 16px;"
+        />
 
         <el-form :model="aiConfig" label-width="120px" label-position="left">
           <el-form-item :label="t('settings.aiPlatform')">
@@ -85,6 +97,7 @@
               show-password
               :placeholder="t('settings.enterAPIKey')"
             />
+            <div class="form-tip">{{ t('settings.apiKeySessionTip') }}</div>
           </el-form-item>
 
           <el-form-item :label="t('settings.apiAddress')">
@@ -128,6 +141,9 @@
             </el-button>
             <el-button @click="handleTest" :loading="testing">
               {{ t('settings.testConnection') }}
+            </el-button>
+            <el-button type="danger" plain @click="handleClearAIKey">
+              {{ t('settings.clearAPIKey') }}
             </el-button>
           </el-form-item>
         </el-form>
@@ -312,12 +328,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onActivated, watch } from 'vue'
+import { ref, onMounted, onActivated, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Download, Upload, Delete, View } from '@element-plus/icons-vue'
-import { getAIConfig, saveAIConfig, DEFAULT_MODELS, DEFAULT_BASE_URLS, type AIConfig } from '@/config/ai'
+import {
+  clearAIAPIKey,
+  getAIConfig,
+  saveAIConfig,
+  DEFAULT_MODELS,
+  DEFAULT_BASE_URLS,
+  type AIConfig
+} from '@/config/ai'
+import { resolveAIEndpoint } from '@/utils/aiEndpoint'
 import {
   getCategoryPresets,
   saveCategoryPresets,
@@ -349,6 +373,7 @@ const aiConfig = ref<AIConfig>({
 })
 
 const testing = ref(false)
+let connectionTestAbortController: AbortController | null = null
 const exporting = ref(false)
 const importing = ref(false)
 const dataStats = ref<{
@@ -672,14 +697,50 @@ const resetModel = () => {
   aiConfig.value.model = ''
 }
 
-const handleSave = () => {
+const resolveAndConfirmAIEndpoint = async () => {
+  const endpoint = resolveAIEndpoint(aiConfig.value)
+  if (!endpoint.isCustom) return endpoint
+
+  try {
+    await ElMessageBox.confirm(
+      t('settings.customEndpointConfirm', { host: endpoint.host }),
+      t('settings.customEndpointTitle'),
+      {
+        confirmButtonText: t('settings.confirmEndpoint'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning'
+      }
+    )
+    return endpoint
+  } catch {
+    return null
+  }
+}
+
+const handleSave = async () => {
   if (!aiConfig.value.apiKey) {
     ElMessage.warning('请输入 API Key')
     return
   }
 
-  saveAIConfig(aiConfig.value)
-  ElMessage.success('设置已保存')
+  try {
+    const endpoint = await resolveAndConfirmAIEndpoint()
+    if (!endpoint) return
+
+    aiConfig.value.baseURL = aiConfig.value.baseURL
+      ? endpoint.baseURL
+      : ''
+    saveAIConfig(aiConfig.value)
+    ElMessage.success(t('settings.savedForSession'))
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error))
+  }
+}
+
+const handleClearAIKey = () => {
+  clearAIAPIKey()
+  aiConfig.value.apiKey = ''
+  ElMessage.success(t('settings.apiKeyCleared'))
 }
 
 const handleTest = async () => {
@@ -688,10 +749,27 @@ const handleTest = async () => {
     return
   }
 
+  let endpoint
+  try {
+    endpoint = await resolveAndConfirmAIEndpoint()
+    if (!endpoint) return
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : String(error))
+    return
+  }
+
   testing.value = true
+  connectionTestAbortController?.abort()
+  const controller = new AbortController()
+  connectionTestAbortController = controller
+  let timedOut = false
+  const timeoutId = window.setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, 20_000)
 
   try {
-    const baseURL = aiConfig.value.baseURL || DEFAULT_BASE_URLS[aiConfig.value.provider]
+    const baseURL = endpoint.baseURL
     const model = aiConfig.value.model || DEFAULT_MODELS[aiConfig.value.provider]
 
     let response: Response
@@ -699,6 +777,7 @@ const handleTest = async () => {
     if (aiConfig.value.provider === 'claude') {
       response = await fetch(`${baseURL}/messages`, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           'x-api-key': aiConfig.value.apiKey,
@@ -713,6 +792,7 @@ const handleTest = async () => {
     } else {
       response = await fetch(`${baseURL}/chat/completions`, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${aiConfig.value.apiKey}`
@@ -733,11 +813,24 @@ const handleTest = async () => {
     }
   } catch (error: any) {
     console.error('Test failed:', error)
-    ElMessage.error(`连接失败: ${error.message}`)
+    if (timedOut) {
+      ElMessage.error(t('settings.connectionTimeout'))
+    } else if (!controller.signal.aborted) {
+      ElMessage.error(`连接失败: ${error.message}`)
+    }
   } finally {
-    testing.value = false
+    window.clearTimeout(timeoutId)
+    if (connectionTestAbortController === controller) {
+      connectionTestAbortController = null
+      testing.value = false
+    }
   }
 }
+
+onUnmounted(() => {
+  connectionTestAbortController?.abort()
+  connectionTestAbortController = null
+})
 
 // 导出数据
 const handleExport = async () => {
@@ -1439,4 +1532,3 @@ const handleClearAll = async () => {
   }
 }
 </style>
-
