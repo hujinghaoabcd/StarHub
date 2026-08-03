@@ -78,15 +78,23 @@ test('actions only share the title row and do not squeeze the description', asyn
 })
 
 test('category tools expose import and delete-all without the old note', async () => {
-  const home = await source('src/pages/Home/index.vue')
+  const [home, zhLocale, enLocale] = await Promise.all([
+    source('src/pages/Home/index.vue'),
+    source('src/i18n/locales/zh.ts'),
+    source('src/i18n/locales/en.ts')
+  ])
 
   assert.match(home, /TagNameImportDialog/)
   assert.match(home, /showImportTagDialog/)
-  assert.match(home, /导入分类/)
-  assert.match(home, /删除全部/)
+  assert.match(home, /categoryGovernance\.importButton/)
+  assert.match(home, /categoryGovernance\.deleteAllButton/)
   assert.match(home, /handleDeleteAllTags/)
   assert.match(home, /replaceAllTags\(\[\]\)/)
-  assert.match(home, /不会删除任何项目/)
+  assert.match(home, /categoryGovernance\.deleteAllConfirm/)
+  assert.match(zhLocale, /importButton: '导入分类'/)
+  assert.match(zhLocale, /deleteAllButton: '删除全部'/)
+  assert.match(enLocale, /importButton: 'Import'/)
+  assert.match(enLocale, /deleteAllButton: 'Delete All'/)
   assert.equal(home.includes('只导入名称，不分配项目'), false)
 })
 

@@ -155,13 +155,14 @@ test('merge migration preserves and deduplicates every repository relation', asy
 })
 
 test('governance migration snapshots category relations and supports rollback', async () => {
-  const [database, governance, manager, importDialog, classificationRegistry] =
+  const [database, governance, manager, importDialog, classificationRegistry, zhLocale] =
     await Promise.all([
       source('src/db/index.ts'),
       source('src/services/categoryGovernance.ts'),
       source('src/pages/Home/components/CategoryManagerDialog.vue'),
       source('src/pages/Home/components/TagNameImportDialog.vue'),
-      source('src/services/classificationRegistry.ts')
+      source('src/services/classificationRegistry.ts'),
+      source('src/i18n/locales/zh.ts')
     ])
 
   assert.match(database, /categoryMigrationSnapshots: 'id, createdAt'/)
@@ -170,10 +171,14 @@ test('governance migration snapshots category relations and supports rollback', 
   assert.match(governance, /db\.repoTags\.clear\(\)/)
   assert.match(governance, /deduplicateRepoTags/)
   assert.match(governance, /undoLatestCategoryMigration/)
-  assert.match(manager, /只看空分类/)
-  assert.match(manager, /项目数从多到少/)
-  assert.match(manager, /合并到…/)
-  assert.match(importDialog, /新增.*重命名.*合并/s)
+  assert.match(manager, /categoryGovernance\.emptyOnly/)
+  assert.match(manager, /categoryGovernance\.sortCountDesc/)
+  assert.match(manager, /categoryGovernance\.mergeInto/)
+  assert.match(importDialog, /categoryGovernance\.statusCreate/)
+  assert.match(importDialog, /categoryGovernance\.statusRename/)
+  assert.match(importDialog, /categoryGovernance\.statusMerge/)
+  assert.match(zhLocale, /emptyOnly: '只看空分类'/)
+  assert.match(zhLocale, /sortCountDesc: '项目数从多到少'/)
   assert.match(importDialog, /preview\.hasConflicts/)
   assert.match(classificationRegistry, /tags\.some\(tag => tag\.registry\?\.managed\)/)
   assert.match(classificationRegistry, /registry-v\$\{isFormalRegistry \? 2 : 1\}/)

@@ -185,7 +185,8 @@ API 地址：（留空使用默认）
 ## 安全提示
 
 > ⚠️ **注意**
-> - API Key 存储在浏览器 localStorage
+> - API Key 只存储在当前浏览器会话的 sessionStorage，关闭页面后失效
+> - 自定义 API 地址必须使用 HTTPS，并在保存前核对目标主机
 > - 不要在公共电脑配置 API Key
 > - 定期轮换 API Key
 > - 建议设置 API 使用限额

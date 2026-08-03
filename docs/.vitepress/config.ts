@@ -40,6 +40,7 @@ export default defineConfig({
         items: [
           { text: '更新日志', link: '/changelog' },
           { text: '贡献指南', link: '/contributing' },
+          { text: '开发状态与交接', link: '/development/PROJECT_STATUS' },
         ]
       }
     ],
@@ -98,6 +99,17 @@ export default defineConfig({
           items: [
             { text: '技术栈', link: '/reference/tech-stack' },
             { text: '项目结构', link: '/reference/structure' },
+          ]
+        }
+      ],
+      '/development/': [
+        {
+          text: '开发与交接',
+          items: [
+            { text: '项目状态', link: '/development/PROJECT_STATUS' },
+            { text: '后续路线图与接手', link: '/development/NEXT_PHASE_HANDOFF' },
+            { text: 'AI 分类审计', link: '/development/AI_CLASSIFICATION_AUDIT' },
+            { text: '本地 OAuth', link: '/development/local-oauth' },
           ]
         }
       ]

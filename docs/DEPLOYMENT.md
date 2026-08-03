@@ -90,3 +90,37 @@ VITE_API_BASE_URL=https://你的项目.pages.dev/api npm run build
 4. 生产环境只允许配置的 Origin；
 5. 登录完成后 URL 中不残留 `code` 与 `state`；
 6. Client Secret 不出现在仓库、构建产物、浏览器存储或日志中。
+
+## 7. 标准发布流程
+
+1. 从最新 `main` 创建功能分支；
+2. 运行 `npm run check`；
+3. 创建 Pull Request，等待 CI、GitHub Pages 构建和 Cloudflare 预览；
+4. 所有检查成功后 squash merge；
+5. 等待 `main` 的 `CI` 和 `Deploy GitHub Pages` 两个工作流完成；
+6. 打开生产应用与 `/docs/`，确认资源来自本次提交；
+7. 检查 OAuth 登录、IndexedDB 数据升级和本批关键功能。
+
+Cloudflare PR 预览只验证 OAuth API 构建，不是正式前端。正式前端始终以 GitHub Pages 的 `main` 部署为准。
+
+## 8. 数据版本升级检查
+
+包含 IndexedDB schema 变化的版本必须额外检查：
+
+1. 旧数据库可以原地升级；
+2. 升级前后的 `repos`、`tags` 和 `repoTags` 数量合理；
+3. 已有仓库—分类关系不丢失；
+4. 刷新页面后新表仍可读取；
+5. 导出和重新导入当前备份格式成功；
+6. 清空全部数据时新表也被清理。
+
+当前版本使用 IndexedDB v8、正式分类元数据 schema v2 和 StarHub 备份 v4。
+
+## 9. 当前已验证生产地址
+
+- 应用：`https://hujinghaoabcd.github.io/StarHub/`
+- 文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
+- OAuth 健康检查：`https://starhub-oauth.pages.dev/api/health`
+- GitHub Actions：`https://github.com/hujinghaoabcd/StarHub/actions?query=branch%3Amain`
+
+后续维护与完整发布交接见 [后续开发与接手说明](development/NEXT_PHASE_HANDOFF.md)。

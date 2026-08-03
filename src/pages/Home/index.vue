@@ -4,7 +4,7 @@
       <template #sidebar>
         <div class="sidebar-panel">
           <div class="category-import-bar">
-            <div class="category-import-title">分类工具</div>
+            <div class="category-import-title">{{ t('categoryGovernance.toolTitle') }}</div>
             <div class="category-import-actions">
               <el-button
                 class="category-tool-button"
@@ -14,7 +14,7 @@
                 @click="showImportTagDialog = true"
               >
                 <el-icon><Upload /></el-icon>
-                导入分类
+                {{ t('categoryGovernance.importButton') }}
               </el-button>
               <el-button
                 class="category-tool-button"
@@ -24,7 +24,7 @@
                 @click="showCategoryManager = true"
               >
                 <el-icon><Tools /></el-icon>
-                管理
+                {{ t('categoryGovernance.manageButton') }}
               </el-button>
               <el-button
                 class="category-tool-button"
@@ -36,7 +36,7 @@
                 @click="handleDeleteAllTags"
               >
                 <el-icon><Delete /></el-icon>
-                删除全部
+                {{ t('categoryGovernance.deleteAllButton') }}
               </el-button>
             </div>
           </div>
@@ -78,6 +78,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Tools, Upload } from '@element-plus/icons-vue'
 import { useRepoStore } from '@/stores/repo'
@@ -93,6 +94,7 @@ import EmptyState from './components/EmptyState.vue'
 import type { Repository } from '@/types'
 
 const repoStore = useRepoStore()
+const { t } = useI18n()
 const tagStore = useTagStore()
 const highlightStore = useHighlightStore()
 
@@ -155,11 +157,11 @@ const handleDeleteAllTags = async () => {
 
   try {
     await ElMessageBox.confirm(
-      `将删除全部 ${tagCount} 个分类及其项目关联，但不会删除任何项目。此操作无法撤销，是否继续？`,
-      '删除所有分类',
+      t('categoryGovernance.deleteAllConfirm', { count: tagCount }),
+      t('categoryGovernance.deleteAllTitle'),
       {
-        confirmButtonText: '全部删除',
-        cancelButtonText: '取消',
+        confirmButtonText: t('categoryGovernance.deleteAllAction'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
         confirmButtonClass: 'el-button--danger'
       }
@@ -171,10 +173,10 @@ const handleDeleteAllTags = async () => {
   try {
     await tagStore.replaceAllTags([])
     repoStore.setSelectedTag(null)
-    ElMessage.success(`已删除全部 ${tagCount} 个分类`)
+    ElMessage.success(t('categoryGovernance.deleteAllSuccess', { count: tagCount }))
   } catch (error) {
     console.error('Failed to delete all categories:', error)
-    ElMessage.error('删除全部分类失败，原有分类已保留。')
+    ElMessage.error(t('categoryGovernance.deleteAllFailed'))
   }
 }
 
@@ -185,28 +187,26 @@ onMounted(async () => {
 
     if (result.status === 'success') {
       if (result.added || result.updated || result.removed) {
-        ElMessage.success(
-          `同步完成：新增 ${result.added}，更新 ${result.updated}，移除 ${result.removed}`
-        )
+        ElMessage.success(t('categoryGovernance.syncComplete', {
+          added: result.added,
+          updated: result.updated,
+          removed: result.removed
+        }))
       }
       return
     }
 
     if (result.status === 'partial') {
-      ElMessage.warning(
-        `同步未完成：第 ${result.failedPages.join(', ')} 页获取失败，已保留上一次完整数据。`
-      )
+      ElMessage.warning(t('categoryGovernance.syncPartial', { pages: result.failedPages.join(', ') }))
       return
     }
 
     if (result.status === 'error') {
-      ElMessage.error(
-        `同步失败，已保留上一次完整数据：${result.message || '未知错误'}`
-      )
+      ElMessage.error(t('categoryGovernance.syncFailed', { message: result.message || t('error.unknown') }))
     }
   } catch (error) {
     console.error('Error loading repositories:', error)
-    ElMessage.error('仓库数据加载失败，请稍后重试。')
+    ElMessage.error(t('categoryGovernance.repositoryLoadFailed'))
   }
 })
 </script>

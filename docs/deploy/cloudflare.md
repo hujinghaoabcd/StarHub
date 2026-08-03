@@ -136,3 +136,9 @@ Cloudflare Pages Functions 默认在 `http://localhost:8788` 启动。另一个�
 - 响应禁止缓存；
 - Client Secret 仅存在于 Cloudflare 加密 Secret；
 - 不生成伪造的随机应用 token。
+
+## 发布与回归检查
+
+Cloudflare Functions 与 GitHub Pages 前端可以独立发布。前端合并到 `main` 后，必须同时确认 Pages 构建、单元测试、TypeScript、CSP 校验和生产依赖审计通过；涉及 OAuth 时还要重新访问 `/api/health` 并完成一次真实登录回调。
+
+完整的变量清单、GitHub Actions 流程、故障排查和发布验收见[部署指南](../DEPLOYMENT.md)。当前开发状态及后续工作见[下一阶段详细交接](../development/NEXT_PHASE_HANDOFF.md)。
