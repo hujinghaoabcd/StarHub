@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agent/detail-layout-tag-import-ai-audit
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -71,10 +74,12 @@ jobs:
           replace_once(
               'src/pages/Home/components/DetailView.vue',
               '''import { useTagStore } from '@/stores/tag'
-import { useThemeStore } from '@/stores/theme' ''',
+import { useThemeStore } from '@/stores/theme'
+import { githubApi } from '@/api/github' ''',
               '''import { useTagStore } from '@/stores/tag'
 import { useThemeStore } from '@/stores/theme'
-import RepositoryOverview from './RepositoryOverview.vue' '''
+import RepositoryOverview from './RepositoryOverview.vue'
+import { githubApi } from '@/api/github' '''
           )
 
           replace_once(
@@ -233,6 +238,7 @@ const IMPORT_TAG_COLORS = [
         run: rm .github/workflows/apply-detail-tag-import.yml
 
       - name: Commit integrated feature
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
