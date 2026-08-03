@@ -3,10 +3,9 @@
 ## 当前概况
 
 - 基准分支：`main`
-- `main` 当前提交：`f967f282ef161713af928d1f60dce4a9a8cfb06a`
-- 开发分支：`agent/detail-layout-tag-import-ai-audit`
-- 当前 PR：`#18 feat: integrate repository actions and category-name import`
-- 当前阶段：详情布局、分类名称导入与 AI 分类架构审查
+- `main` 当前提交：`eb83325774c0e718c7e11465b06439a982f23300`
+- 开发分支：`agent/ai-classification-correctness`
+- 当前阶段：AI 分类阶段 B——输出与数据正确性
 - 生产前端：`https://hujinghaoabcd.github.io/StarHub/`
 - 生产文档：`https://hujinghaoabcd.github.io/StarHub/docs/`
 - OAuth API：`https://starhub-oauth.pages.dev/api`
@@ -25,7 +24,36 @@
 - [x] 应用内取消公开仓库 Star
 - [x] 全局 SCSS 作用域修复与 ESLint 零 warning 门禁
 
-## 当前批次：PR #18
+## 当前批次：AI 分类阶段 B
+
+### 输出契约
+
+- [x] 使用实际标签 ID 作为稳定 `category_id`
+- [x] 分类注册表只包含已经存在的分类
+- [x] OpenAI 使用严格 JSON Schema Structured Outputs
+- [x] Claude 使用原生 `output_config.format` JSON Schema
+- [x] DeepSeek、Qwen 与智谱使用供应商 JSON 模式
+- [x] 删除正则截取、截断 JSON 自动补括号和自由分类名
+- [x] 严格校验未知、重复、遗漏仓库 ID
+- [x] 严格校验未知分类 ID、置信度和理由
+
+### 审核与写入
+
+- [x] 模型结果先进入审核窗口，不在批次回调中写库
+- [x] 显示仓库、候选分类、置信度和理由
+- [x] 低于 65% 置信度的结果默认不选中
+- [x] 审核时可修改分类或取消项目
+- [x] 确认后通过单次 IndexedDB 事务写入全部关系
+- [x] 支持撤销最近一次 AI 分类新增的关系
+- [x] 部分失败只预览成功项，并显示失败数量
+
+### 保留到后续批次
+
+- [ ] README 只用于低置信度二次分类并写入缓存
+- [ ] 分类任务暂停、恢复、失败项重试和断点续传
+- [ ] 200–500 个仓库人工金标准评测集
+
+## 历史批次：PR #18
 
 ### 详情布局
 
@@ -57,70 +85,69 @@
 - [x] 提出稳定 category ID、结构化输出、人工审核、原子提交和可恢复任务架构
 - [x] 形成 `docs/development/AI_CLASSIFICATION_AUDIT.md`
 
-本批不直接重写 AI 分类执行引擎，避免在没有人工金标准数据集和回归评测的情况下同时改变模型、提示词和数据库行为。
+该历史批次只完成审计；执行引擎的正确性重构在当前阶段 B 批次实施。
 
 ## 当前自动验证
 
 ```text
-PR head                         61d7c1c34e4e296780080b8fe3b3161443521149
-CI run                          30776242027  PASS
-GitHub Pages PR run             30776241662  PASS
 Lint                            PASS，0 warning
 Frontend type-check             PASS
-Unit tests                      PASS
+Unit tests                      PASS，52/52
 Cloudflare Functions type-check PASS
 OAuth documentation verification PASS
 Application + docs build        PASS
-CSP bundle verification         PASS
+CSP bundle verification         PASS，16 个生产脚本
 Static security verification    PASS
 Production dependency audit     PASS，0 vulnerabilities
 Cloudflare Pages bundle         PASS
+GitHub Actions / Pages          待 PR 创建后执行
 ```
 
 ## 合并前检查
 
-- [x] 临时工作流未进入 PR 文件清单
-- [x] 旧 `SideMenu.vue` AI 批处理逻辑未被修改
-- [x] 旧 `tagStore` 未新增分类导入旁路
-- [x] 分类导入持久化不引用 `repoTags` 或 `repoId`
-- [x] 详情页不再渲染独立链接卡片
+- [x] 生成阶段不创建、修改分类或写入仓库—分类关系
+- [x] 只有审核确认操作可以调用事务提交
+- [x] 分类结果严格绑定当前批次仓库与现有分类 ID
+- [x] 自动修补或截取模型 JSON 的旧逻辑已删除
+- [x] 低置信度结果默认不提交
+- [x] 最新一次 AI 提交支持撤销新增关系
 - [ ] 更新 PR 最终说明
 - [ ] 标记 Ready 并 squash 合并到 `main`
-- [ ] 生产环境人工检查布局和分类名称导入
+- [ ] 生产环境检查版本与 AI 分类审核入口
 
 ## 后续优先级
 
 ### P0：AI 分类止损批次
 
-- [ ] 将 AI 分类明确标记为实验性功能
-- [ ] 暂停或隐藏“全部重新分类”入口
-- [ ] 将 AI API Key 从长期 `localStorage` 改为有期限会话存储，增加立即清除按钮
-- [ ] 增加 HTTPS 与自定义 API 主机确认
-- [ ] 为所有 GitHub 与 AI 请求加入 timeout 和 `AbortController`
-- [ ] 修复批次回调未等待和部分失败仍显示完整成功
+- [x] 将 AI 分类明确标记为实验性功能
+- [x] 暂停或隐藏“全部重新分类”入口
+- [x] 将 AI API Key 从长期 `localStorage` 改为会话存储，增加立即清除按钮
+- [x] 增加 HTTPS 与自定义 API 主机确认
+- [x] 为所有 GitHub 与 AI 请求加入 timeout 和 `AbortController`
+- [x] 修复批次回调未等待和部分失败仍显示完整成功
 
 ### P1：AI 分类第二版
 
-- [ ] 建立稳定 `category_id` registry
-- [ ] 使用 JSON Schema/Structured Output
-- [ ] 校验输入仓库 ID、重复 ID、遗漏 ID 与非法分类 ID
-- [ ] 结果先进入审核队列，不直接写库
-- [ ] 审核通过后一次性事务提交并支持回滚
+- [x] 建立稳定 `category_id` registry
+- [x] 使用 JSON Schema/Structured Output
+- [x] 校验输入仓库 ID、重复 ID、遗漏 ID 与非法分类 ID
+- [x] 结果先进入审核队列，不直接写库
+- [x] 审核通过后一次性事务提交并支持回滚
 - [ ] README 仅用于低置信度二次分类并进行缓存
 
 ### P1：性能与 E2E
 
 - [ ] 为 1000 条列表接入虚拟滚动
 - [ ] 增加 Playwright 浏览器 E2E
-- [ ] 为 Stars 同步请求加入真正的网络取消
+- [x] 为 Stars 同步请求加入真正的网络取消
 - [ ] 拆分超过 1 MB 的 Element Plus 与公共依赖 chunk
 
 ## 下一步
 
-1. 完成 PR #18 最终说明并合并；
-2. 在生产环境检查合并后的详情卡片；
-3. 导入一份仅含分类名称的 TXT/JSON，确认所有分类成员数量均为 0；
-4. 开始 AI 分类阶段 A 止损改造。
+1. 完成阶段 B 自动检查、PR 与生产部署；
+2. 用 10–30 个仓库人工检查一次审核与撤销流程；
+3. 开始阶段 C：元数据优先、低置信度 README 二次分类与缓存；
+4. 为万级任务增加可恢复进度和失败项重试。
 
 ## 更新规则
 
