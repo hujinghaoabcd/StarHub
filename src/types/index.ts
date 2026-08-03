@@ -101,6 +101,59 @@ export interface ClassificationCommitReceipt {
   addedRelations: RepoTag[]
 }
 
+export type ClassificationTaskStatus =
+  | 'running'
+  | 'paused'
+  | 'partial'
+  | 'completed'
+  | 'cancelled'
+
+export type ClassificationTaskItemStatus = 'pending' | 'success' | 'failed'
+
+export interface ClassificationTask {
+  id: string
+  status: ClassificationTaskStatus
+  provider: 'openai' | 'claude' | 'qwen' | 'zhipu' | 'deepseek'
+  model: string
+  batchSize: number
+  registryVersion: string
+  promptVersion: string
+  totalCount: number
+  processedCount: number
+  successCount: number
+  failedCount: number
+  acceptedCount: number
+  estimatedBatches: number
+  estimatedInputTokens: number
+  estimatedOutputTokens: number
+  createdAt: number
+  updatedAt: number
+  lastError?: string
+  committedAt?: number
+  committedCount?: number
+}
+
+export interface ClassificationTaskItem {
+  taskId: string
+  repositoryId: number
+  status: ClassificationTaskItemStatus
+  categoryId?: string
+  confidence?: number
+  reason?: string
+  error?: string
+  attempts: number
+  /** IndexedDB-compatible boolean: 1 is accepted, 0 is not accepted. */
+  accepted: 0 | 1
+  updatedAt: number
+}
+
+export interface ClassificationUsageEstimate {
+  repositoryCount: number
+  batchCount: number
+  estimatedInputTokens: number
+  estimatedOutputTokens: number
+}
+
 export interface PaginationInfo {
   page: number
   perPage: number

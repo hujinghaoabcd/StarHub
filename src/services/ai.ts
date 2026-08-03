@@ -15,6 +15,12 @@ import {
   parseClassificationResponse,
   validateClassificationItems
 } from '@/services/classificationValidation'
+import {
+  buildRepositoryClassificationMetadata,
+  CLASSIFICATION_PROMPT_VERSION
+} from '@/services/classificationProtocol'
+
+export { CLASSIFICATION_PROMPT_VERSION }
 
 export type ClassificationRunStatus =
   | 'success'
@@ -41,6 +47,8 @@ export interface ClassificationRunOptions {
   categories: ClassificationCategory[]
   signal?: AbortSignal
   requestTimeoutMs?: number
+  expectedProvider?: AIConfig['provider']
+  expectedModel?: string
 }
 
 interface AIMessage {
@@ -338,6 +346,15 @@ export async function classifyRepositories(
 
   const { baseURL } = resolveAIEndpoint(config)
   const model = config.model || DEFAULT_MODELS[config.provider]
+  if (
+    runOptions?.expectedProvider &&
+    runOptions.expectedProvider !== config.provider
+  ) {
+    throw new Error('AI provider changed after this task was created')
+  }
+  if (runOptions?.expectedModel && runOptions.expectedModel !== model) {
+    throw new Error('AI model changed after this task was created')
+  }
   const options = {
     ...runOptions,
     categories,
@@ -432,20 +449,7 @@ async function classifyBatch(
     examples: category.examples,
     exclusions: category.exclusions
   }))
-  const repositoryInfo = repos.map(repository => {
-    const readme = (repository as Repository & { readme?: string }).readme
-    return {
-      repository_id: repository.id,
-      name: repository.name,
-      full_name: repository.full_name,
-      description: repository.description || '',
-      language: repository.language || '',
-      topics: repository.topics || [],
-      ...(readme
-        ? { readme_preview: readme.slice(0, 800) }
-        : {})
-    }
-  })
+  const repositoryInfo = repos.map(buildRepositoryClassificationMetadata)
   const systemPrompt = `You classify GitHub repositories into an existing category registry.
 
 Rules:

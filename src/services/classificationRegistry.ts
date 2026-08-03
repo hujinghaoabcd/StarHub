@@ -50,3 +50,26 @@ export function buildClassificationRegistry(
     }]
   })
 }
+
+export function buildClassificationRegistryVersion(
+  categories: readonly ClassificationCategory[]
+): string {
+  const stableRegistry = [...categories]
+    .sort((a, b) => a.categoryId.localeCompare(b.categoryId))
+    .map(category => ({
+      categoryId: category.categoryId,
+      name: category.name,
+      description: category.description,
+      examples: [...category.examples],
+      exclusions: [...category.exclusions]
+    }))
+  const input = JSON.stringify(stableRegistry)
+  let hash = 0x811c9dc5
+
+  for (let index = 0; index < input.length; index++) {
+    hash ^= input.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+
+  return `registry-v1-${(hash >>> 0).toString(16).padStart(8, '0')}`
+}

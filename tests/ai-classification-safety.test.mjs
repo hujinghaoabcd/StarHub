@@ -325,15 +325,18 @@ test('classification UI cannot clear existing relationships and uses real cancel
   const aiConfig = await source('src/config/ai.ts')
   const login = await source('src/pages/Login.vue')
   const settings = await source('src/pages/Settings/index.vue')
+  const classificationTasks = await source(
+    'src/services/classificationTasks.ts'
+  )
 
   assert.equal(sideMenu.includes('command="reclassify"'), false)
   assert.equal(sideMenu.includes('db.repoTags.clear()'), false)
   assert.equal(sideMenu.includes('正在强力清空所有分类关联'), false)
-  assert.match(sideMenu, /new AbortController\(\)/)
-  assert.match(sideMenu, /classificationAbortController\?\.abort/)
-  assert.match(sideMenu, /getReadme\([\s\S]*classificationSignal/)
-  assert.match(sideMenu, /signal: classificationSignal/)
-  assert.match(sideMenu, /onUnmounted\([\s\S]*component_unmounted/)
+  assert.match(classificationTasks, /new AbortController|signal: AbortSignal/)
+  assert.match(sideMenu, /classificationTaskStore\.pause\(\)/)
+  assert.equal(sideMenu.includes('getReadme('), false)
+  assert.match(classificationTasks, /signal,/)
+  assert.match(sideMenu, /onUnmounted\([\s\S]*classificationTaskStore\.pause/)
 
   assert.match(aiService, /fetchWithTimeout/)
   assert.match(
@@ -360,7 +363,8 @@ test('classification UI cannot clear existing relationships and uses real cancel
   assert.equal(generationFlow.includes('tagStore.updateTag'), false)
   assert.equal(generationFlow.includes('applyClassificationAssignments'), false)
   assert.match(reviewDialog, /CONFIDENCE_THRESHOLD/)
-  assert.match(reviewDialog, /selectedCategoryIds/)
+  assert.match(reviewDialog, /PAGE_SIZE = 50/)
+  assert.match(reviewDialog, /reviewPage/)
 
   assert.match(tagStore, /applyClassificationAssignments/)
   assert.match(tagStore, /db\.transaction\('rw', db\.tags, db\.repoTags/)

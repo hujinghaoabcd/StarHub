@@ -1,5 +1,11 @@
 import Dexie, { Table } from 'dexie'
-import type { RepoTag, Repository, StoredTag } from '@/types'
+import type {
+  ClassificationTask,
+  ClassificationTaskItem,
+  RepoTag,
+  Repository,
+  StoredTag
+} from '@/types'
 import {
   migrateLegacyTagRelations,
   toStoredTag,
@@ -16,6 +22,11 @@ class StarHubDatabase extends Dexie {
   repos!: Table<Repository, number>
   tags!: Table<StoredTag, string>
   repoTags!: Table<RepoTag, [number, string]>
+  classificationTasks!: Table<ClassificationTask, string>
+  classificationTaskItems!: Table<
+    ClassificationTaskItem,
+    [string, number]
+  >
 
   constructor() {
     super('StarHubDB')
@@ -58,6 +69,15 @@ class StarHubDatabase extends Dexie {
           await relationsTable.bulkAdd(migratedRelations)
         }
       })
+
+    this.version(4).stores({
+      repos: 'id, full_name, language, updated_at',
+      tags: 'id, name, createdAt',
+      repoTags: '[repoId+tagId], repoId, tagId',
+      classificationTasks: 'id, status, updatedAt',
+      classificationTaskItems:
+        '[taskId+repositoryId], taskId, [taskId+status], [taskId+accepted], status, updatedAt'
+    })
   }
 }
 

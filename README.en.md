@@ -78,16 +78,19 @@ Supports multiple mainstream AI services:
 | Provider | Default Model | Description |
 |----------|---------------|-------------|
 | OpenAI | gpt-4o-mini | Cost-effective, recommended |
-| Claude | claude-3-5-sonnet | Strong understanding capability |
+| Claude | claude-sonnet-4-6 | Supports structured output |
 | DeepSeek | deepseek-chat | Fast Chinese model |
 | Qwen | qwen-plus | Alibaba Cloud, Chinese-friendly |
 | Zhipu AI | glm-4-flash | Chinese model with free quota |
 
 **AI Classification Features:**
-- Supports reading README for deep project understanding
+- Uses stable IDs from existing categories; the model cannot create categories
+- Sends repository metadata only (name, description, language and topics)
+- Persists tasks and per-repository drafts in IndexedDB
+- Supports pause, resume, cancellation and failed-item retry
+- Pages large reviews in groups of 50 and commits only accepted drafts
 - Configurable batch size (default: 50 per batch)
-- Supports classifying only unclassified repos or reclassifying all
-- Classification accuracy up to 95%+
+- Processes only uncategorized repositories and never overwrites existing tags
 
 ### 🔍 Full-Text Instant Search
 
@@ -328,10 +331,9 @@ Serve `dist/` with Nginx, Apache, or another static server. Reusing the Cloudfla
 1. Go to **Settings** page
 2. Configure AI service (API Key, model, etc.)
 3. Return to homepage, click **AI Intelligent Classification** button on the left
-4. Select classification mode:
-   - **Unclassified Only**: Only classify repositories without tags
-   - **Reclassify All**: Clear existing classifications and reclassify all
-5. Wait for classification to complete
+4. Review the repository count, batch count and token upper estimate
+5. Pause, resume, cancel or retry failures as needed
+6. Review the paged drafts and commit only accepted results
 
 ### Search Repositories
 
@@ -351,7 +353,7 @@ Visit **Settings** page to configure:
 
 - **AI Service Configuration**: Select AI provider, configure API Key
 - **Classification Batch Size**: Adjust number of repositories per AI classification batch
-- **Read README**: Enable for AI to read README for more accurate classification
+- **Task Review**: Drafts remain local until reviewed and committed
 - **Data Management**: Clear data, re-sync
 
 ---
@@ -545,4 +547,3 @@ This project is licensed under the [MIT License](LICENSE).
 <p align="center">
   If this project helps you, please give it a ⭐ Star!
 </p>
-
