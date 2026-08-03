@@ -1,6 +1,11 @@
 import type { Repository } from '@/types'
 
-export type RepositorySortField = 'updated' | 'stars' | 'created' | 'name'
+export type RepositorySortField =
+  | 'highlighted'
+  | 'updated'
+  | 'stars'
+  | 'created'
+  | 'name'
 export type RepositorySortOrder = 'asc' | 'desc'
 
 export const REPOSITORY_PAGE_SIZES = [50, 100, 200, 500, 1000] as const
@@ -21,9 +26,24 @@ function timestamp(value: string): number {
 function compareRepositories(
   left: Repository,
   right: Repository,
-  field: RepositorySortField
+  field: RepositorySortField,
+  highlightedAt: ReadonlyMap<number, number>
 ): number {
   switch (field) {
+    case 'highlighted': {
+      const leftMarkedAt = highlightedAt.get(left.id) ?? 0
+      const rightMarkedAt = highlightedAt.get(right.id) ?? 0
+      const leftIsHighlighted = leftMarkedAt > 0
+      const rightIsHighlighted = rightMarkedAt > 0
+
+      if (leftIsHighlighted !== rightIsHighlighted) {
+        return Number(leftIsHighlighted) - Number(rightIsHighlighted)
+      }
+      if (leftIsHighlighted && leftMarkedAt !== rightMarkedAt) {
+        return leftMarkedAt - rightMarkedAt
+      }
+      return timestamp(left.updated_at) - timestamp(right.updated_at)
+    }
     case 'stars':
       return left.stargazers_count - right.stargazers_count
     case 'created':
@@ -42,7 +62,8 @@ function compareRepositories(
 export function sortRepositories(
   repositories: readonly Repository[],
   field: RepositorySortField,
-  order: RepositorySortOrder
+  order: RepositorySortOrder,
+  highlightedAt: ReadonlyMap<number, number> = new Map()
 ): Repository[] {
   const direction = order === 'asc' ? 1 : -1
 
@@ -52,7 +73,8 @@ export function sortRepositories(
       const comparison = compareRepositories(
         left.repository,
         right.repository,
-        field
+        field,
+        highlightedAt
       )
 
       if (comparison !== 0) {

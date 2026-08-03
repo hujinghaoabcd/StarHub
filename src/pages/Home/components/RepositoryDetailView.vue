@@ -40,6 +40,21 @@
         </div>
 
         <div class="summary-actions">
+          <el-button
+            size="small"
+            type="warning"
+            plain
+            class="highlight-button"
+            :class="{ 'is-highlighted': highlighted }"
+            :loading="highlightStore.isMutating"
+            :aria-pressed="highlighted"
+            @click="handleToggleHighlight"
+          >
+            <el-icon><CollectionTag /></el-icon>
+            <span>
+              {{ highlighted ? t('highlight.unmark') : t('highlight.mark') }}
+            </span>
+          </el-button>
           <a
             class="github-link"
             :href="repo.html_url"
@@ -89,19 +104,26 @@
 
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { ElMessage } from 'element-plus'
 import { isAxiosError } from 'axios'
 import type { Repository } from '@/types'
 import { githubApi } from '@/api/github'
 import { formatDate, formatNumber } from '@/utils'
 import { getLanguageColor } from '@/utils/languageColors'
+import { useHighlightStore } from '@/stores/highlight'
 import {
   Close,
+  CollectionTag,
   ForkSpoon,
   Link,
   Star
 } from '@element-plus/icons-vue'
 import DetailView from './DetailView.vue'
 import RepositoryOverview from './RepositoryOverview.vue'
+
+const { t } = useI18n()
+const highlightStore = useHighlightStore()
 
 const props = defineProps<{
   repo: Repository
@@ -127,6 +149,9 @@ function safeHttpUrl(value: string | undefined | null): string | null {
 
 const homepageUrl = computed(() => safeHttpUrl(props.repo.homepage))
 const pagesUrl = ref<string | null>(null)
+const highlighted = computed(() =>
+  highlightStore.highlightedIdSet.has(props.repo.id)
+)
 const PAGES_SELECTION_DEBOUNCE_MS = 140
 let pagesRequestId = 0
 let pagesController: AbortController | null = null
@@ -135,6 +160,18 @@ let pagesDebounceTimer: number | null = null
 interface PagesRepositorySnapshot {
   owner: string
   repoName: string
+}
+
+async function handleToggleHighlight() {
+  try {
+    const isHighlighted = await highlightStore.toggleHighlight(props.repo.id)
+    ElMessage.success(
+      isHighlighted ? t('highlight.marked') : t('highlight.unmarked')
+    )
+  } catch (error) {
+    console.error('Failed to toggle repository highlight:', error)
+    ElMessage.error(t('highlight.failed'))
+  }
 }
 
 async function loadPagesUrl(
@@ -304,6 +341,18 @@ onUnmounted(() => {
   align-items: center;
   flex-shrink: 0;
   gap: 5px;
+}
+
+.highlight-button {
+  height: 28px;
+  margin: 0;
+  font-size: 0.72rem;
+
+  &.is-highlighted {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.12);
+    border-color: rgba(245, 158, 11, 0.65);
+  }
 }
 
 .github-link {

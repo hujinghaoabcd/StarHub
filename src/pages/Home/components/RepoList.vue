@@ -12,7 +12,6 @@
           <el-icon><Check /></el-icon>
           <span>{{ t('common.select') }}</span>
         </el-button>
-
         <el-checkbox
           v-else
           v-model="selectAll"
@@ -40,6 +39,28 @@
           <el-icon><Collection /></el-icon>
           {{ t('batchTag.title') }} ({{ selectedRepos.size }})
         </el-button>
+        <el-dropdown
+          v-if="selectedRepos.size > 0"
+          trigger="click"
+          @command="handleHighlightCommand"
+        >
+          <el-button size="small" type="warning" plain>
+            <el-icon><CollectionTag /></el-icon>
+            {{ t('highlight.title') }}
+          </el-button>
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item command="mark">
+                <el-icon><CollectionTag /></el-icon>
+                {{ t('highlight.batchMark') }}
+              </el-dropdown-item>
+              <el-dropdown-item command="unmark">
+                <el-icon><Close /></el-icon>
+                {{ t('highlight.batchUnmark') }}
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
         <el-button size="small" text @click="exitSelectMode">
           <el-icon><Close /></el-icon>
           {{ selectedRepos.size > 0 ? t('common.cancel') : t('common.exit') }}
@@ -54,6 +75,16 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
+              <el-dropdown-item
+                command="highlighted"
+                :class="{ 'is-active': sortBy === 'highlighted' }"
+              >
+                <el-icon><CollectionTag /></el-icon>
+                <span>{{ t('highlight.sort') }}</span>
+                <el-icon v-if="sortBy === 'highlighted'" class="check-icon">
+                  <Check />
+                </el-icon>
+              </el-dropdown-item>
               <el-dropdown-item
                 command="updated"
                 :class="{ 'is-active': sortBy === 'updated' }"
@@ -134,8 +165,10 @@
           :is-active="activeRepo?.id === repo.id"
           :selected="selectedRepos.has(repo.id)"
           :select-mode="selectMode"
+          :highlighted="highlightStore.highlightedIdSet.has(repo.id)"
           @click="handleRepoClick(repo)"
           @select="handleRepoSelect(repo.id, $event)"
+          @toggle-highlight="handleToggleHighlight(repo.id)"
         />
       </div>
     </div>
@@ -177,11 +210,13 @@ import {
   Clock,
   Close,
   Collection,
+  CollectionTag,
   Sort,
   Star
 } from '@element-plus/icons-vue'
 import { useRepoStore } from '@/stores/repo'
 import { useTagStore } from '@/stores/tag'
+import { useHighlightStore } from '@/stores/highlight'
 import {
   REPOSITORY_PAGE_SIZES,
   type RepositorySortField
@@ -204,6 +239,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const repoStore = useRepoStore()
 const tagStore = useTagStore()
+const highlightStore = useHighlightStore()
 
 const selectedRepos = ref<Set<number>>(new Set())
 const selectMode = ref(false)
@@ -215,6 +251,8 @@ const repositoryPageSizes = [...REPOSITORY_PAGE_SIZES]
 
 const sortLabel = computed(() => {
   switch (sortBy.value) {
+    case 'highlighted':
+      return t('highlight.sort')
     case 'stars':
       return '按 Star 数'
     case 'created':
@@ -229,6 +267,9 @@ const sortLabel = computed(() => {
 
 const handleSortChange = (field: RepositorySortField) => {
   repoStore.setSortBy(field)
+  if (field === 'highlighted') {
+    repoStore.setSortOrder('desc')
+  }
 }
 
 const toggleSortOrder = () => {
@@ -289,6 +330,39 @@ const handleRepoSelect = (repoId: number, selected: boolean) => {
 
 const clearSelection = () => {
   selectedRepos.value.clear()
+}
+
+const handleToggleHighlight = async (repositoryId: number) => {
+  try {
+    const highlighted = await highlightStore.toggleHighlight(repositoryId)
+    ElMessage.success(
+      highlighted ? t('highlight.marked') : t('highlight.unmarked')
+    )
+  } catch (error) {
+    console.error('Failed to toggle repository highlight:', error)
+    ElMessage.error(t('highlight.failed'))
+  }
+}
+
+const handleHighlightCommand = async (command: 'mark' | 'unmark') => {
+  const repositoryIds = [...selectedRepos.value]
+  if (repositoryIds.length === 0) return
+
+  try {
+    const changedCount = await highlightStore.setHighlighted(
+      repositoryIds,
+      command === 'mark'
+    )
+    ElMessage.success(
+      command === 'mark'
+        ? t('highlight.batchMarked', { count: changedCount })
+        : t('highlight.batchUnmarked', { count: changedCount })
+    )
+    clearSelection()
+  } catch (error) {
+    console.error('Failed to update repository highlights:', error)
+    ElMessage.error(t('highlight.failed'))
+  }
 }
 
 const handleBatchTag = () => {

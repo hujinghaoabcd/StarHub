@@ -4,6 +4,7 @@ import { db } from '@/db'
 import { githubApi } from '@/api/github'
 import { getPageFromLinkStr } from '@/utils'
 import { useTagStore } from './tag'
+import { useHighlightStore } from './highlight'
 import { runDataMutation } from '@/services/dataMutationQueue'
 import {
   normalizeRepositoryPageSize,
@@ -18,6 +19,7 @@ import {
   type RepoSyncResult,
   type RepoSyncStatus
 } from '@/services/repoSync'
+import { pruneRepositoryHighlights } from '@/services/repositoryHighlights'
 
 let activeRepositorySyncController: AbortController | null = null
 
@@ -75,6 +77,7 @@ export const useRepoStore = defineStore('repo', {
     lastSyncResult: null as RepoSyncResult | null,
     syncProgress: { ...EMPTY_PROGRESS },
     filterType: 'all' as 'all' | 'untagged',
+    highlightedOnly: false,
     searchQuery: '',
     selectedLanguage: null as string | null,
     selectedTag: null as string | null,
@@ -90,6 +93,13 @@ export const useRepoStore = defineStore('repo', {
 
       if (this.filterType === 'untagged') {
         result = this.untaggedRepos
+      }
+
+      if (this.highlightedOnly) {
+        const highlightStore = useHighlightStore()
+        result = result.filter(repository =>
+          highlightStore.highlightedIdSet.has(repository.id)
+        )
       }
 
       if (this.selectedTag) {
@@ -122,7 +132,13 @@ export const useRepoStore = defineStore('repo', {
     },
 
     sortedFilteredRepos(): Repository[] {
-      return sortRepositories(this.allFilteredRepos, this.sortBy, this.sortOrder)
+      const highlightStore = useHighlightStore()
+      return sortRepositories(
+        this.allFilteredRepos,
+        this.sortBy,
+        this.sortOrder,
+        highlightStore.highlightedAtMap
+      )
     },
 
     filteredRepos(): Repository[] {
@@ -147,6 +163,13 @@ export const useRepoStore = defineStore('repo', {
       })
 
       return this.repos.filter(repository => !taggedIds.has(repository.id))
+    },
+
+    highlightedRepos(): Repository[] {
+      const highlightStore = useHighlightStore()
+      return this.repos.filter(repository =>
+        highlightStore.highlightedIdSet.has(repository.id)
+      )
     },
 
     languages(): string[] {
@@ -318,11 +341,17 @@ export const useRepoStore = defineStore('repo', {
             db.repos,
             db.repoTags,
             db.classificationReadmeCache,
+            db.repositoryHighlights,
             async () => {
               const storedRelations = await db.repoTags.toArray()
               const cachedReadmes = await db.classificationReadmeCache.toArray()
+              const storedHighlights = await db.repositoryHighlights.toArray()
               const prunedRelations = pruneRepoTagsForRepositories(
                 storedRelations,
+                validRepositoryIds
+              )
+              const prunedHighlights = pruneRepositoryHighlights(
+                storedHighlights,
                 validRepositoryIds
               )
 
@@ -340,6 +369,10 @@ export const useRepoStore = defineStore('repo', {
                 .map(entry => entry.repositoryId)
               if (staleReadmeIds.length > 0) {
                 await db.classificationReadmeCache.bulkDelete(staleReadmeIds)
+              }
+              await db.repositoryHighlights.clear()
+              if (prunedHighlights.length > 0) {
+                await db.repositoryHighlights.bulkAdd(prunedHighlights)
               }
             }
           )
@@ -362,7 +395,9 @@ export const useRepoStore = defineStore('repo', {
         )
 
         const tagStore = useTagStore()
+        const highlightStore = useHighlightStore()
         await tagStore.loadTags()
+        await highlightStore.loadHighlights()
 
         const result: RepoSyncResult = {
           status: 'success',
@@ -454,6 +489,11 @@ export const useRepoStore = defineStore('repo', {
       this.$state.selectedTag = null
     },
 
+    setHighlightedOnly(highlightedOnly: boolean) {
+      this.$state.highlightedOnly = highlightedOnly
+      this.$state.currentPage = 1
+    },
+
     setSortBy(field: RepositorySortField) {
       this.$state.sortBy = field
       this.$state.currentPage = 1
@@ -507,10 +547,12 @@ export const useRepoStore = defineStore('repo', {
           db.repos,
           db.repoTags,
           db.classificationReadmeCache,
+          db.repositoryHighlights,
           async () => {
             await db.repos.delete(repoId)
             await db.repoTags.where('repoId').equals(repoId).delete()
             await db.classificationReadmeCache.delete(repoId)
+            await db.repositoryHighlights.delete(repoId)
           }
         )
       )
@@ -524,7 +566,9 @@ export const useRepoStore = defineStore('repo', {
       )
 
       const tagStore = useTagStore()
+      const highlightStore = useHighlightStore()
       await tagStore.loadTags()
+      await highlightStore.loadHighlights()
     },
 
     async unstarRepository(repository: Repository) {
@@ -552,6 +596,7 @@ export const useRepoStore = defineStore('repo', {
       this.$state.selectedTag = null
       this.$state.selectedLanguage = null
       this.$state.filterType = 'all'
+      this.$state.highlightedOnly = false
       this.$state.searchQuery = ''
       this.$state.sortBy = 'updated'
       this.$state.sortOrder = 'desc'
@@ -561,6 +606,7 @@ export const useRepoStore = defineStore('repo', {
       this.$state.syncProgress = { ...EMPTY_PROGRESS }
 
       const tagStore = useTagStore()
+      const highlightStore = useHighlightStore()
       await runDataMutation(() =>
         db.transaction(
           'rw',
@@ -568,17 +614,22 @@ export const useRepoStore = defineStore('repo', {
           db.tags,
           db.repoTags,
           db.classificationReadmeCache,
+          db.repositoryHighlights,
           async () => {
             await db.repos.clear()
             await db.tags.clear()
             await db.repoTags.clear()
             await db.classificationReadmeCache.clear()
+            await db.repositoryHighlights.clear()
           }
         )
       )
       tagStore.$state.tags = []
       tagStore.$state.loading = false
       tagStore.$state.isMutating = false
+      highlightStore.$state.highlights = []
+      highlightStore.$state.loading = false
+      highlightStore.$state.isMutating = false
 
       const result = await this.loadRepos(true)
       if (result.status !== 'success') {

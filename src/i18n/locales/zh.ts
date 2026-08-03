@@ -80,6 +80,19 @@ export default {
     noDescription: '暂无描述',
     noReadme: '暂无 README'
   },
+  highlight: {
+    title: '重点项目',
+    mark: '标记重点',
+    unmark: '取消重点',
+    marked: '已标记为重点项目',
+    unmarked: '已取消重点标记',
+    batchMark: '批量标记重点',
+    batchUnmark: '批量取消重点',
+    batchMarked: '已标记 {count} 个重点项目',
+    batchUnmarked: '已取消 {count} 个重点标记',
+    sort: '重点优先',
+    failed: '重点标记更新失败'
+  },
   tag: {
     create: '创建分类',
     edit: '编辑分类',
@@ -295,7 +308,7 @@ export default {
     connectionTimeout: '连接测试超过 20 秒，已自动取消',
     savedForSession: '设置已保存，API Key 仅在当前会话有效',
     dataBackup: '数据备份与恢复',
-    dataBackupDesc: '导出数据将包含所有仓库信息、分类和关联关系。导入数据将会覆盖当前所有数据。',
+    dataBackupDesc: '导出数据将包含所有仓库信息、重点项目、分类和关联关系。导入数据将会覆盖当前所有数据。',
     exportData: '导出数据',
     importData: '导入数据',
     clearAllData: '清空所有数据',
@@ -303,6 +316,7 @@ export default {
     tagCount: '分类数量',
     taggedRepos: '已分类仓库',
     untaggedRepos: '未分类仓库',
+    highlightedRepos: '重点项目',
     syncingCategories: '正在同步分类...',
     syncSuccess: '已同步 {count} 个分类',
     syncNoChange: '所有预设分类已存在，无需同步',

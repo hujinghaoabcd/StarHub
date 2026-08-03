@@ -15,13 +15,26 @@
           <span class="repo-name">{{ repo.name }}</span>
         </a>
       </div>
-      <span
-        @click.stop="toggleTagEdit"
-        class="repo-tag-toggle-btn"
-        :title="editMode ? t('common.close') : t('repo.addTag')"
-      >
-        <el-icon><Collection /></el-icon>
-      </span>
+      <div class="repo-card-actions">
+        <button
+          type="button"
+          class="repo-highlight-toggle"
+          :class="{ 'is-highlighted': highlighted }"
+          :aria-pressed="highlighted"
+          :title="highlighted ? t('highlight.unmark') : t('highlight.mark')"
+          @click.stop="$emit('toggle-highlight')"
+        >
+          <el-icon><CollectionTag /></el-icon>
+        </button>
+        <button
+          type="button"
+          class="repo-tag-toggle-btn"
+          :title="editMode ? t('common.close') : t('repo.addTag')"
+          @click.stop="toggleTagEdit"
+        >
+          <el-icon><Collection /></el-icon>
+        </button>
+      </div>
     </div>
 
     <p v-if="repo.description" class="repo-description">
@@ -71,7 +84,12 @@ import { useI18n } from 'vue-i18n'
 import { getLanguageColor } from '@/utils/languageColors'
 import { formatNumber, formatDate } from '@/utils'
 import type { Repository } from '@/types'
-import { Star, Collection, ForkSpoon } from '@element-plus/icons-vue'
+import {
+  Star,
+  Collection,
+  CollectionTag,
+  ForkSpoon
+} from '@element-plus/icons-vue'
 import RepoCardTags from './RepoCardTags.vue'
 
 const { t } = useI18n()
@@ -81,11 +99,13 @@ const props = defineProps<{
   isActive?: boolean
   selected?: boolean
   selectMode?: boolean
+  highlighted?: boolean
 }>()
 
 defineEmits<{
   click: []
   select: [selected: boolean]
+  'toggle-highlight': []
 }>()
 
 const editMode = ref(false)
@@ -116,7 +136,7 @@ watch(() => props.repo.id, () => {
     border-color: var(--border);
     
     .repo-tag-toggle-btn {
-      display: block;
+      opacity: 1;
     }
   }
 
@@ -125,7 +145,7 @@ watch(() => props.repo.id, () => {
     border-left-color: var(--el-color-primary);
     
     .repo-tag-toggle-btn {
-      display: block;
+      opacity: 1;
     }
   }
 }
@@ -183,17 +203,31 @@ watch(() => props.repo.id, () => {
   }
 }
 
+.repo-card-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2px;
+  margin-left: $spacing-xs;
+}
+
+.repo-highlight-toggle,
 .repo-tag-toggle-btn {
-  position: absolute;
-  right: 0;
-  top: 0;
-  display: none;
-  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   font-size: 16px;
   user-select: none;
   color: var(--text-tertiary);
+  background: transparent;
+  border: 0;
+  border-radius: $radius-sm;
   cursor: pointer;
-  transition: color $transition-base;
+  transition: color $transition-base, background $transition-base,
+    opacity $transition-base;
   
   :deep(.el-icon) {
     color: var(--text-tertiary);
@@ -201,9 +235,24 @@ watch(() => props.repo.id, () => {
   }
   
   &:hover {
+    background: var(--bg-primary);
+
     :deep(.el-icon) {
       color: var(--el-color-primary);
     }
+  }
+}
+
+.repo-tag-toggle-btn {
+  opacity: 0;
+}
+
+.repo-highlight-toggle.is-highlighted {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.12);
+
+  :deep(.el-icon) {
+    color: #f59e0b;
   }
 }
 
@@ -262,4 +311,3 @@ watch(() => props.repo.id, () => {
   }
 }
 </style>
-

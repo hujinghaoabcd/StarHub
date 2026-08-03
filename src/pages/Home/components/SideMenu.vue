@@ -4,7 +4,7 @@
     <div class="menu-section">
       <div
         class="menu-item"
-        :class="{ active: filterType === 'all' }"
+        :class="{ active: filterType === 'all' && !highlightedOnly }"
         @click="handleFilterType('all')"
       >
         <el-icon class="menu-icon"><Grid /></el-icon>
@@ -13,6 +13,15 @@
           <el-icon class="is-loading"><Loading /></el-icon>
         </span>
         <span class="menu-count">{{ reposCount }}</span>
+      </div>
+      <div
+        class="menu-item highlighted-menu-item"
+        :class="{ active: highlightedOnly }"
+        @click="handleHighlightedFilter"
+      >
+        <el-icon class="menu-icon"><CollectionTag /></el-icon>
+        <span class="menu-text">{{ t('highlight.title') }}</span>
+        <span class="menu-count">{{ highlightedCount }}</span>
       </div>
       <div
         class="menu-item"
@@ -225,6 +234,7 @@ import {
   ArrowDown,
   Close,
   Collection,
+  CollectionTag,
   Grid,
   Loading,
   MagicStick,
@@ -254,8 +264,10 @@ const newTag = ref({ name: '', emoji: '', color: '#409EFF' })
 const selectedTagId = computed(() => repoStore.selectedTag)
 const selectedLanguage = computed(() => repoStore.selectedLanguage)
 const filterType = computed(() => repoStore.filterType)
+const highlightedOnly = computed(() => repoStore.highlightedOnly)
 const reposCount = computed(() => repoStore.repos.length)
 const untaggedCount = computed(() => repoStore.untaggedRepos.length)
+const highlightedCount = computed(() => repoStore.highlightedRepos.length)
 const syncing = computed(() => repoStore.isSyncing)
 const languageExpanded = ref(true)
 const categoryExpanded = ref(true)
@@ -299,11 +311,16 @@ const languagesWithCount = computed(() => {
 
 const handleFilterType = (type: 'all' | 'untagged') => {
   repoStore.setFilterType(type)
+  repoStore.setHighlightedOnly(false)
   // Clear tag and language filters when switching to all/untagged
   repoStore.setSelectedTag(null)
   repoStore.setSelectedLanguage(null)
   // Reset to first page
   repoStore.setCurrentPage(1)
+}
+
+const handleHighlightedFilter = () => {
+  repoStore.setHighlightedOnly(!repoStore.highlightedOnly)
 }
 
 const handleTagClick = (tagId: string) => {
