@@ -6,33 +6,35 @@ async function source(path) {
   return readFile(new URL(`../${path}`, import.meta.url), 'utf8')
 }
 
-test('repository links are embedded in the main detail card', async () => {
+test('repository links and unstar are composed into one summary card', async () => {
   const home = await source('src/pages/Home/index.vue')
-  const detail = await source('src/pages/Home/components/DetailView.vue')
+  const detail = await source(
+    'src/pages/Home/components/RepositoryDetailView.vue'
+  )
 
   assert.equal(home.includes('<RepositoryOverview'), false)
+  assert.match(home, /<RepositoryDetailView/)
   assert.match(detail, /<RepositoryOverview[\s\S]*@unstarred=/)
+  assert.match(detail, /class="summary-card"/)
   assert.match(detail, /unstarred: \[repoId: number\]/)
 })
 
-test('category name import is exposed from the category toolbar', async () => {
-  const sideMenu = await source('src/pages/Home/components/SideMenu.vue')
+test('category name import is exposed from the home category tools', async () => {
+  const home = await source('src/pages/Home/index.vue')
 
-  assert.match(sideMenu, /TagNameImportDialog/)
-  assert.match(sideMenu, /showImportTagDialog/)
-  assert.match(sideMenu, /导入分类名称/)
+  assert.match(home, /TagNameImportDialog/)
+  assert.match(home, /showImportTagDialog/)
+  assert.match(home, /导入分类/)
+  assert.match(home, /只导入名称，不分配项目/)
 })
 
-test('category name import only writes tag metadata', async () => {
-  const tagStore = await source('src/stores/tag.ts')
-  const methodStart = tagStore.indexOf('async importTagNames(')
-  const nextMethod = tagStore.indexOf('async updateTag(', methodStart)
+test('category name persistence only writes tag metadata', async () => {
+  const persistence = await source(
+    'src/services/tagNameImportPersistence.ts'
+  )
 
-  assert.notEqual(methodStart, -1)
-  assert.notEqual(nextMethod, -1)
-
-  const methodSource = tagStore.slice(methodStart, nextMethod)
-  assert.match(methodSource, /db\.tags\.bulkAdd/)
-  assert.equal(methodSource.includes('db.repoTags'), false)
-  assert.equal(methodSource.includes('repos:'), true)
+  assert.match(persistence, /db\.tags\.bulkAdd/)
+  assert.equal(persistence.includes('db.repoTags'), false)
+  assert.equal(persistence.includes('repoId'), false)
+  assert.equal(persistence.includes('repos:'), false)
 })
