@@ -1,5 +1,6 @@
 import Dexie, { Table } from 'dexie'
 import type {
+  CategoryMigrationSnapshot,
   ClassificationTask,
   ClassificationTaskItem,
   ClassificationReadmeCache,
@@ -31,6 +32,7 @@ class StarHubDatabase extends Dexie {
   >
   classificationReadmeCache!: Table<ClassificationReadmeCache, number>
   repositoryHighlights!: Table<RepositoryHighlight, number>
+  categoryMigrationSnapshots!: Table<CategoryMigrationSnapshot, string>
 
   constructor() {
     super('StarHubDB')
@@ -112,6 +114,18 @@ class StarHubDatabase extends Dexie {
         '[taskId+repositoryId], taskId, [taskId+status], [taskId+accepted], [taskId+segmentIndex+status], [taskId+segmentIndex+accepted], [taskId+segmentIndex+committed], status, updatedAt',
       classificationReadmeCache: 'repositoryId, fullName, fetchedAt',
       repositoryHighlights: 'repositoryId, markedAt'
+    })
+
+    this.version(8).stores({
+      repos: 'id, full_name, language, updated_at',
+      tags: 'id, name, createdAt',
+      repoTags: '[repoId+tagId], repoId, tagId',
+      classificationTasks: 'id, status, updatedAt',
+      classificationTaskItems:
+        '[taskId+repositoryId], taskId, [taskId+status], [taskId+accepted], [taskId+segmentIndex+status], [taskId+segmentIndex+accepted], [taskId+segmentIndex+committed], status, updatedAt',
+      classificationReadmeCache: 'repositoryId, fullName, fetchedAt',
+      repositoryHighlights: 'repositoryId, markedAt',
+      categoryMigrationSnapshots: 'id, createdAt'
     })
   }
 }

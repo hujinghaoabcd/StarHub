@@ -363,6 +363,7 @@ import {
 } from '@/services/tagRelations'
 import { runDataMutation } from '@/services/dataMutationQueue'
 import { normalizeRepositoryHighlights } from '@/services/repositoryHighlights'
+import { normalizeCategoryRegistryMetadata } from '@/services/categoryRegistryImport'
 import Dexie from 'dexie'
 
 const { t } = useI18n()
@@ -862,7 +863,7 @@ const handleExport = async () => {
     }))
     
     const exportData = {
-      version: '3.0',
+      version: '4.0',
       exportDate: new Date().toISOString(),
       data: {
         repos,
@@ -946,6 +947,7 @@ const handleImport = () => {
             name: String(tag.name || ''),
             color: String(tag.color || '#409EFF'),
             emoji: tag.emoji,
+            registry: normalizeCategoryRegistryMetadata(tag.registry),
             repos: Array.isArray(tag.repos)
               ? Array.from(new Set(tag.repos.filter(Number.isFinite)))
               : [],
@@ -973,11 +975,13 @@ const handleImport = () => {
           db.tags,
           db.repoTags,
           db.repositoryHighlights,
+          db.categoryMigrationSnapshots,
           async () => {
             await db.repos.clear()
             await db.tags.clear()
             await db.repoTags.clear()
             await db.repositoryHighlights.clear()
+            await db.categoryMigrationSnapshots.clear()
 
             if (importedRepos.length > 0) {
               await db.repos.bulkAdd(importedRepos)
@@ -1199,11 +1203,13 @@ const handleClearAll = async () => {
               db.tags,
               db.repoTags,
               db.repositoryHighlights,
+              db.categoryMigrationSnapshots,
               async () => {
                 await db.repos.clear()
                 await db.tags.clear()
                 await db.repoTags.clear()
                 await db.repositoryHighlights.clear()
+                await db.categoryMigrationSnapshots.clear()
               }
             )
           )

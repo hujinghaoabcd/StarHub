@@ -58,8 +58,25 @@ export interface StoredTag {
   name: string
   color: string
   emoji?: string
+  registry?: CategoryRegistryMetadata
   createdAt: number
   updatedAt: number
+}
+
+export interface CategoryRegistryMetadata {
+  schemaVersion: 2
+  managed: true
+  registryKey: string
+  sourceVersion: string
+  nameZh: string
+  nameEn: string
+  aliases: string[]
+  descriptionZh: string
+  descriptionEn: string
+  examples: string[]
+  exclusions: string[]
+  level1?: string
+  level2?: string
 }
 
 /**
@@ -75,6 +92,15 @@ export interface RepoTag {
   tagId: string
 }
 
+export interface CategoryMigrationSnapshot {
+  id: string
+  createdAt: number
+  reason: string
+  sourceVersion?: string
+  tags: StoredTag[]
+  repoTags: RepoTag[]
+}
+
 export interface RepositoryHighlight {
   repositoryId: number
   markedAt: number
@@ -84,8 +110,12 @@ export interface ClassificationCategory {
   categoryId: string
   name: string
   description: string
+  aliases?: string[]
   examples: string[]
   exclusions: string[]
+  registryKey?: string
+  level1?: string
+  level2?: string
 }
 
 export interface ClassificationAssignment {

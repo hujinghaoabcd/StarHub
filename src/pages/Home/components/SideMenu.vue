@@ -109,7 +109,7 @@
             :style="{ backgroundColor: tag.color }"
           ></span>
           <span v-if="tag.emoji" class="tag-emoji">{{ tag.emoji }}</span>
-          <span class="tag-name">{{ tag.name }}</span>
+          <span class="tag-name" :title="tag.name">{{ tag.registry?.level2 || tag.name }}</span>
           <span class="tag-count">{{ tag.repos?.length || 0 }}</span>
           <el-button
             text
@@ -287,9 +287,19 @@ const confirmedCustomEndpointHost = ref<string | null>(null)
 const lastClassificationCommit = ref<ClassificationCommitReceipt | null>(null)
 
 const tags = computed(() => {
-  // 按名称字母顺序排序
   return [...tagStore.tags].sort((a, b) => {
-    return a.name.localeCompare(b.name, 'zh-CN')
+    const leftManaged = a.registry?.managed ? 0 : 1
+    const rightManaged = b.registry?.managed ? 0 : 1
+    if (leftManaged !== rightManaged) return leftManaged - rightManaged
+    const groupCompare = (a.registry?.level1 || '').localeCompare(
+      b.registry?.level1 || '',
+      'zh-CN'
+    )
+    if (groupCompare !== 0) return groupCompare
+    return (a.registry?.level2 || a.name).localeCompare(
+      b.registry?.level2 || b.name,
+      'zh-CN'
+    )
   })
 })
 const languages = computed(() => repoStore.languages)

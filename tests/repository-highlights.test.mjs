@@ -70,7 +70,7 @@ test('highlight persistence is independent and included in backup, sync cleanup,
 
   assert.match(database, /repositoryHighlights: 'repositoryId, markedAt'/)
   assert.match(repoStore, /pruneRepositoryHighlights/)
-  assert.match(settings, /version: '3\.0'/)
+  assert.match(settings, /version: '4\.0'/)
   assert.match(settings, /highlights,/)
   assert.match(sideMenu, /highlight\.title/)
   assert.match(repoList, /command="highlighted"/)
