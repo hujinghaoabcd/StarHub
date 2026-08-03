@@ -108,15 +108,15 @@
 **A:** 
 
 - 仓库和标签数据存储在浏览器 IndexedDB
-- 设置存储在 localStorage
-- 所有数据都在本地，不会上传
+- 非敏感设置存储在 localStorage，GitHub Token 和 AI API Key 只存储在 sessionStorage
+- 同步和 AI 请求会分别发送到 GitHub 与用户选择的 AI 服务，静态前端不集中收集分类库
 
 ### Q: 如何清空所有数据？
 
 **A:**
 
 1. 设置页面 → 数据管理 → 清空所有数据
-2. 或在控制台运行：`fetch('/emergency-clear.js').then(r => r.text()).then(eval)`
+2. 页面无法使用时，先备份，再通过浏览器 Application/Storage 面板删除当前站点数据；不要运行 `eval` 脚本
 
 ### Q: 换浏览器/电脑后数据丢失？
 
@@ -184,4 +184,3 @@
 1. 查看 [存储问题](storage.md) 和 [登录问题](login.md) 的详细说明
 2. 在 GitHub 提交 Issue
 3. 附上浏览器控制台的错误信息
-

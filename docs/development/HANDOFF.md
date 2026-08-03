@@ -1,4 +1,8 @@
-# StarHub 开发交接文档
+# StarHub 开发交接文档（历史归档）
+
+:::warning
+本页记录的是 PR #18 时期的历史实现，不再代表当前生产状态。最新状态、数据版本、风险和后续批次请以 [NEXT_PHASE_HANDOFF.md](NEXT_PHASE_HANDOFF.md) 为准。
+:::
 
 ## 1. 当前状态
 

@@ -71,6 +71,17 @@
 - **多标签支持**：一个仓库可添加多个标签，灵活分类
 - **批量操作**：支持批量为仓库添加/移除标签
 
+### 🧭 通用分类注册表与安全治理
+
+- **多用户设计**：StarHub 不预装任何个人分类体系，每位用户维护自己的注册表
+- **稳定分类 ID**：安全重命名不会改变 ID，已有项目关系不会丢失
+- **迁移预览**：导入前显示新增、重命名、合并、更新和冲突
+- **安全合并**：同义分类合并时完整保留并去重仓库关系
+- **自动备份与撤销**：每次迁移前保存完整快照，可一键恢复
+- **完整元数据**：支持中英文名称、别名、说明、示例、排除项和层级
+- **管理工具**：支持分类搜索、项目数量排序和空分类筛选
+- **AI 边界**：启用正式注册表后，模型只能选择其中的分类
+
 ### 🤖 AI 智能分类
 
 支持多种主流 AI 服务：
@@ -500,38 +511,9 @@ StarHub/
 
 ## ❓ 常见问题
 
-<!-- ### 存储空间不足错误 (QuotaExceededError)
+### 存储空间不足
 
-如果遇到 `QuotaExceededError` 或 "存储空间已满" 错误：
-
-**快速修复：**
-
-```javascript
-// 在浏览器控制台（F12）运行
-fetch('/fix-quota-error.js').then(r => r.text()).then(eval);
-```
-
-**手动清理：**
-
-1. 打开开发者工具 (F12)
-2. 进入 **Application** > **Storage** > **IndexedDB**
-3. 右键删除 `StarHubDB` 数据库
-4. 刷新页面
-
-### 清空数据后仍有遗留
-
-**快速修复：**
-
-```javascript
-// 在浏览器控制台（F12）运行
-fetch('/force-clear-tags.js').then(r => r.text()).then(eval);
-```
-
-**完整清理脚本：**
-
-```javascript
-fetch('/emergency-clear.js').then(r => r.text()).then(eval);
-``` -->
+先导出备份，再通过浏览器 Application/Storage 面板检查或清理 StarHub 站点数据。不要在控制台运行来源不明或使用 `eval` 的修复脚本，详细步骤见[数据管理文档](docs/config/data.md)。
 
 ### OAuth 登录失败
 
@@ -550,6 +532,8 @@ fetch('/emergency-clear.js').then(r => r.text()).then(eval);
 ---
 
 ## 🤝 贡献指南
+
+继续开发前请先阅读 [项目状态](docs/development/PROJECT_STATUS.md) 和 [后续开发与接手说明](docs/development/NEXT_PHASE_HANDOFF.md)。后者详细记录了 D2–D5 路线图、数据约束、验收标准和发布流程。
 
 欢迎贡献代码！请遵循以下步骤：
 

@@ -71,6 +71,17 @@
 - **Multi-Tag Support**: Add multiple tags to a repository for flexible categorization
 - **Batch Operations**: Add/remove tags for multiple repositories at once
 
+### 🧭 Generic Category Registry and Safe Governance
+
+- **Multi-user design**: StarHub does not ship a personal taxonomy; each user manages their own registry
+- **Stable category IDs**: Safe renaming preserves IDs and existing repository relationships
+- **Migration preview**: Review creates, renames, merges, updates, and conflicts before applying
+- **Safe merging**: Synonymous categories retain and deduplicate every repository relationship
+- **Automatic backup and rollback**: Every migration saves a complete snapshot first
+- **Rich metadata**: Bilingual names, aliases, descriptions, examples, exclusions, and hierarchy
+- **Management tools**: Search categories, sort by repository count, and filter empty categories
+- **AI boundary**: Once enabled, AI can choose only categories in the confirmed formal registry
+
 ### 🤖 AI Intelligent Classification
 
 Supports multiple mainstream AI services:
@@ -510,6 +521,8 @@ StarHub/
 ---
 
 ## 🤝 Contributing
+
+Before continuing development, read [Project Status](docs/development/PROJECT_STATUS.md) and the detailed [Next-phase Handoff](docs/development/NEXT_PHASE_HANDOFF.md). They document the D2–D5 roadmap, data invariants, acceptance criteria, and release workflow.
 
 Contributions are welcome! Please follow these steps:
 

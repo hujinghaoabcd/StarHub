@@ -1,283 +1,53 @@
-# 故障排除指南
+# 故障排除
 
-本文档汇总了 StarHub 使用过程中可能遇到的问题和解决方案。
+本页是维护者和用户的快速入口。执行破坏性恢复前先导出备份；错误报告、截图和日志中不要包含 GitHub Token、AI API Key 或私人仓库内容。
 
-## 目录
+## 页面无法加载或无响应
 
-- [登录问题](#登录问题)
-- [同步问题](#同步问题)
-- [存储问题](#存储问题)
-- [AI 分类问题](#ai-分类问题)
-- [界面问题](#界面问题)
-- [紧急修复脚本](#紧急修复脚本)
+1. 强制刷新，并关闭其他 StarHub 标签页。
+2. 使用最新版 Chrome、Edge、Firefox 或 Safari 重试。
+3. 打开开发者工具 Console，记录第一条错误及复现步骤。
+4. 若只有仓库详情连续切换后卡顿，记录仓库数量、点击次数和是否展开 README，提交性能问题；不要直接清空数据。
 
----
+## GitHub 登录或同步失败
 
-## 登录问题
+1. 检查部署变量 `VITE_API_BASE_URL` 与 `VITE_GITHUB_CLIENT_ID`。
+2. 访问 Cloudflare `/api/health`，确认 `configured: true`。
+3. 核对 OAuth App Homepage 和 callback URL 均指向实际 GitHub Pages 根路径。
+4. 同步中断时保留旧快照，等待速率限制恢复后重试。
 
-### OAuth 登录失败
+详见[登录问题](troubleshooting/login.md)和[部署指南](DEPLOYMENT.md)。
 
-**症状：** 点击登录按钮后跳转 GitHub，但返回后显示错误。
+## AI 分类失败或部分失败
 
-**解决方案：**
+1. 检查当前会话中的 API Key、账户余额、HTTPS API 地址和模型 ID。
+2. 减小批次；JSON 截断或未知 `category_id` 不得自动修补或写入。
+3. 查看任务中的成功、失败和可重试数量。
+4. 暂停时可确认写入当前审核项，写入后结束本次任务；剩余仓库以后创建新任务。
+5. 疑难项使用 README 增强，不要对全部仓库抓取 README。
 
-1. **检查回调地址**
-   - 确认 GitHub OAuth App 的回调地址与当前网址匹配
-   - 本地开发：`http://localhost:5173/`
-   - 生产环境：`https://yourdomain.com/`
+详见[AI 分类指南](guide/ai-classification.md)。
 
-2. **检查 Client ID**
-   - 确认 `src/config/oauth.ts` 中的 CLIENT_ID 正确
+## 存储空间或 IndexedDB 错误
 
-3. **本地开发检查后端服务**
-   ```bash
-   # 确认后端服务正在运行
-   npm run cloudflare:dev
-   ```
+1. 先导出备份。
+2. 关闭其他 StarHub 标签页并检查磁盘、站点存储空间。
+3. 刷新重试；仍失败时记录浏览器版本和错误。
+4. 最后手段是在浏览器 Application/Storage 面板删除整个 StarHub 站点数据，再重新登录并导入备份。
 
-4. **检查 .dev.vars 配置**
-   ```env
-   CLIENT_ID=your_client_id
-   CLIENT_SECRET=your_client_secret
-   ```
+不要运行使用 `eval`、远程下载代码或只清理部分 IndexedDB 表的“修复脚本”。详见[存储问题](troubleshooting/storage.md)和[数据管理](config/data.md)。
 
-### 登录后一直加载
+## 分类迁移异常
 
-**症状：** 登录成功但页面一直显示加载状态。
+- 不要手工删除 `tags` 或 `repoTags` 记录。
+- 在分类管理中使用最近迁移快照撤销。
+- 若撤销失败，停止继续写入，保留控制台错误并从迁移前备份恢复。
+- 验证分类 ID、仓库关系和注册表版本一起恢复。
 
-**解决方案：**
+## 提交有效问题报告
 
-1. 清除浏览器缓存和 localStorage
-2. 检查浏览器控制台是否有错误
-3. 尝试清空数据后重新登录
+请提供：StarHub 版本或 main commit、浏览器及版本、可复现步骤、预期与实际结果、第一条控制台错误，以及是否能在新浏览器配置中复现。敏感数据应脱敏。
 
----
-
-## 同步问题
-
-### 同步卡住不动
-
-**症状：** 同步进度条不动或显示 "正在同步..."。
-
-**解决方案：**
-
-1. **检查网络连接**
-   - 确认可以正常访问 GitHub
-
-2. **刷新页面重试**
-   ```bash
-   # 按 F5 刷新页面
-   ```
-
-3. **使用"重新抓取"功能**
-   - 点击右上角用户头像 → 选择"重新抓取"
-
-### 同步后数据不完整
-
-**症状：** 显示的仓库数量少于实际 Star 数量。
-
-**解决方案：**
-
-1. **等待同步完成**
-   - GitHub API 有速率限制，大量数据需要时间
-
-2. **检查 API 速率限制**
-   - 打开控制台查看是否有 403 错误
-   - 等待一段时间后重试
-
-3. **重新同步**
-   - 使用"重新抓取"功能
-
----
-
-## 存储问题
-
-### QuotaExceededError（存储空间不足）
-
-**症状：** 控制台显示 `QuotaExceededError` 错误。
-
-**快速修复：**
-
-```javascript
-// 在浏览器控制台运行
-fetch('/fix-quota-error.js').then(r => r.text()).then(eval);
-```
-
-**手动修复：**
-
-1. 打开开发者工具 (F12)
-2. 进入 **Application** > **Storage** > **IndexedDB**
-3. 右键删除 `StarHubDB`
-4. 刷新页面
-
-### DatabaseClosedError（数据库已关闭）
-
-**症状：** 控制台显示 `DatabaseClosedError` 错误。
-
-**解决方案：**
-
-1. 刷新页面
-2. 如果问题持续，运行：
-
-```javascript
-// 删除数据库
-indexedDB.deleteDatabase('StarHubDB');
-location.reload();
-```
-
-### 清空数据后仍有遗留
-
-**症状：** 点击"清空所有数据"后，左侧分类仍显示有数字。
-
-**快速修复：**
-
-```javascript
-// 在浏览器控制台运行
-fetch('/force-clear-tags.js').then(r => r.text()).then(eval);
-```
-
-**完整清理：**
-
-```javascript
-// 彻底清空所有数据
-(async function() {
-  const openReq = indexedDB.open('StarHubDB');
-  openReq.onsuccess = async (e) => {
-    const db = e.target.result;
-    const tx = db.transaction(['repos', 'tags', 'repoTags'], 'readwrite');
-    await tx.objectStore('repos').clear();
-    await tx.objectStore('tags').clear();
-    if (db.objectStoreNames.contains('repoTags')) {
-      await tx.objectStore('repoTags').clear();
-    }
-    db.close();
-    await indexedDB.deleteDatabase('StarHubDB');
-    localStorage.clear();
-    location.reload();
-  };
-})();
-```
-
----
-
-## AI 分类问题
-
-### AI 分类失败
-
-**症状：** 点击 AI 分类后显示错误。
-
-**解决方案：**
-
-1. **检查 API Key**
-   - 确认 API Key 配置正确
-   - 确认账户有余额
-
-2. **检查网络**
-   - 确认可以访问 AI 服务的 API 地址
-
-3. **减小批次大小**
-   - 在设置中将批次大小调小（如 10 或 20）
-
-### 分类不准确
-
-**症状：** AI 分类结果与预期不符。
-
-**解决方案：**
-
-1. **开启读取 README**
-   - 在设置中开启"读取 README"选项
-
-2. **使用更强的模型**
-   - 尝试支持结构化输出的模型，如 gpt-4o-mini 或 claude-sonnet-4-6
-
-3. **减小批次大小**
-   - 小批次通常分类更准确
-
-### Token 消耗过多
-
-**症状：** AI 服务费用超出预期。
-
-**解决方案：**
-
-1. 关闭"读取 README"选项
-2. 使用更经济的模型（如 gpt-4o-mini）
-3. 只对未分类的仓库进行分类
-
----
-
-## 界面问题
-
-
-### 页面显示空白
-
-**症状：** 页面加载后显示空白。
-
-**解决方案：**
-
-1. 检查浏览器控制台错误
-2. 清除浏览器缓存
-3. 尝试使用无痕模式访问
-
-### 滚动不流畅
-
-**症状：** 仓库列表滚动卡顿。
-
-**解决方案：**
-
-1. 检查仓库数量是否过多
-2. 尝试使用 Chrome 或 Edge 浏览器
-3. 关闭其他占用资源的程序
-
----
-
-## 紧急修复脚本
-
-### fix-quota-error.js
-
-修复存储空间不足问题：
-
-```javascript
-// 复制到控制台运行
-fetch('/fix-quota-error.js').then(r => r.text()).then(eval);
-```
-
-### force-clear-tags.js
-
-强制清空所有标签关联：
-
-```javascript
-// 复制到控制台运行
-fetch('/force-clear-tags.js').then(r => r.text()).then(eval);
-```
-
-### emergency-clear.js
-
-紧急清空所有数据：
-
-```javascript
-// 复制到控制台运行
-fetch('/emergency-clear.js').then(r => r.text()).then(eval);
-```
-
----
-
-## 获取帮助
-
-如果以上方案都无法解决问题：
-
-1. **检查控制台日志**
-   - 按 F12 打开开发者工具
-   - 切换到 Console 标签
-   - 复制错误信息
-
-2. **提交 Issue**
-   - 访问 [GitHub Issues](https://github.com/mengjian-github/starhub/issues)
-   - 描述问题和复现步骤
-   - 附上控制台错误信息
-   - 提供浏览器和操作系统信息
-
-3. **提供信息**
-   - 操作系统版本
-   - 浏览器及版本
-   - 问题的具体表现
-   - 复现步骤
+- [GitHub Issues](https://github.com/hujinghaoabcd/StarHub/issues)
+- [项目当前状态](development/PROJECT_STATUS.md)
+- [下一阶段详细交接](development/NEXT_PHASE_HANDOFF.md)

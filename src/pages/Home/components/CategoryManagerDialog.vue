@@ -1,14 +1,14 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="分类管理"
+    :title="t('categoryGovernance.managerTitle')"
     width="min(1040px, 96vw)"
     destroy-on-close
     @open="loadSnapshot"
     @close="emit('update:modelValue', false)"
   >
     <el-alert
-      title="这里管理当前浏览器中的分类。重命名不会改变分类 ID；合并会保留并去重全部项目关系。"
+      :title="t('categoryGovernance.managerNotice')"
       type="info"
       :closable="false"
       show-icon
@@ -19,31 +19,31 @@
       <el-input
         v-model="query"
         clearable
-        placeholder="搜索名称、英文名或别名"
+        :placeholder="t('categoryGovernance.searchPlaceholder')"
         class="search-input"
       />
       <el-select v-model="sortMode" class="sort-select">
-        <el-option label="按名称" value="name" />
-        <el-option label="项目数从多到少" value="count-desc" />
-        <el-option label="项目数从少到多" value="count-asc" />
-        <el-option label="最近更新" value="updated" />
+        <el-option :label="t('categoryGovernance.sortName')" value="name" />
+        <el-option :label="t('categoryGovernance.sortCountDesc')" value="count-desc" />
+        <el-option :label="t('categoryGovernance.sortCountAsc')" value="count-asc" />
+        <el-option :label="t('categoryGovernance.sortUpdated')" value="updated" />
       </el-select>
-      <el-checkbox v-model="emptyOnly">只看空分类</el-checkbox>
+      <el-checkbox v-model="emptyOnly">{{ t('categoryGovernance.emptyOnly') }}</el-checkbox>
       <el-button
         :disabled="!latestSnapshot || busy"
         @click="undoLatest"
       >
         <el-icon><RefreshLeft /></el-icon>
-        撤销上次迁移
+        {{ t('categoryGovernance.undoLast') }}
       </el-button>
     </div>
 
     <div v-if="latestSnapshot" class="snapshot-tip">
-      可撤销：{{ latestSnapshot.reason }}（{{ formatTime(latestSnapshot.createdAt) }}）
+      {{ t('categoryGovernance.undoAvailable', { reason: latestSnapshot.reason, time: formatTime(latestSnapshot.createdAt) }) }}
     </div>
 
     <el-table :data="filteredTags" max-height="520" v-loading="busy">
-      <el-table-column label="分类" min-width="260">
+      <el-table-column :label="t('categoryGovernance.category')" min-width="260">
         <template #default="scope">
           <div class="category-cell">
             <span class="color-dot" :style="{ backgroundColor: scope.row.color }"></span>
@@ -57,94 +57,94 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="注册表" width="110">
+      <el-table-column :label="t('categoryGovernance.registry')" width="110">
         <template #default="scope">
-          <el-tag v-if="scope.row.registry?.managed" type="success" size="small">正式</el-tag>
-          <el-tag v-else type="info" size="small">普通</el-tag>
+          <el-tag v-if="scope.row.registry?.managed" type="success" size="small">{{ t('categoryGovernance.formal') }}</el-tag>
+          <el-tag v-else type="info" size="small">{{ t('categoryGovernance.ordinary') }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="项目数" width="90" sortable :sort-method="sortByCount">
+      <el-table-column :label="t('categoryGovernance.repositoryCount')" width="110" sortable :sort-method="sortByCount">
         <template #default="scope">{{ scope.row.repos.length }}</template>
       </el-table-column>
-      <el-table-column label="上级分类" min-width="150">
+      <el-table-column :label="t('categoryGovernance.parentCategory')" min-width="150">
         <template #default="scope">{{ scope.row.registry?.level1 || '—' }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="170" fixed="right">
+      <el-table-column :label="t('common.actions')" width="180" fixed="right">
         <template #default="scope">
-          <el-button text type="primary" @click="openEdit(scope.row)">编辑</el-button>
-          <el-button text type="warning" @click="openMerge(scope.row)">合并到…</el-button>
+          <el-button text type="primary" @click="openEdit(scope.row)">{{ t('common.edit') }}</el-button>
+          <el-button text type="warning" @click="openMerge(scope.row)">{{ t('categoryGovernance.mergeInto') }}</el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <div class="result-count">显示 {{ filteredTags.length }} / {{ tagStore.tags.length }} 个分类</div>
+    <div class="result-count">{{ t('categoryGovernance.showing', { shown: filteredTags.length, total: tagStore.tags.length }) }}</div>
 
     <template #footer>
-      <el-button @click="emit('update:modelValue', false)">关闭</el-button>
+      <el-button @click="emit('update:modelValue', false)">{{ t('common.close') }}</el-button>
     </template>
   </el-dialog>
 
   <el-dialog
     v-model="showEdit"
-    title="安全编辑分类"
+    :title="t('categoryGovernance.safeEditTitle')"
     width="min(620px, 92vw)"
     append-to-body
   >
     <el-alert
       v-if="editingTag && !editingTag.registry"
-      title="这是普通分类。本次编辑只修改名称、颜色和 emoji；请通过“导入正式分类注册表”统一补充 AI 元数据。"
+      :title="t('categoryGovernance.ordinaryEditNotice')"
       type="info"
       :closable="false"
       class="edit-alert"
     />
     <el-form label-width="100px">
-      <el-form-item label="中文名称">
+      <el-form-item :label="t('categoryGovernance.nameZh')">
         <el-input v-model="editForm.nameZh" maxlength="120" show-word-limit />
       </el-form-item>
-      <el-form-item label="英文名称" v-if="editingTag?.registry">
+      <el-form-item :label="t('categoryGovernance.nameEn')" v-if="editingTag?.registry">
         <el-input v-model="editForm.nameEn" maxlength="120" />
       </el-form-item>
-      <el-form-item label="别名" v-if="editingTag?.registry">
-        <el-input v-model="editAliases" placeholder="逗号或分号分隔" />
+      <el-form-item :label="t('categoryGovernance.aliases')" v-if="editingTag?.registry">
+        <el-input v-model="editAliases" :placeholder="t('categoryGovernance.separatedPlaceholder')" />
       </el-form-item>
-      <el-form-item label="中文说明" v-if="editingTag?.registry">
+      <el-form-item :label="t('categoryGovernance.descriptionZh')" v-if="editingTag?.registry">
         <el-input v-model="editForm.descriptionZh" type="textarea" :rows="2" />
       </el-form-item>
-      <el-form-item label="英文说明" v-if="editingTag?.registry">
+      <el-form-item :label="t('categoryGovernance.descriptionEn')" v-if="editingTag?.registry">
         <el-input v-model="editForm.descriptionEn" type="textarea" :rows="2" />
       </el-form-item>
-      <el-form-item label="示例" v-if="editingTag?.registry">
-        <el-input v-model="editExamples" placeholder="逗号或分号分隔" />
+      <el-form-item :label="t('categoryGovernance.examples')" v-if="editingTag?.registry">
+        <el-input v-model="editExamples" :placeholder="t('categoryGovernance.separatedPlaceholder')" />
       </el-form-item>
-      <el-form-item label="排除项" v-if="editingTag?.registry">
-        <el-input v-model="editExclusions" placeholder="逗号或分号分隔" />
+      <el-form-item :label="t('categoryGovernance.exclusions')" v-if="editingTag?.registry">
+        <el-input v-model="editExclusions" :placeholder="t('categoryGovernance.separatedPlaceholder')" />
       </el-form-item>
-      <el-form-item label="上级分类" v-if="editingTag?.registry">
+      <el-form-item :label="t('categoryGovernance.parentCategory')" v-if="editingTag?.registry">
         <el-input v-model="editForm.level1" />
       </el-form-item>
-      <el-form-item label="显示名称" v-if="editingTag?.registry">
-        <el-input v-model="editForm.level2" placeholder="用于侧栏的简短名称（可选）" />
+      <el-form-item :label="t('categoryGovernance.displayName')" v-if="editingTag?.registry">
+        <el-input v-model="editForm.level2" :placeholder="t('categoryGovernance.displayNamePlaceholder')" />
       </el-form-item>
-      <el-form-item label="外观">
+      <el-form-item :label="t('categoryGovernance.appearance')">
         <el-color-picker v-model="editForm.color" />
         <el-input v-model="editForm.emoji" maxlength="2" class="emoji-input" placeholder="emoji" />
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button @click="showEdit = false">取消</el-button>
+      <el-button @click="showEdit = false">{{ t('common.cancel') }}</el-button>
       <el-button type="primary" :loading="busy" :disabled="!editForm.nameZh.trim()" @click="saveEdit">
-        保存（ID 不变）
+        {{ t('categoryGovernance.saveStableId') }}
       </el-button>
     </template>
   </el-dialog>
 
   <el-dialog
     v-model="showMerge"
-    title="合并分类"
+    :title="t('categoryGovernance.mergeTitle')"
     width="min(520px, 92vw)"
     append-to-body
   >
-    <p>把“{{ mergeSource?.name }}”及其全部项目关系合并到：</p>
+    <p>{{ t('categoryGovernance.mergePrompt', { source: mergeSource?.name || '' }) }}</p>
     <el-select v-model="mergeTargetId" filterable class="merge-select">
       <el-option
         v-for="tag in mergeTargets"
@@ -154,15 +154,15 @@
       />
     </el-select>
     <el-alert
-      title="执行前会自动备份。重复项目关系会被去重，源分类随后删除。"
+      :title="t('categoryGovernance.mergeNotice')"
       type="warning"
       :closable="false"
       class="merge-alert"
     />
     <template #footer>
-      <el-button @click="showMerge = false">取消</el-button>
+      <el-button @click="showMerge = false">{{ t('common.cancel') }}</el-button>
       <el-button type="primary" :loading="busy" :disabled="!mergeTargetId" @click="saveMerge">
-        备份并合并
+        {{ t('categoryGovernance.backupAndMerge') }}
       </el-button>
     </template>
   </el-dialog>
@@ -170,6 +170,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { RefreshLeft } from '@element-plus/icons-vue'
 import { useTagStore } from '@/stores/tag'
@@ -186,6 +187,7 @@ defineProps<{ modelValue: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
 
 const tagStore = useTagStore()
+const { t, locale } = useI18n()
 const query = ref('')
 const sortMode = ref('name')
 const emptyOnly = ref(false)
@@ -229,13 +231,13 @@ const filteredTags = computed(() => {
     if (sortMode.value === 'count-desc') return right.repos.length - left.repos.length
     if (sortMode.value === 'count-asc') return left.repos.length - right.repos.length
     if (sortMode.value === 'updated') return right.updatedAt - left.updatedAt
-    return displayName(left).localeCompare(displayName(right), 'zh-CN')
+    return displayName(left).localeCompare(displayName(right), locale.value)
   })
 })
 
 const mergeTargets = computed(() => tagStore.tags
   .filter(tag => tag.id !== mergeSource.value?.id)
-  .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN')))
+  .sort((left, right) => left.name.localeCompare(right.name, locale.value)))
 
 function splitList(value: string) {
   return [...new Set(value.split(/[，,;；\n]+/).map(item => item.trim()).filter(Boolean))]
@@ -250,7 +252,7 @@ function sortByCount(left: Tag, right: Tag) {
 }
 
 function formatTime(value: number) {
-  return new Date(value).toLocaleString()
+  return new Date(value).toLocaleString(locale.value)
 }
 
 async function loadSnapshot() {
@@ -295,9 +297,9 @@ async function saveEdit() {
     await tagStore.loadTags()
     await loadSnapshot()
     showEdit.value = false
-    ElMessage.success('分类已安全更新，分类 ID 和项目关系保持不变。')
+    ElMessage.success(t('categoryGovernance.updateSuccess'))
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '分类更新失败。')
+    ElMessage.error(error instanceof Error ? error.message : t('categoryGovernance.updateFailed'))
   } finally {
     busy.value = false
   }
@@ -315,9 +317,9 @@ async function saveMerge() {
   if (!target) return
   try {
     await ElMessageBox.confirm(
-      `确认把“${mergeSource.value.name}”合并到“${target.name}”？`,
-      '确认合并分类',
-      { confirmButtonText: '备份并合并', cancelButtonText: '取消', type: 'warning' }
+      t('categoryGovernance.mergeConfirm', { source: mergeSource.value.name, target: target.name }),
+      t('categoryGovernance.mergeConfirmTitle'),
+      { confirmButtonText: t('categoryGovernance.backupAndMerge'), cancelButtonText: t('common.cancel'), type: 'warning' }
     )
   } catch {
     return
@@ -329,9 +331,9 @@ async function saveMerge() {
     await tagStore.loadTags()
     await loadSnapshot()
     showMerge.value = false
-    ElMessage.success('分类已合并，全部项目关系已保留并去重。')
+    ElMessage.success(t('categoryGovernance.mergeSuccess'))
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '分类合并失败。')
+    ElMessage.error(error instanceof Error ? error.message : t('categoryGovernance.mergeFailed'))
   } finally {
     busy.value = false
   }
@@ -341,9 +343,9 @@ async function undoLatest() {
   if (!latestSnapshot.value) return
   try {
     await ElMessageBox.confirm(
-      `撤销“${latestSnapshot.value.reason}”并恢复当时的全部分类和项目关系？`,
-      '确认撤销迁移',
-      { confirmButtonText: '确认撤销', cancelButtonText: '取消', type: 'warning' }
+      t('categoryGovernance.undoConfirm', { reason: latestSnapshot.value.reason }),
+      t('categoryGovernance.undoTitle'),
+      { confirmButtonText: t('categoryGovernance.undoConfirmButton'), cancelButtonText: t('common.cancel'), type: 'warning' }
     )
   } catch {
     return
@@ -354,9 +356,9 @@ async function undoLatest() {
     const reason = await undoLatestCategoryMigration()
     await tagStore.loadTags()
     await loadSnapshot()
-    ElMessage.success(reason ? `已撤销：${reason}` : '没有可撤销的分类迁移。')
+    ElMessage.success(reason ? t('categoryGovernance.undoSuccess', { reason }) : t('categoryGovernance.noUndo'))
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '撤销迁移失败。')
+    ElMessage.error(error instanceof Error ? error.message : t('categoryGovernance.undoFailed'))
   } finally {
     busy.value = false
   }

@@ -1,13 +1,13 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="导入正式分类注册表"
+    :title="t('categoryGovernance.importTitle')"
     width="min(920px, 94vw)"
     destroy-on-close
     @close="closeDialog"
   >
     <el-alert
-      title="导入内容由当前用户决定，StarHub 不预设任何个人分类体系。应用前会自动备份；旧项目关系不会丢失。"
+      :title="t('categoryGovernance.importNotice')"
       type="info"
       :closable="false"
       show-icon
@@ -17,10 +17,10 @@
     <div class="import-toolbar">
       <el-button @click="chooseFile">
         <el-icon><Upload /></el-icon>
-        选择 TXT / CSV / JSON
+        {{ t('categoryGovernance.chooseFile') }}
       </el-button>
       <span v-if="fileName" class="file-name">{{ fileName }}</span>
-      <span class="source-version">注册表版本：{{ parsed.sourceVersion }}</span>
+      <span class="source-version">{{ t('categoryGovernance.registryVersion', { version: parsed.sourceVersion }) }}</span>
     </div>
 
     <el-input
@@ -28,20 +28,20 @@
       type="textarea"
       :rows="8"
       resize="vertical"
-      placeholder="支持每行一个名称、JSON 数组、含 tags 的 StarHub 备份，或含 categoryId/nameZh/nameEn/aliases/description/examples/exclusions 的通用注册表。"
+      :placeholder="t('categoryGovernance.importPlaceholder')"
     />
 
     <div class="import-summary">
-      <el-tag type="success">新增 {{ preview.counts.create }}</el-tag>
-      <el-tag type="warning">重命名 {{ preview.counts.rename }}</el-tag>
-      <el-tag>合并 {{ preview.counts.merge }}</el-tag>
-      <el-tag type="info">更新 {{ preview.counts.update }}</el-tag>
-      <el-tag type="info">不变 {{ preview.counts.unchanged }}</el-tag>
+      <el-tag type="success">{{ t('categoryGovernance.statusCreate') }} {{ preview.counts.create }}</el-tag>
+      <el-tag type="warning">{{ t('categoryGovernance.statusRename') }} {{ preview.counts.rename }}</el-tag>
+      <el-tag>{{ t('categoryGovernance.statusMerge') }} {{ preview.counts.merge }}</el-tag>
+      <el-tag type="info">{{ t('categoryGovernance.statusUpdate') }} {{ preview.counts.update }}</el-tag>
+      <el-tag type="info">{{ t('categoryGovernance.statusUnchanged') }} {{ preview.counts.unchanged }}</el-tag>
       <el-tag :type="preview.counts.conflict ? 'danger' : 'info'">
-        冲突 {{ preview.counts.conflict }}
+        {{ t('categoryGovernance.statusConflict') }} {{ preview.counts.conflict }}
       </el-tag>
-      <span v-if="parsed.duplicates">忽略重复 {{ parsed.duplicates }} 个</span>
-      <span v-if="parsed.invalid">忽略无效 {{ parsed.invalid }} 个</span>
+      <span v-if="parsed.duplicates">{{ t('categoryGovernance.ignoredDuplicates', { count: parsed.duplicates }) }}</span>
+      <span v-if="parsed.invalid">{{ t('categoryGovernance.ignoredInvalid', { count: parsed.invalid }) }}</span>
     </div>
 
     <el-table
@@ -50,7 +50,7 @@
       max-height="320"
       class="preview-table"
     >
-      <el-table-column label="导入分类" min-width="190">
+      <el-table-column :label="t('categoryGovernance.importedCategory')" min-width="190">
         <template #default="scope">
           <div class="category-name">{{ scope.row.definition.nameZh }}</div>
           <div v-if="scope.row.definition.nameEn !== scope.row.definition.nameZh" class="category-subtitle">
@@ -58,36 +58,38 @@
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="当前分类" min-width="180">
+      <el-table-column :label="t('categoryGovernance.currentCategory')" min-width="180">
         <template #default="scope">
           {{ scope.row.currentNames.join('、') || '—' }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="90">
+      <el-table-column :label="t('categoryGovernance.operation')" width="90">
         <template #default="scope">
           <el-tag :type="statusType(scope.row.status)" size="small">
             {{ statusLabel(scope.row.status) }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="message" label="说明" min-width="230" />
+      <el-table-column :label="t('categoryGovernance.explanation')" min-width="230">
+        <template #default="scope">{{ operationMessage(scope.row) }}</template>
+      </el-table-column>
     </el-table>
 
     <el-empty
       v-else
       :image-size="72"
-      description="粘贴或选择分类文件后显示迁移预览"
+      :description="t('categoryGovernance.emptyPreview')"
     />
 
     <template #footer>
-      <el-button @click="closeDialog">取消</el-button>
+      <el-button @click="closeDialog">{{ t('common.cancel') }}</el-button>
       <el-button
         type="primary"
         :loading="importing"
         :disabled="parsed.definitions.length === 0 || preview.hasConflicts"
         @click="applyMigration"
       >
-        应用 {{ parsed.definitions.length }} 个分类
+        {{ t('categoryGovernance.applyCount', { count: parsed.definitions.length }) }}
       </el-button>
     </template>
   </el-dialog>
@@ -95,6 +97,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
 import { useTagStore } from '@/stores/tag'
@@ -116,6 +119,7 @@ const emit = defineEmits<{
 }>()
 
 const tagStore = useTagStore()
+const { t } = useI18n()
 const sourceText = ref('')
 const fileName = ref('')
 const importing = ref(false)
@@ -126,17 +130,24 @@ const preview = computed(() => buildCategoryMigrationPreview(
   parsed.value.sourceVersion
 ))
 
-const STATUS_LABELS: Record<CategoryMigrationStatus, string> = {
-  create: '新增',
-  rename: '重命名',
-  merge: '合并',
-  update: '更新',
-  unchanged: '不变',
-  conflict: '冲突'
+const STATUS_KEYS: Record<CategoryMigrationStatus, string> = {
+  create: 'categoryGovernance.statusCreate',
+  rename: 'categoryGovernance.statusRename',
+  merge: 'categoryGovernance.statusMerge',
+  update: 'categoryGovernance.statusUpdate',
+  unchanged: 'categoryGovernance.statusUnchanged',
+  conflict: 'categoryGovernance.statusConflict'
 }
 
 function statusLabel(status: CategoryMigrationStatus) {
-  return STATUS_LABELS[status]
+  return t(STATUS_KEYS[status])
+}
+
+function operationMessage(operation: { status: CategoryMigrationStatus; sourceTagIds: string[] }) {
+  if (operation.status === 'merge') {
+    return t('categoryGovernance.operationMerge', { count: operation.sourceTagIds.length + 1 })
+  }
+  return t(`categoryGovernance.operation${operation.status.charAt(0).toUpperCase()}${operation.status.slice(1)}`)
 }
 
 function statusType(status: CategoryMigrationStatus) {
@@ -171,7 +182,7 @@ function chooseFile() {
       fileName.value = file.name
     } catch (error) {
       console.error('Failed to read category registry:', error)
-      ElMessage.error('无法读取分类文件。')
+      ElMessage.error(t('categoryGovernance.readFileFailed'))
     }
   }
 
@@ -183,11 +194,11 @@ async function applyMigration() {
 
   try {
     await ElMessageBox.confirm(
-      `将按预览执行：新增 ${preview.value.counts.create}、重命名 ${preview.value.counts.rename}、合并 ${preview.value.counts.merge}、更新 ${preview.value.counts.update}。执行前会自动保存完整分类和项目关系快照。`,
-      '确认应用分类注册表',
+      t('categoryGovernance.confirmApplyMessage', preview.value.counts),
+      t('categoryGovernance.confirmApplyTitle'),
       {
-        confirmButtonText: '备份并应用',
-        cancelButtonText: '取消',
+        confirmButtonText: t('categoryGovernance.confirmApply'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning'
       }
     )
@@ -203,12 +214,17 @@ async function applyMigration() {
     )
     await tagStore.loadTags()
     ElMessage.success(
-      `注册表迁移完成：新增 ${result.created}、重命名 ${result.renamed}、合并 ${result.merged}、更新 ${result.updated}`
+      t('categoryGovernance.migrationSuccess', {
+        create: result.created,
+        rename: result.renamed,
+        merge: result.merged,
+        update: result.updated
+      })
     )
     closeDialog()
   } catch (error) {
     console.error('Failed to apply category registry:', error)
-    ElMessage.error(error instanceof Error ? error.message : '分类迁移失败，原数据未修改。')
+    ElMessage.error(error instanceof Error ? error.message : t('categoryGovernance.migrationFailed'))
   } finally {
     importing.value = false
   }
