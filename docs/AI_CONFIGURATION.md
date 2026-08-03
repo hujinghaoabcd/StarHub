@@ -20,7 +20,7 @@ StarHub 支持多种 AI 服务来自动分类你的 GitHub Star 仓库。本文�
 | 服务商 | 默认模型 | API 地址 | 推荐场景 |
 |--------|----------|----------|----------|
 | OpenAI | gpt-4o-mini | api.openai.com | 最高准确率 |
-| Claude | claude-3-5-sonnet | api.anthropic.com | 复杂理解 |
+| Claude | claude-sonnet-4-6 | api.anthropic.com | 结构化输出与复杂理解 |
 | DeepSeek | deepseek-chat | api.deepseek.com | 高性价比 |
 | 通义千问 | qwen-plus | dashscope.aliyuncs.com | 中文友好 |
 | 智谱 AI | glm-4-flash | open.bigmodel.cn | 免费额度 |
@@ -75,11 +75,11 @@ API 地址：https://your-proxy.com/v1
 
 ### 推荐模型
 
-| 模型 | 说明 | 价格（每百万 Token）|
-|------|------|---------------------|
-| claude-3-5-sonnet | **推荐**，平衡性能 | $3 / $15 |
-| claude-3-5-haiku | 快速响应 | $0.25 / $1.25 |
-| claude-3-opus | 最强能力 | $15 / $75 |
+| 模型 | 说明 |
+|------|------|
+| claude-sonnet-4-6 | **默认**，支持原生 JSON Schema 结构化输出 |
+
+模型可用性和价格会变化，请以 Claude Platform 当前文档为准。
 
 ### 配置示例
 
@@ -87,7 +87,7 @@ API 地址：https://your-proxy.com/v1
 服务商：Claude
 API Key：sk-ant-xxxxxxxxxxxxxxxxxxxx
 API 地址：https://api.anthropic.com/v1（默认）
-模型：claude-3-5-sonnet-20241022（默认）
+模型：claude-sonnet-4-6（默认）
 ```
 
 ---
@@ -201,10 +201,7 @@ API 地址：https://open.bigmodel.cn/api/paas/v4（默认）
 
 ### 分类模式
 
-| 模式 | 说明 |
-|------|------|
-| 仅未分类 | 只处理没有标签的仓库 |
-| 重新分类所有 | 清空所有标签，全部重新分类 |
+当前只处理没有分类的仓库。模型只能返回已有分类的稳定 ID，结果在审核并确认后写入，不会清空或覆盖已有分类。
 
 ---
 
@@ -264,4 +261,3 @@ API 地址：https://open.bigmodel.cn/api/paas/v4（默认）
 1. 不要在公共电脑上配置 API Key
 2. 定期轮换 API Key
 3. 设置 API 使用限额
-
