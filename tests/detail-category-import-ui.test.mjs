@@ -36,15 +36,25 @@ test('repository action buttons remain compact and equally sized', async () => {
 
   assert.match(detail, /\.github-link\s*\{[\s\S]*height:\s*28px/)
   assert.match(detail, /\.github-link\s*\{[\s\S]*padding:\s*0 8px/)
+  assert.match(detail, /\.highlight-button\s*\{[\s\S]*height:\s*28px/)
+  assert.match(
+    detail,
+    /\.highlight-button\s*\{[\s\S]*background:\s*var\(--el-color-warning\)/
+  )
   assert.match(overview, /\.unstar-button\s*\{[\s\S]*height:\s*28px/)
   assert.match(overview, /\.unstar-button\s*\{[\s\S]*padding:\s*0 8px/)
+  assert.match(
+    overview,
+    /\.unstar-button\s*\{[\s\S]*background:\s*var\(--el-color-danger\)/
+  )
+  assert.doesNotMatch(detail, /type="warning"\s+plain/)
   assert.equal(detail.includes('height: 44px'), false)
   assert.equal(detail.includes('height: 32px'), false)
   assert.equal(overview.includes('height: 44px'), false)
   assert.equal(overview.includes('height: 32px'), false)
 })
 
-test('about and github pages are shown below the description', async () => {
+test('actions only share the title row and do not squeeze the description', async () => {
   const detail = await source(
     'src/pages/Home/components/RepositoryDetailView.vue'
   )
@@ -54,8 +64,9 @@ test('about and github pages are shown below the description', async () => {
 
   assert.match(
     detail,
-    /class="repo-description"[\s\S]*class="repo-about"[\s\S]*class="summary-actions"/
+    /class="summary-title-row"[\s\S]*class="summary-actions"[\s\S]*class="repo-description"[\s\S]*class="repo-about"/
   )
+  assert.equal(detail.includes('class="repo-info"'), false)
   assert.match(
     detail,
     /class="repo-about repo-pages"[\s\S]*GitHub Pages[\s\S]*pagesUrl/
