@@ -1,72 +1,27 @@
 <template>
-  <section class="repository-overview" aria-label="Repository links and actions">
-    <div class="link-list">
-      <div class="link-item">
-        <span class="link-label">About</span>
-        <a
-          v-if="homepageUrl"
-          class="link-value"
-          :href="homepageUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {{ homepageUrl }}
-        </a>
-        <span v-else class="link-empty">
-          {{ linksLoading ? '正在读取…' : '未配置网站' }}
-        </span>
-      </div>
-
-      <div class="link-item">
-        <span class="link-label">GitHub Pages</span>
-        <a
-          v-if="pagesUrl"
-          class="link-value"
-          :href="pagesUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {{ pagesUrl }}
-        </a>
-        <span v-else class="link-empty">
-          {{ linksLoading ? '正在读取…' : '未启用或无法读取' }}
-        </span>
-      </div>
-    </div>
-
-    <div class="action-column">
-      <el-button
-        type="danger"
-        plain
-        size="small"
-        :loading="unstarLoading"
-        :disabled="repo.private"
-        @click="handleUnstar"
-      >
-        取消 Star
-      </el-button>
-      <span v-if="repo.private" class="permission-note">
-        未申请私有仓库 repo 权限
-      </span>
-      <span v-else class="permission-note">
-        首次使用时按需申请 public_repo
-      </span>
-    </div>
-  </section>
+  <el-button
+    class="unstar-button"
+    :loading="unstarLoading"
+    :disabled="repo.private"
+    @click="handleUnstar"
+  >
+    <el-icon v-if="!unstarLoading"><Star /></el-icon>
+    <span>取消 Star</span>
+  </el-button>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { ref } from 'vue'
 import { isAxiosError } from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { githubApi } from '@/api/github'
+import { Star } from '@element-plus/icons-vue'
 import {
   authorizeGitHubScopes,
   currentTokenHasScope,
   OAuthPermissionError
 } from '@/services/oauthPermission'
 import { useRepoStore } from '@/stores/repo'
-import type { Repository, RepositoryPagesSite } from '@/types'
+import type { Repository } from '@/types'
 
 const props = defineProps<{
   repo: Repository
@@ -77,69 +32,7 @@ const emit = defineEmits<{
 }>()
 
 const repoStore = useRepoStore()
-const repositoryDetails = ref<Repository | null>(null)
-const pagesSite = ref<RepositoryPagesSite | null>(null)
-const linksLoading = ref(false)
 const unstarLoading = ref(false)
-let loadSequence = 0
-
-function safeHttpUrl(value: string | undefined | null): string | null {
-  if (!value) return null
-
-  try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:'
-      ? url.toString()
-      : null
-  } catch {
-    return null
-  }
-}
-
-const homepageUrl = computed(() =>
-  safeHttpUrl(repositoryDetails.value?.homepage || props.repo.homepage)
-)
-const pagesUrl = computed(() => safeHttpUrl(pagesSite.value?.html_url))
-
-async function loadRepositoryLinks() {
-  const sequence = ++loadSequence
-  const [owner, name] = props.repo.full_name.split('/')
-
-  repositoryDetails.value = props.repo
-  pagesSite.value = null
-  linksLoading.value = true
-
-  if (!owner || !name) {
-    linksLoading.value = false
-    return
-  }
-
-  try {
-    const detailsResponse = await githubApi.getRepository(owner, name)
-    if (sequence !== loadSequence) return
-
-    repositoryDetails.value = detailsResponse.data
-
-    if (!detailsResponse.data.has_pages) return
-
-    try {
-      const pagesResponse = await githubApi.getRepositoryPages(owner, name)
-      if (sequence === loadSequence) {
-        pagesSite.value = pagesResponse.data
-      }
-    } catch (error) {
-      if (!isAxiosError(error) || error.response?.status !== 404) {
-        console.warn('Failed to load GitHub Pages metadata:', error)
-      }
-    }
-  } catch (error) {
-    console.warn('Failed to load repository link metadata:', error)
-  } finally {
-    if (sequence === loadSequence) {
-      linksLoading.value = false
-    }
-  }
-}
 
 function permissionErrorMessage(error: OAuthPermissionError): string {
   switch (error.code) {
@@ -270,98 +163,30 @@ async function handleUnstar() {
     unstarLoading.value = false
   }
 }
-
-watch(
-  () => props.repo.id,
-  () => {
-    void loadRepositoryLinks()
-  },
-  { immediate: true }
-)
 </script>
 
 <style lang="scss" scoped>
-.repository-overview {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 18px;
-  margin-top: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
-.link-list {
-  display: grid;
-  flex: 1;
-  min-width: 0;
-  gap: 7px;
-}
-
-.link-item {
-  display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
-  gap: 10px;
-  align-items: baseline;
-  font-size: 0.8rem;
-}
-
-.link-label {
-  color: var(--text-secondary);
+.unstar-button {
+  height: 44px;
+  padding: 0 18px;
+  color: var(--el-color-danger);
+  font-size: 0.9rem;
   font-weight: 600;
-}
+  background: transparent;
+  border: 1px solid var(--el-color-danger);
+  border-radius: 5px;
 
-.link-value {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--el-color-primary);
-  text-decoration: none;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-
-  &:hover {
-    text-decoration: underline;
-  }
-}
-
-.link-empty,
-.permission-note {
-  color: var(--text-tertiary);
-}
-
-.action-column {
-  display: flex;
-  align-items: flex-end;
-  flex-direction: column;
-  flex-shrink: 0;
-  gap: 6px;
-}
-
-.permission-note {
-  max-width: 190px;
-  font-size: 0.7rem;
-  line-height: 1.35;
-  text-align: right;
-}
-
-@media (max-width: 768px) {
-  .repository-overview {
-    align-items: stretch;
-    flex-direction: column;
+  &:hover,
+  &:focus-visible {
+    color: #fff;
+    background: var(--el-color-danger);
+    border-color: var(--el-color-danger);
   }
 
-  .link-item {
-    grid-template-columns: 1fr;
-    gap: 2px;
-  }
-
-  .action-column {
-    align-items: flex-start;
-  }
-
-  .permission-note {
-    max-width: none;
-    text-align: left;
+  &.is-disabled {
+    color: var(--text-tertiary);
+    background: transparent;
+    border-color: var(--border);
   }
 }
 </style>
