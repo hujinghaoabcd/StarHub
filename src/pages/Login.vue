@@ -15,7 +15,7 @@
       </div>
       <div class="nav-links">
         <a :href="docsUrl" target="_blank" class="nav-link">
-          {{ currentLanguage === 'zh' ? '文档' : 'Docs' }}
+          {{ t('login.docs') }}
         </a>
         <span class="nav-divider">|</span>
         <a href="https://github.com/hujinghaoabcd/StarHub" target="_blank" class="nav-link">
@@ -23,7 +23,7 @@
         </a>
         <span class="nav-divider">|</span>
         <span class="nav-lang" @click="toggleLanguage">
-          {{ currentLanguage === 'zh' ? 'EN' : '中文' }}
+          {{ t('login.languageSwitch') }}
         </span>
       </div>
     </nav>
@@ -34,13 +34,11 @@
         <!-- 左侧文字 -->
         <div class="hero-left">
           <h1 class="hero-title">
-            {{ currentLanguage === 'zh' ? '轻松管理你的' : 'Organize Your' }}<br/>
+            {{ t('login.heroPrefix') }}<br/>
             <span class="hero-highlight">GitHub Stars</span>
           </h1>
           <p class="hero-description">
-            {{ currentLanguage === 'zh' 
-              ? 'StarHub 让你告别杂乱无章的 Star 列表。当收藏数量达到数百甚至上千时，找到需要的项目变得异常困难——StarHub 正是为解决这个问题而生。智能标签、AI 分类、极速搜索，让你的技术收藏真正发挥价值。' 
-              : 'Say goodbye to messy star lists. When you have hundreds or thousands of stars, finding what you need becomes incredibly hard. StarHub was built to solve this - smart tagging, AI classification, and lightning-fast search make your tech collection truly valuable.' }}
+            {{ t('login.heroDescription') }}
           </p>
           
           <div class="hero-actions">
@@ -52,12 +50,12 @@
             class="login-button"
           >
             <el-icon class="mr-2"><Link /></el-icon>
-              {{ currentLanguage === 'zh' ? '使用 GitHub 登录' : 'Sign in with GitHub' }}
+              {{ t('login.signIn') }}
           </el-button>
 
             <a href="https://github.com/hujinghaoabcd/StarHub" target="_blank" class="github-link">
               <el-icon :size="20"><Link /></el-icon>
-              {{ currentLanguage === 'zh' ? '查看源码' : 'View on GitHub' }}
+              {{ t('login.viewSource') }}
             </a>
           </div>
 
@@ -73,17 +71,17 @@
           <div class="hero-stats">
             <div class="stat-item">
               <span class="stat-value">Vue 3</span>
-              <span class="stat-label">{{ currentLanguage === 'zh' ? '现代框架' : 'Modern Framework' }}</span>
+              <span class="stat-label">{{ t('login.modernFramework') }}</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
               <span class="stat-value">TypeScript</span>
-              <span class="stat-label">{{ currentLanguage === 'zh' ? '类型安全' : 'Type Safe' }}</span>
+              <span class="stat-label">{{ t('login.typeSafe') }}</span>
             </div>
             <div class="stat-divider"></div>
             <div class="stat-item">
-              <span class="stat-value">PWA</span>
-              <span class="stat-label">{{ currentLanguage === 'zh' ? '离线可用' : 'Offline Ready' }}</span>
+              <span class="stat-value">IndexedDB</span>
+              <span class="stat-label">{{ t('login.localFirst') }}</span>
             </div>
           </div>
         </div>
@@ -104,30 +102,28 @@
     <div class="intro-section">
       <div class="intro-container">
         <h2 class="intro-title">
-          {{ currentLanguage === 'zh' ? '解决 Star 管理痛点' : 'Solving Star Management Pain Points' }}
+          {{ t('login.painPointTitle') }}
         </h2>
         <p class="intro-description">
-          {{ currentLanguage === 'zh' 
-            ? '❌ Star 了很多优秀项目，但需要时找不到？❌ GitHub 原生列表只能按时间排序？❌ 手动整理太耗时？StarHub 提供智能标签系统、AI 自动分类、毫秒级搜索，让你的技术收藏真正井井有条。所有数据本地存储，隐私安全可控。' 
-            : '❌ Starred great projects but can\'t find them when needed? ❌ GitHub\'s native list only sorts by time? ❌ Manual organization too time-consuming? StarHub offers smart tagging, AI auto-classification, and instant search. All data stored locally for privacy and security.' }}
+          {{ t('login.painPointDescription') }}
         </p>
         
         <div class="intro-highlights">
           <div class="highlight-item">
-            <div class="highlight-number">10,000+</div>
-            <div class="highlight-text">{{ currentLanguage === 'zh' ? '支持仓库数量' : 'Repos Supported' }}</div>
+            <div class="highlight-number">{{ t('login.pageSizeValue') }}</div>
+            <div class="highlight-text">{{ t('login.pageSizeLabel') }}</div>
           </div>
           <div class="highlight-item">
-            <div class="highlight-number">18</div>
-            <div class="highlight-text">{{ currentLanguage === 'zh' ? '预设分类标签' : 'Preset Categories' }}</div>
+            <div class="highlight-number">{{ t('login.databaseValue') }}</div>
+            <div class="highlight-text">{{ t('login.databaseLabel') }}</div>
           </div>
           <div class="highlight-item">
-            <div class="highlight-number">5</div>
-            <div class="highlight-text">{{ currentLanguage === 'zh' ? '种 AI 服务支持' : 'AI Services' }}</div>
+            <div class="highlight-number">{{ t('login.aiProviderValue') }}</div>
+            <div class="highlight-text">{{ t('login.aiProviderLabel') }}</div>
           </div>
           <div class="highlight-item">
-            <div class="highlight-number">&lt;10ms</div>
-            <div class="highlight-text">{{ currentLanguage === 'zh' ? '搜索响应时间' : 'Search Response' }}</div>
+            <div class="highlight-number">{{ t('login.aiStageValue') }}</div>
+            <div class="highlight-text">{{ t('login.aiStageLabel') }}</div>
           </div>
         </div>
         </div>
@@ -136,7 +132,7 @@
     <!-- 系统截图展示 -->
     <div class="screenshot-section">
       <div class="screenshot-container">
-        <h2 class="section-title">{{ currentLanguage === 'zh' ? '界面预览' : 'Interface Preview' }}</h2>
+        <h2 class="section-title">{{ t('login.previewTitle') }}</h2>
         <div class="carousel-wrapper" style="margin-top: 40px; overflow: hidden; width: 100%;">
           <div class="carousel-track" style="display: flex; gap: 32px; animation: carousel-scroll 30s linear infinite; align-items: flex-start;">
             <!-- 4张卡片 -->
@@ -147,7 +143,7 @@
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #ffbd2e;"></span>
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #27c93f;"></span>
                 </div>
-                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ currentLanguage === 'zh' ? '登录界面' : 'Login Interface' }}</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ t('login.previewLogin') }}</div>
               </div>
               <div style="padding: 0; background: linear-gradient(135deg, rgba(45, 53, 97, 0.4), rgba(26, 31, 53, 0.6)); line-height: 0;">
                 <img src="/screenshot-01.png" alt="Repos" style="height: 500px; width: auto;" />
@@ -160,7 +156,7 @@
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #ffbd2e;"></span>
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #27c93f;"></span>
                 </div>
-                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ currentLanguage === 'zh' ? '主界面' : 'Main Interface' }}</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ t('login.previewMain') }}</div>
               </div>
               <div style="padding: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(45, 53, 97, 0.4), rgba(26, 31, 53, 0.6));">
                 <img src="/screenshot-02.png" alt="Tags" style="display: block; width: auto; height: 500px;" />
@@ -173,7 +169,7 @@
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #ffbd2e;"></span>
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #27c93f;"></span>
                 </div>
-                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ currentLanguage === 'zh' ? '用户指南' : 'User Guide' }}</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ t('login.previewGuide') }}</div>
               </div>
               <div style="padding: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(45, 53, 97, 0.4), rgba(26, 31, 53, 0.6));">
                 <img src="/screenshot-03.png" alt="AI" style="display: block; width: auto; height: 500px;" />
@@ -187,7 +183,7 @@
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #ffbd2e;"></span>
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #27c93f;"></span>
                 </div>
-                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ currentLanguage === 'zh' ? '登录界面' : 'Login Interface' }}</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ t('login.previewLogin') }}</div>
               </div>
               <div style="padding: 0; background: linear-gradient(135deg, rgba(45, 53, 97, 0.4), rgba(26, 31, 53, 0.6)); line-height: 0;">
                 <img src="/screenshot-01.png" alt="Repos" style="height: 500px; width: auto;" />
@@ -200,7 +196,7 @@
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #ffbd2e;"></span>
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #27c93f;"></span>
                 </div>
-                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ currentLanguage === 'zh' ? '主界面' : 'Main Interface' }}</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ t('login.previewMain') }}</div>
               </div>
               <div style="padding: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(45, 53, 97, 0.4), rgba(26, 31, 53, 0.6));">
                 <img src="/screenshot-02.png" alt="Tags" style="display: block; width: auto; height: 500px;" />
@@ -213,7 +209,7 @@
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #ffbd2e;"></span>
                   <span style="width: 10px; height: 10px; border-radius: 50%; background: #27c93f;"></span>
                 </div>
-                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ currentLanguage === 'zh' ? '用户指南' : 'User Guide' }}</div>
+                <div style="color: rgba(255,255,255,0.6); font-size: 0.7rem; flex: 1; text-align: center; padding-right: 40px;">{{ t('login.previewGuide') }}</div>
               </div>
               <div style="padding: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, rgba(45, 53, 97, 0.4), rgba(26, 31, 53, 0.6));">
                 <img src="/screenshot-03.png" alt="AI" style="display: block; width: auto; height: 500px;" />
@@ -227,18 +223,16 @@
     <!-- 功能特点 -->
     <div class="features-section">
       <div class="features-container">
-        <h2 class="section-title">{{ currentLanguage === 'zh' ? '核心功能' : 'Core Features' }}</h2>
-        <p class="section-subtitle">{{ currentLanguage === 'zh' ? '专为开发者打造的 GitHub Stars 管理解决方案' : 'A complete GitHub Stars management solution built for developers' }}</p>
+        <h2 class="section-title">{{ t('login.coreFeatures') }}</h2>
+        <p class="section-subtitle">{{ t('login.coreFeaturesSubtitle') }}</p>
         <div class="features-grid">
           <div class="feature-item">
             <div class="feature-item-icon">
               <el-icon :size="32"><Collection /></el-icon>
             </div>
             <div class="feature-item-content">
-              <h3>{{ currentLanguage === 'zh' ? '智能标签系统' : 'Smart Tagging System' }}</h3>
-              <p>{{ currentLanguage === 'zh' 
-                ? '18 种预设分类覆盖 Web、移动、AI、DevOps 等主流技术领域。支持自定义标签、Emoji 图标、18 种颜色。一个仓库多个标签，批量操作高效管理。' 
-                : '18 presets cover Web, Mobile, AI, DevOps, and more. Custom tags with emoji icons and 18 colors. Multiple tags per repo, batch operations for efficiency.' }}</p>
+              <h3>{{ t('login.governanceTitle') }}</h3>
+              <p>{{ t('login.governanceDescription') }}</p>
             </div>
           </div>
           <div class="feature-item">
@@ -246,10 +240,8 @@
               <el-icon :size="32"><Search /></el-icon>
             </div>
             <div class="feature-item-content">
-              <h3>{{ currentLanguage === 'zh' ? '全文即时搜索' : 'Full-text Instant Search' }}</h3>
-              <p>{{ currentLanguage === 'zh' 
-                ? '基于 IndexedDB 本地存储，搜索延迟小于 10ms。支持仓库名、描述、编程语言多维度搜索，配合标签筛选精准定位，支持 10000+ 仓库。' 
-                : 'IndexedDB-based local storage with <10ms search latency. Multi-dimensional search across names, descriptions, languages. Tag filtering for precision. Supports 10,000+ repos.' }}</p>
+              <h3>{{ t('login.discoveryTitle') }}</h3>
+              <p>{{ t('login.discoveryDescription') }}</p>
             </div>
           </div>
           <div class="feature-item">
@@ -257,10 +249,8 @@
               <el-icon :size="32"><MagicStick /></el-icon>
             </div>
             <div class="feature-item-content">
-              <h3>{{ currentLanguage === 'zh' ? 'AI 智能分类' : 'AI Smart Classification' }}</h3>
-              <p>{{ currentLanguage === 'zh' 
-                ? '支持 OpenAI、Claude、DeepSeek、通义千问、智谱 AI 五种服务。模型只能选择已有分类，结果经人工审核后写入，并支持撤销。'
-                : 'Supports OpenAI, Claude, DeepSeek, Qwen, and Zhipu AI. Models can select only existing categories; results are reviewed before a reversible write.' }}</p>
+              <h3>{{ t('login.aiTitle') }}</h3>
+              <p>{{ t('login.aiDescription') }}</p>
             </div>
           </div>
           <div class="feature-item">
@@ -268,10 +258,8 @@
               <el-icon :size="32"><Reading /></el-icon>
             </div>
             <div class="feature-item-content">
-              <h3>{{ currentLanguage === 'zh' ? 'README 即时预览' : 'README Instant Preview' }}</h3>
-              <p>{{ currentLanguage === 'zh' 
-                ? '完整 GFM Markdown 渲染，highlight.js 支持 100+ 种语言语法高亮。DOMPurify 安全过滤，图片表格完美显示，无需跳转即可了解项目。' 
-                : 'Full GFM Markdown rendering, highlight.js supports 100+ languages. DOMPurify security filtering, perfect image/table display. Quick insights without leaving.' }}</p>
+              <h3>{{ t('login.readmeTitle') }}</h3>
+              <p>{{ t('login.readmeDescription') }}</p>
             </div>
           </div>
         </div>
@@ -281,49 +269,49 @@
     <!-- 技术栈 -->
     <div class="tech-section">
       <div class="tech-container">
-        <h2 class="section-title">{{ currentLanguage === 'zh' ? '现代化技术栈' : 'Modern Tech Stack' }}</h2>
-        <p class="section-subtitle">{{ currentLanguage === 'zh' ? '采用 2024 年最新技术构建，确保极致性能与开发体验' : 'Built with cutting-edge 2024 technologies for optimal performance and DX' }}</p>
+        <h2 class="section-title">{{ t('login.techTitle') }}</h2>
+        <p class="section-subtitle">{{ t('login.techSubtitle') }}</p>
         <div class="tech-grid">
           <div class="tech-item">
             <div class="tech-icon">⚡</div>
             <div class="tech-content">
               <span class="tech-name">Vue 3</span>
-              <span class="tech-desc">{{ currentLanguage === 'zh' ? '组合式 API' : 'Composition API' }}</span>
+              <span class="tech-desc">{{ t('login.compositionApi') }}</span>
             </div>
           </div>
           <div class="tech-item">
             <div class="tech-icon">🔷</div>
             <div class="tech-content">
               <span class="tech-name">TypeScript</span>
-              <span class="tech-desc">{{ currentLanguage === 'zh' ? '类型安全' : 'Type Safe' }}</span>
+              <span class="tech-desc">{{ t('login.typeSafe') }}</span>
             </div>
           </div>
           <div class="tech-item">
             <div class="tech-icon">🚀</div>
             <div class="tech-content">
               <span class="tech-name">Vite</span>
-              <span class="tech-desc">{{ currentLanguage === 'zh' ? '极速构建' : 'Fast Build' }}</span>
+              <span class="tech-desc">{{ t('login.fastBuild') }}</span>
             </div>
           </div>
           <div class="tech-item">
             <div class="tech-icon">📦</div>
             <div class="tech-content">
               <span class="tech-name">Pinia</span>
-              <span class="tech-desc">{{ currentLanguage === 'zh' ? '状态管理' : 'State Management' }}</span>
+              <span class="tech-desc">{{ t('login.stateManagement') }}</span>
             </div>
           </div>
           <div class="tech-item">
             <div class="tech-icon">🎨</div>
             <div class="tech-content">
               <span class="tech-name">Element Plus</span>
-              <span class="tech-desc">{{ currentLanguage === 'zh' ? 'UI 组件库' : 'UI Components' }}</span>
+              <span class="tech-desc">{{ t('login.uiComponents') }}</span>
             </div>
           </div>
           <div class="tech-item">
             <div class="tech-icon">💾</div>
             <div class="tech-content">
               <span class="tech-name">Dexie.js</span>
-              <span class="tech-desc">{{ currentLanguage === 'zh' ? '本地数据库' : 'IndexedDB' }}</span>
+              <span class="tech-desc">{{ t('login.localDatabase') }}</span>
             </div>
           </div>
         </div>
@@ -339,11 +327,11 @@
         </div> -->
         <div class="footer-links">
           <a href="https://github.com/hujinghaoabcd/StarHub" target="_blank">GitHub</a>
-          <a href="https://github.com/hujinghaoabcd/StarHub/issues" target="_blank">{{ currentLanguage === 'zh' ? '问题反馈' : 'Issues' }}</a>
+          <a href="https://github.com/hujinghaoabcd/StarHub/issues" target="_blank">{{ t('login.issues') }}</a>
           <a href="https://github.com/hujinghaoabcd/StarHub/blob/main/LICENSE" target="_blank">MIT License</a>
         </div>
-        <p class="footer-copyright">&copy; 2024 StarHub. {{ currentLanguage === 'zh' ? '专业的 GitHub Stars 管理工具，让你的收藏井井有条。' : 'Professional GitHub Stars management tool. Organize your collection with ease.' }}</p>
-        <p class="footer-made">{{ currentLanguage === 'zh' ? '用 ❤️ 和 Vue 3 + TypeScript + Vite 构建' : 'Made with ❤️ using Vue 3 + TypeScript + Vite' }}</p>
+        <p class="footer-copyright">&copy; 2024–2026 StarHub. {{ t('login.copyright') }}</p>
+        <p class="footer-made">{{ t('login.madeWith') }}</p>
       </div>
     </div>
   </div>
@@ -407,17 +395,11 @@ onMounted(async () => {
       : ''
 
     if (reason === 'session-expired') {
-      error.value = currentLanguage.value === 'zh'
-        ? '登录会话已过期，请重新使用 GitHub 登录。'
-        : 'Your login session expired. Please sign in with GitHub again.'
+      error.value = t('login.sessionExpired')
     } else if (reason === 'unauthorized') {
-      error.value = currentLanguage.value === 'zh'
-        ? 'GitHub 已拒绝当前凭据，请重新授权。'
-        : 'GitHub rejected the current credentials. Please authorize again.'
+      error.value = t('login.unauthorized')
     } else if (reason === 'logged-out') {
-      error.value = currentLanguage.value === 'zh'
-        ? '登录已在另一个标签页退出。'
-        : 'You signed out in another tab.'
+      error.value = t('login.loggedOut')
     }
     return
   }
@@ -443,7 +425,7 @@ onMounted(async () => {
     await login(code, codeVerifier)
   } catch {
     clearOAuthRequest()
-    error.value = 'OAuth 状态校验失败，请重新发起登录。'
+    error.value = t('login.oauthStateFailed')
     loading.value = false
   }
 })
@@ -477,15 +459,15 @@ const login = async (code: string, codeVerifier: string) => {
       const data = e.response.data
       
       if (status === 404) {
-        error.value = 'API 端点未找到。请确保 Cloudflare Pages Functions 已部署，或使用本地开发服务器。\n\n错误详情：' + (data?.error || e.message)
+        error.value = `${t('login.endpointNotFound')} ${data?.error || e.message || ''}`.trim()
       } else if (status === 500) {
-        error.value = '服务器错误：' + (data?.error || 'OAuth token 交换失败')
+        error.value = `${t('login.serverError')} ${data?.error || e.message || ''}`.trim()
       } else {
-        error.value = `认证失败 (${status})：` + (data?.error || e.message)
+        error.value = `${t('login.authFailedStatus', { status })} ${data?.error || e.message || ''}`.trim()
       }
     } else if (e.request) {
       // 网络错误
-      error.value = '无法连接到服务器。请检查：\n1. Cloudflare Pages Functions 是否已部署\n2. 网络连接是否正常\n3. 是否使用了本地开发服务器'
+      error.value = t('login.networkError')
     } else {
       // 其他错误
       error.value = t('login.error')
@@ -509,7 +491,7 @@ const handleLogin = async () => {
   }
 
   if (import.meta.env.PROD && !GITHUB_OAUTH_CONFIG.API_BASE_URL) {
-    error.value = 'OAuth 后端尚未配置。请先设置 GitHub Actions 变量 VITE_API_BASE_URL。'
+    error.value = t('login.backendNotConfigured')
     loading.value = false
     return
   }
@@ -530,7 +512,7 @@ const handleLogin = async () => {
 
     if (!authWindow) {
       clearOAuthRequest()
-      error.value = '浏览器阻止了登录窗口，请允许弹出窗口后重试。'
+      error.value = t('login.popupBlocked')
       loading.value = false
       return
     }
@@ -555,7 +537,7 @@ const handleLogin = async () => {
       await login(event.data.code, codeVerifier)
     } catch {
       clearOAuthRequest()
-      error.value = 'OAuth 状态校验失败，请重新发起登录。'
+      error.value = t('login.oauthStateFailed')
       loading.value = false
     }
   }
@@ -573,7 +555,7 @@ const handleLogin = async () => {
   window.addEventListener('message', handleOAuthMessage)
   } catch {
     clearOAuthRequest()
-    error.value = '无法初始化安全登录，请刷新页面后重试。'
+    error.value = t('login.loginInitFailed')
     loading.value = false
   }
 }
