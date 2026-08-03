@@ -72,6 +72,15 @@ test('category tools expose import and delete-all without the old note', async (
   assert.equal(home.includes('只导入名称，不分配项目'), false)
 })
 
+test('category toolbar buttons remain compact in the sidebar', async () => {
+  const home = await source('src/pages/Home/index.vue')
+
+  assert.match(home, /class="category-tool-button"/)
+  assert.match(home, /\.category-tool-button\s*\{[\s\S]*height:\s*28px/)
+  assert.match(home, /\.category-tool-button\s*\{[\s\S]*padding:\s*0 8px/)
+  assert.match(home, /\.category-import-bar\s*\{[\s\S]*padding:\s*7px 10px/)
+})
+
 test('category name persistence only writes tag metadata', async () => {
   const persistence = await source(
     'src/services/tagNameImportPersistence.ts'
