@@ -56,6 +56,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Upload } from '@element-plus/icons-vue'
 import { useTagStore } from '@/stores/tag'
 import { parseTagNameImport } from '@/services/tagNameImport'
+import { importTagNames as persistTagNames } from '@/services/tagNameImportPersistence'
 
 defineProps<{
   modelValue: boolean
@@ -123,7 +124,8 @@ async function importNames() {
   importing.value = true
 
   try {
-    const result = await tagStore.importTagNames(parsed.value.names)
+    const result = await persistTagNames(parsed.value.names)
+    await tagStore.loadTags()
     const skipped = result.skipped + parsed.value.duplicates
 
     if (result.created > 0) {
