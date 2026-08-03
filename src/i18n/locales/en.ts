@@ -80,6 +80,19 @@ export default {
     noDescription: 'No description',
     noReadme: 'No README'
   },
+  highlight: {
+    title: 'Highlights',
+    mark: 'Mark important',
+    unmark: 'Remove highlight',
+    marked: 'Marked as an important repository',
+    unmarked: 'Highlight removed',
+    batchMark: 'Mark selected as important',
+    batchUnmark: 'Remove selected highlights',
+    batchMarked: 'Highlighted {count} repositories',
+    batchUnmarked: 'Removed {count} highlights',
+    sort: 'Highlights first',
+    failed: 'Failed to update the highlight'
+  },
   tag: {
     create: 'Create Category',
     edit: 'Edit Category',
@@ -295,7 +308,7 @@ export default {
     connectionTimeout: 'The connection test exceeded 20 seconds and was cancelled',
     savedForSession: 'Settings saved; the API Key is valid only for this session',
     dataBackup: 'Data Backup and Recovery',
-    dataBackupDesc: 'Exporting data will include all repository information, categories, and associations. Importing data will overwrite all current data.',
+    dataBackupDesc: 'Exporting data will include all repository information, highlights, categories, and associations. Importing data will overwrite all current data.',
     exportData: 'Export Data',
     importData: 'Import Data',
     clearAllData: 'Clear All Data',
@@ -303,6 +316,7 @@ export default {
     tagCount: 'Category Count',
     taggedRepos: 'Tagged Repositories',
     untaggedRepos: 'Untagged Repositories',
+    highlightedRepos: 'Highlighted Repositories',
     syncingCategories: 'Syncing categories...',
     syncSuccess: 'Synced {count} categories',
     syncNoChange: 'All preset categories already exist, no sync needed',

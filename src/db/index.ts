@@ -5,6 +5,7 @@ import type {
   ClassificationReadmeCache,
   RepoTag,
   Repository,
+  RepositoryHighlight,
   StoredTag
 } from '@/types'
 import {
@@ -29,6 +30,7 @@ class StarHubDatabase extends Dexie {
     [string, number]
   >
   classificationReadmeCache!: Table<ClassificationReadmeCache, number>
+  repositoryHighlights!: Table<RepositoryHighlight, number>
 
   constructor() {
     super('StarHubDB')
@@ -99,6 +101,17 @@ class StarHubDatabase extends Dexie {
       classificationTaskItems:
         '[taskId+repositoryId], taskId, [taskId+status], [taskId+accepted], [taskId+segmentIndex+status], [taskId+segmentIndex+accepted], [taskId+segmentIndex+committed], status, updatedAt',
       classificationReadmeCache: 'repositoryId, fullName, fetchedAt'
+    })
+
+    this.version(7).stores({
+      repos: 'id, full_name, language, updated_at',
+      tags: 'id, name, createdAt',
+      repoTags: '[repoId+tagId], repoId, tagId',
+      classificationTasks: 'id, status, updatedAt',
+      classificationTaskItems:
+        '[taskId+repositoryId], taskId, [taskId+status], [taskId+accepted], [taskId+segmentIndex+status], [taskId+segmentIndex+accepted], [taskId+segmentIndex+committed], status, updatedAt',
+      classificationReadmeCache: 'repositoryId, fullName, fetchedAt',
+      repositoryHighlights: 'repositoryId, markedAt'
     })
   }
 }

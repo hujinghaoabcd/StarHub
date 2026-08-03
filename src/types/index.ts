@@ -75,6 +75,11 @@ export interface RepoTag {
   tagId: string
 }
 
+export interface RepositoryHighlight {
+  repositoryId: number
+  markedAt: number
+}
+
 export interface ClassificationCategory {
   categoryId: string
   name: string

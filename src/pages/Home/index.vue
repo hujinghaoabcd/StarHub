@@ -71,6 +71,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Delete, Upload } from '@element-plus/icons-vue'
 import { useRepoStore } from '@/stores/repo'
 import { useTagStore } from '@/stores/tag'
+import { useHighlightStore } from '@/stores/highlight'
 import HomeLayout from '@/layouts/HomeLayout.vue'
 import SideMenu from './components/SideMenu.vue'
 import RepoList from './components/RepoList.vue'
@@ -81,6 +82,7 @@ import type { Repository } from '@/types'
 
 const repoStore = useRepoStore()
 const tagStore = useTagStore()
+const highlightStore = useHighlightStore()
 
 const selectedRepo = ref<Repository | null>(null)
 const showImportTagDialog = ref(false)
@@ -165,7 +167,7 @@ const handleDeleteAllTags = async () => {
 
 onMounted(async () => {
   try {
-    await tagStore.loadTags()
+    await Promise.all([tagStore.loadTags(), highlightStore.loadHighlights()])
     const result = await repoStore.loadRepos()
 
     if (result.status === 'success') {

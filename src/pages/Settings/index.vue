@@ -215,6 +215,10 @@
                 <div class="stat-label">{{ t('settings.untaggedRepos') }}</div>
                 <div class="stat-value" :class="{ 'is-zero': dataStats.untaggedRepos === 0 }">{{ dataStats.untaggedRepos }}</div>
               </div>
+              <div class="stat-card" :key="`highlighted-${dataStats.highlightedRepos}`">
+                <div class="stat-label">{{ t('settings.highlightedRepos') }}</div>
+                <div class="stat-value" :class="{ 'is-zero': dataStats.highlightedRepos === 0 }">{{ dataStats.highlightedRepos }}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -350,6 +354,7 @@ import {
 } from '@/config/categories'
 import { useTagStore } from '@/stores/tag'
 import { useRepoStore } from '@/stores/repo'
+import { useHighlightStore } from '@/stores/highlight'
 import { db } from '@/db'
 import type { Repository, Tag } from '@/types'
 import {
@@ -357,12 +362,14 @@ import {
   toStoredTag
 } from '@/services/tagRelations'
 import { runDataMutation } from '@/services/dataMutationQueue'
+import { normalizeRepositoryHighlights } from '@/services/repositoryHighlights'
 import Dexie from 'dexie'
 
 const { t } = useI18n()
 const router = useRouter()
 const tagStore = useTagStore()
 const repoStore = useRepoStore()
+const highlightStore = useHighlightStore()
 
 const aiConfig = ref<AIConfig>({
   provider: 'openai',
@@ -381,6 +388,7 @@ const dataStats = ref<{
   tags: number
   taggedRepos: number
   untaggedRepos: number
+  highlightedRepos: number
 } | null>(null)
 
 // 预设分类管理
@@ -432,10 +440,11 @@ const loadDataStats = async () => {
       await db.open()
     }
     
-    const [repos, tags, relations] = await Promise.all([
+    const [repos, tags, relations, highlights] = await Promise.all([
       db.repos.toArray(),
       db.tags.toArray(),
-      db.repoTags.toArray()
+      db.repoTags.toArray(),
+      db.repositoryHighlights.toArray()
     ])
     const taggedRepoIds = new Set(relations.map(relation => relation.repoId))
     
@@ -443,7 +452,8 @@ const loadDataStats = async () => {
       repos: repos.length,
       tags: tags.length,
       taggedRepos: taggedRepoIds.size,
-      untaggedRepos: repos.length - taggedRepoIds.size
+      untaggedRepos: repos.length - taggedRepoIds.size,
+      highlightedRepos: highlights.length
     }
   } catch (error) {
     console.error('Failed to load data stats:', error)
@@ -452,7 +462,8 @@ const loadDataStats = async () => {
       repos: 0,
       tags: 0,
       taggedRepos: 0,
-      untaggedRepos: 0
+      untaggedRepos: 0,
+      highlightedRepos: 0
     }
   }
 }
@@ -844,17 +855,19 @@ const handleExport = async () => {
     // Collect a portable snapshot. Tag membership is hydrated from repoTags.
     await tagStore.loadTags()
     const repos = await db.repos.toArray()
+    const highlights = await db.repositoryHighlights.toArray()
     const tags = tagStore.tags.map(tag => ({
       ...tag,
       repos: [...tag.repos]
     }))
     
     const exportData = {
-      version: '2.0',
+      version: '3.0',
       exportDate: new Date().toISOString(),
       data: {
         repos,
         tags,
+        highlights,
         categoryPresets: getCategoryPresets()
       },
       stats: dataStats.value
@@ -911,6 +924,7 @@ const handleImport = () => {
         `即将导入数据：\n` +
         `- 仓库：${importData.data.repos?.length || 0} 个\n` +
         `- 分类：${importData.data.tags?.length || 0} 个\n` +
+        `- 重点项目：${importData.data.highlights?.length || importData.data.highlightedRepositoryIds?.length || 0} 个\n` +
         `- 导出日期：${importData.exportDate}\n\n` +
         `⚠️ 此操作将覆盖当前所有数据，是否继续？`,
         '确认导入',
@@ -941,6 +955,16 @@ const handleImport = () => {
         : []
       const storedTags = importedTags.map(toStoredTag)
       const relations = buildRepoTagsFromTags(importedTags)
+      const validRepositoryIds = new Set(
+        importedRepos.map(repository => repository.id)
+      )
+      const importedHighlights = normalizeRepositoryHighlights(
+        importData.data.highlights ??
+          importData.data.highlightedRepositoryIds ??
+          [],
+        validRepositoryIds,
+        now
+      )
 
       await runDataMutation(() =>
         db.transaction(
@@ -948,10 +972,12 @@ const handleImport = () => {
           db.repos,
           db.tags,
           db.repoTags,
+          db.repositoryHighlights,
           async () => {
             await db.repos.clear()
             await db.tags.clear()
             await db.repoTags.clear()
+            await db.repositoryHighlights.clear()
 
             if (importedRepos.length > 0) {
               await db.repos.bulkAdd(importedRepos)
@@ -961,6 +987,9 @@ const handleImport = () => {
             }
             if (relations.length > 0) {
               await db.repoTags.bulkAdd(relations)
+            }
+            if (importedHighlights.length > 0) {
+              await db.repositoryHighlights.bulkAdd(importedHighlights)
             }
           }
         )
@@ -974,6 +1003,7 @@ const handleImport = () => {
       
       // 重新加载数据
       await tagStore.loadTags()
+      await highlightStore.loadHighlights()
       await repoStore.loadRepos()
       await loadDataStats()
       
@@ -1014,6 +1044,7 @@ const handleCheckDatabase = async () => {
     const repoCount = await db.repos.count()
     const tagCount = await db.tags.count()
     const repoTagCount = db.repoTags ? await db.repoTags.count() : 0
+    const highlightCount = await db.repositoryHighlights.count()
     const isOpen = db.isOpen()
     
     await ElMessageBox.alert(
@@ -1022,6 +1053,7 @@ const handleCheckDatabase = async () => {
       `- 数据库中的仓库: ${repoCount} 个\n` +
       `- 数据库中的标签: ${tagCount} 个\n` +
       `- 数据库中的关联: ${repoTagCount} 个\n` +
+      `- 重点项目: ${highlightCount} 个\n` +
       `- Store 中的仓库: ${repoStore.repos.length} 个\n` +
       `- Store 中的标签: ${tagStore.tags.length} 个`,
       '数据库状态',
@@ -1124,7 +1156,8 @@ const handleClearAll = async () => {
         repos: 0,
         tags: 0,
         taggedRepos: 0,
-        untaggedRepos: 0
+        untaggedRepos: 0,
+        highlightedRepos: 0
       }
       
       // Step 3: Clear all store state
@@ -1132,11 +1165,14 @@ const handleClearAll = async () => {
       repoStore.$state.selectedTag = null
       repoStore.$state.selectedLanguage = null
       repoStore.$state.filterType = 'all'
+      repoStore.$state.highlightedOnly = false
       repoStore.$state.searchQuery = ''
       repoStore.$state.currentPage = 1
       repoStore.$state.syncProgress = { current: 0, total: 0, count: 0 }
       tagStore.$state.tags = []
       tagStore.$state.loading = false
+      highlightStore.$state.highlights = []
+      highlightStore.$state.loading = false
       
       // Force Vue to update UI
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -1162,10 +1198,12 @@ const handleClearAll = async () => {
               db.repos,
               db.tags,
               db.repoTags,
+              db.repositoryHighlights,
               async () => {
                 await db.repos.clear()
                 await db.tags.clear()
                 await db.repoTags.clear()
+                await db.repositoryHighlights.clear()
               }
             )
           )
@@ -1174,11 +1212,17 @@ const handleClearAll = async () => {
           const newRepoCount = await db.repos.count()
           const newTagCount = await db.tags.count()
           const newRepoTagCount = db.repoTags ? await db.repoTags.count() : 0
+          const newHighlightCount = await db.repositoryHighlights.count()
           
-          if (newRepoCount === 0 && newTagCount === 0 && newRepoTagCount === 0) {
+          if (
+            newRepoCount === 0 &&
+            newTagCount === 0 &&
+            newRepoTagCount === 0 &&
+            newHighlightCount === 0
+          ) {
             clearSuccess = true
           } else {
-            console.warn(`数据库表未完全清空: repos=${newRepoCount}, tags=${newTagCount}, repoTags=${newRepoTagCount}`)
+            console.warn(`数据库表未完全清空: repos=${newRepoCount}, tags=${newTagCount}, repoTags=${newRepoTagCount}, repositoryHighlights=${newHighlightCount}`)
           }
           
           break
@@ -1222,6 +1266,7 @@ const handleClearAll = async () => {
       
       // Step 6: Reload empty state
       await tagStore.loadTags()
+      await highlightStore.loadHighlights()
       await loadDataStats()
       
       loading.close()

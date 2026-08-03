@@ -87,6 +87,21 @@ test('sortRepositories supports case-insensitive repository name ordering', () =
   )
 })
 
+test('sortRepositories places highlighted repositories first and preserves a useful fallback order', () => {
+  const repositories = [repository(1), repository(2), repository(3)]
+  const highlightedAt = new Map([
+    [1, 100],
+    [3, 200]
+  ])
+
+  assert.deepEqual(
+    repositoryView
+      .sortRepositories(repositories, 'highlighted', 'desc', highlightedAt)
+      .map(repo => repo.id),
+    [3, 1, 2]
+  )
+})
+
 test('normalizeRepositoryPageSize accepts 1000 and rejects unsupported values', () => {
   assert.equal(repositoryView.normalizeRepositoryPageSize(1000), 1000)
   assert.equal(repositoryView.normalizeRepositoryPageSize(500), 500)
