@@ -146,6 +146,7 @@ test('classification tasks persist per-repository drafts and page review results
   assert.match(tasks, /retryFailedClassificationItems/)
   assert.match(tasks, /getClassificationReviewPage/)
   assert.match(tasks, /markClassificationTaskCommitted/)
+  assert.match(tasks, /status: 'committed'/)
   assert.match(tasks, /assertClassificationTaskCompatible/)
 
   const generation = tasks.slice(
@@ -159,6 +160,14 @@ test('classification tasks persist per-repository drafts and page review results
   assert.equal(sideMenu.includes('includeReadme'), false)
   assert.match(sideMenu, /estimatedInputTokens/)
   assert.match(sideMenu, /classificationTaskStore\.retryFailures/)
+  assert.match(sideMenu, /existingTask && !existingTask\.committedAt/)
   assert.match(dialog, /PAGE_SIZE = 50/)
+  assert.match(dialog, /reviewCommitPaused/)
+  assert.match(dialog, /commitPausedMessage/)
+  assert.match(
+    dialog,
+    /:disabled="task\.acceptedCount === 0 \|\| task\.status === 'running'"/
+  )
+  assert.doesNotMatch(dialog, /:disabled="[^"]*task\.status === 'paused'/)
   assert.equal(dialog.includes(':data="items"'), false)
 })

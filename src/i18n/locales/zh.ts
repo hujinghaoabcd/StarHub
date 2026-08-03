@@ -132,6 +132,10 @@ export default {
     reviewConfidence: '置信度',
     reviewReason: '分类理由',
     reviewCommit: '确认写入 {count} 项',
+    reviewCommitPaused: '写入当前 {count} 项并结束任务',
+    commitPausedTitle: '写入当前结果并结束任务',
+    commitPausedMessage: '将写入当前已选择的 {count} 项，并结束本任务。其余 {remaining} 项（包含失败、未处理和未选择结果）不会写入，可稍后创建新任务继续。此操作不会清除已有分类。',
+    commitPausedConfirm: '写入并结束',
     reviewReady: '已生成 {success} 项待审核，{failed} 项失败；尚未修改本地分类。',
     reviewNoCategories: '请先创建或将预设同步为实际分类，AI 不会自动创建新分类。',
     classificationCommitted: '已写入 {count} 项 AI 分类，可撤销本次写入。',
@@ -166,6 +170,7 @@ export default {
       paused: '已暂停',
       partial: '部分完成',
       completed: '已完成',
+      committed: '已写入并结束',
       cancelled: '已取消'
     }
   },

@@ -427,8 +427,10 @@ export async function markClassificationTaskCommitted(
   await ensureDatabaseOpen()
   const now = Date.now()
   await db.classificationTasks.update(id, {
+    status: 'committed',
     committedAt: now,
     committedCount,
+    lastError: undefined,
     updatedAt: now
   })
   const updated = await db.classificationTasks.get(id)

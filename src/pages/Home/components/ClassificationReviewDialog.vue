@@ -19,7 +19,7 @@
 
         <el-progress
           :percentage="progressPercent"
-          :status="task.status === 'completed' ? 'success' : undefined"
+          :status="task.status === 'completed' || task.status === 'committed' ? 'success' : undefined"
         />
 
         <div class="task-metrics">
@@ -210,10 +210,12 @@
         v-if="task && task.successCount > 0 && !task.committedAt"
         type="primary"
         :loading="commitBusy"
-        :disabled="task.acceptedCount === 0 || task.status === 'running' || task.status === 'paused'"
+        :disabled="task.acceptedCount === 0 || task.status === 'running'"
         @click="handleConfirm"
       >
-        {{ t('tag.reviewCommit', { count: task.acceptedCount }) }}
+        {{ task.status === 'paused'
+          ? t('tag.reviewCommitPaused', { count: task.acceptedCount })
+          : t('tag.reviewCommit', { count: task.acceptedCount }) }}
       </el-button>
     </template>
   </el-dialog>
@@ -222,6 +224,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { ElMessageBox } from 'element-plus'
 import { useClassificationTaskStore } from '@/stores/classificationTask'
 import type {
   ClassificationAssignment,
@@ -269,7 +272,10 @@ const progressPercent = computed(() => {
 })
 const statusTagType = computed(() => {
   if (!props.task) return 'info'
-  if (props.task.status === 'completed') return 'success'
+  if (
+    props.task.status === 'completed' ||
+    props.task.status === 'committed'
+  ) return 'success'
   if (props.task.status === 'partial' || props.task.status === 'paused') {
     return 'warning'
   }
@@ -356,6 +362,28 @@ function closeDialog() {
 }
 
 async function handleConfirm() {
+  if (!props.task) return
+  if (props.task.status === 'paused') {
+    try {
+      await ElMessageBox.confirm(
+        t('tag.commitPausedMessage', {
+          count: props.task.acceptedCount,
+          remaining: Math.max(
+            0,
+            props.task.totalCount - props.task.acceptedCount
+          )
+        }),
+        t('tag.commitPausedTitle'),
+        {
+          confirmButtonText: t('tag.commitPausedConfirm'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning'
+        }
+      )
+    } catch {
+      return
+    }
+  }
   const assignments = await taskStore.acceptedAssignments()
   emit('confirm', assignments)
 }

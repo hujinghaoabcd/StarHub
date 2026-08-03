@@ -132,6 +132,10 @@ export default {
     reviewConfidence: 'Confidence',
     reviewReason: 'Reason',
     reviewCommit: 'Commit {count} Results',
+    reviewCommitPaused: 'Commit Current {count} and End Task',
+    commitPausedTitle: 'Commit Current Results and End Task',
+    commitPausedMessage: 'This will commit the current {count} selected results and end this task. The remaining {remaining} repositories, including failed, unprocessed and unselected results, will not be committed. You can create a new task for them later. Existing categories will not be cleared.',
+    commitPausedConfirm: 'Commit and End',
     reviewReady: '{success} results are ready for review and {failed} failed. No categories have been changed yet.',
     reviewNoCategories: 'Create categories or sync presets to actual categories first. AI will not create new categories.',
     classificationCommitted: 'Committed {count} AI classifications. This write can be undone.',
@@ -166,6 +170,7 @@ export default {
       paused: 'Paused',
       partial: 'Partially complete',
       completed: 'Completed',
+      committed: 'Committed and Ended',
       cancelled: 'Cancelled'
     }
   },

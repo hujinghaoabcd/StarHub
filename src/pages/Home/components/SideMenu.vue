@@ -570,7 +570,7 @@ const handleDiscardClassification = async () => {
 const handleAutoClassify = async () => {
   const existingTask = classificationTaskStore.activeTask
   if (
-    existingTask
+    existingTask && !existingTask.committedAt
   ) {
     await buildCurrentClassificationRegistry()
     showClassificationReview.value = true
