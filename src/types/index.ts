@@ -106,6 +106,7 @@ export type ClassificationTaskStatus =
   | 'paused'
   | 'partial'
   | 'completed'
+  | 'committed'
   | 'cancelled'
 
 export type ClassificationTaskItemStatus = 'pending' | 'success' | 'failed'
