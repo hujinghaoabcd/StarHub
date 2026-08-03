@@ -59,13 +59,17 @@ test('about is shown below the description without a github pages section', asyn
   assert.equal(overview.includes('link-list'), false)
 })
 
-test('category name import is exposed from the home category tools', async () => {
+test('category tools expose import and delete-all without the old note', async () => {
   const home = await source('src/pages/Home/index.vue')
 
   assert.match(home, /TagNameImportDialog/)
   assert.match(home, /showImportTagDialog/)
   assert.match(home, /导入分类/)
-  assert.match(home, /只导入名称，不分配项目/)
+  assert.match(home, /删除全部/)
+  assert.match(home, /handleDeleteAllTags/)
+  assert.match(home, /replaceAllTags\(\[\]\)/)
+  assert.match(home, /不会删除任何项目/)
+  assert.equal(home.includes('只导入名称，不分配项目'), false)
 })
 
 test('category name persistence only writes tag metadata', async () => {
