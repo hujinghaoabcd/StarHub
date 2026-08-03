@@ -1,108 +1,219 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="t('tag.reviewTitle')"
-    width="min(960px, 94vw)"
+    :title="t('tag.taskTitle')"
+    width="min(1040px, 96vw)"
     :close-on-click-modal="false"
     destroy-on-close
-    @close="handleCancel"
+    @close="closeDialog"
   >
-    <el-alert
-      :title="t('tag.reviewNotice', { threshold: confidenceThresholdPercent })"
-      type="warning"
-      :closable="false"
-      show-icon
-      class="review-notice"
-    />
-
-    <div class="review-toolbar">
-      <el-checkbox
-        :model-value="allSelected"
-        :indeterminate="isIndeterminate"
-        @change="toggleAll"
-      >
-        {{ t('tag.reviewSelectAll') }}
-      </el-checkbox>
-      <span>
-        {{ t('tag.reviewSelectedCount', {
-          selected: selectedCount,
-          total: items.length
-        }) }}
-      </span>
-    </div>
-
-    <el-table
-      :data="items"
-      row-key="repositoryId"
-      max-height="56vh"
-      border
-      class="review-table"
-    >
-      <el-table-column width="52" align="center">
-        <template #default="{ row }">
-          <el-checkbox
-            :model-value="selectedRepositoryIds.has(row.repositoryId)"
-            :aria-label="row.repositoryName"
-            @change="toggleRepository(row.repositoryId, $event)"
-          />
-        </template>
-      </el-table-column>
-
-      <el-table-column
-        prop="repositoryName"
-        :label="t('tag.reviewRepository')"
-        min-width="210"
-        show-overflow-tooltip
-      />
-
-      <el-table-column :label="t('tag.reviewCategory')" min-width="190">
-        <template #default="{ row }">
-          <el-select
-            :model-value="selectedCategoryIds.get(row.repositoryId)"
-            size="small"
-            filterable
-            @update:model-value="setCategory(row.repositoryId, $event)"
-          >
-            <el-option
-              v-for="category in categories"
-              :key="category.categoryId"
-              :label="category.name"
-              :value="category.categoryId"
-            />
-          </el-select>
-        </template>
-      </el-table-column>
-
-      <el-table-column
-        :label="t('tag.reviewConfidence')"
-        width="110"
-        align="center"
-      >
-        <template #default="{ row }">
-          <el-tag :type="confidenceTagType(row.confidence)" effect="plain">
-            {{ Math.round(row.confidence * 100) }}%
+    <template v-if="task">
+      <div class="task-summary">
+        <div class="task-heading">
+          <el-tag :type="statusTagType" effect="plain">
+            {{ t(`tag.taskStatus.${task.status}`) }}
           </el-tag>
-        </template>
-      </el-table-column>
+          <span>{{ task.provider }} / {{ task.model }}</span>
+          <span>{{ t('tag.metadataOnly') }}</span>
+        </div>
 
-      <el-table-column
-        prop="reason"
-        :label="t('tag.reviewReason')"
-        min-width="250"
-        show-overflow-tooltip
+        <el-progress
+          :percentage="progressPercent"
+          :status="task.status === 'completed' ? 'success' : undefined"
+        />
+
+        <div class="task-metrics">
+          <span>{{ t('tag.taskProcessed') }} {{ task.processedCount }}/{{ task.totalCount }}</span>
+          <span>{{ t('tag.taskSucceeded') }} {{ task.successCount }}</span>
+          <span>{{ t('tag.taskFailed') }} {{ task.failedCount }}</span>
+          <span>{{ t('tag.taskAccepted') }} {{ task.acceptedCount }}</span>
+          <span>{{ t('tag.taskBatches') }} {{ task.estimatedBatches }}</span>
+          <span>
+            {{ t('tag.taskTokenEstimate') }}
+            {{ formatNumber(task.estimatedInputTokens + task.estimatedOutputTokens) }}
+          </span>
+        </div>
+      </div>
+
+      <el-alert
+        v-if="task.lastError"
+        :title="task.lastError"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="task-alert"
       />
-    </el-table>
+      <el-alert
+        v-if="task.committedAt"
+        :title="t('tag.taskCommitted', { count: task.committedCount || 0 })"
+        type="success"
+        :closable="false"
+        show-icon
+        class="task-alert"
+      />
+
+      <div class="task-actions">
+        <el-button
+          v-if="task.status === 'running' && !task.committedAt"
+          type="warning"
+          :loading="actionBusy"
+          @click="emit('pause')"
+        >
+          {{ t('tag.pauseTask') }}
+        </el-button>
+        <el-button
+          v-if="task.status === 'paused' && !task.committedAt"
+          type="primary"
+          :loading="actionBusy"
+          @click="emit('resume')"
+        >
+          {{ t('tag.resumeTask') }}
+        </el-button>
+        <el-button
+          v-if="task.status === 'partial' && task.failedCount > 0 && !task.committedAt"
+          type="warning"
+          :loading="actionBusy"
+          @click="emit('retry')"
+        >
+          {{ t('tag.retryFailed', { count: task.failedCount }) }}
+        </el-button>
+        <el-button
+          v-if="(task.status === 'running' || task.status === 'paused') && !task.committedAt"
+          type="danger"
+          plain
+          :disabled="actionBusy"
+          @click="emit('cancel-task')"
+        >
+          {{ t('tag.cancelTask') }}
+        </el-button>
+        <el-button
+          v-if="task.status === 'cancelled' || task.committedAt"
+          plain
+          :disabled="actionBusy"
+          @click="emit('discard')"
+        >
+          {{ t('tag.discardTask') }}
+        </el-button>
+      </div>
+
+      <template v-if="task.successCount > 0">
+        <el-alert
+          :title="t('tag.reviewNotice', { threshold: confidenceThresholdPercent })"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="review-notice"
+        />
+
+        <div class="review-toolbar">
+          <el-checkbox
+            :model-value="allPageSelected"
+            :indeterminate="pageIndeterminate"
+            :disabled="pageItems.length === 0 || task.committedAt !== undefined"
+            @change="togglePage"
+          >
+            {{ t('tag.reviewSelectPage') }}
+          </el-checkbox>
+          <span>
+            {{ t('tag.reviewSelectedCount', {
+              selected: task.acceptedCount,
+              total: task.successCount
+            }) }}
+          </span>
+        </div>
+
+        <el-table
+          v-loading="pageLoading"
+          :data="pageItems"
+          row-key="repositoryId"
+          max-height="48vh"
+          border
+          class="review-table"
+        >
+          <el-table-column width="52" align="center">
+            <template #default="{ row }">
+              <el-checkbox
+                :model-value="row.accepted === 1"
+                :aria-label="repositoryName(row.repositoryId)"
+                :disabled="task.committedAt !== undefined"
+                @change="setAccepted(row.repositoryId, $event)"
+              />
+            </template>
+          </el-table-column>
+
+          <el-table-column
+            :label="t('tag.reviewRepository')"
+            min-width="220"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">
+              {{ repositoryName(row.repositoryId) }}
+            </template>
+          </el-table-column>
+
+          <el-table-column :label="t('tag.reviewCategory')" min-width="210">
+            <template #default="{ row }">
+              <el-select
+                :model-value="row.categoryId"
+                size="small"
+                filterable
+                :disabled="task.committedAt !== undefined"
+                @update:model-value="setCategory(row.repositoryId, $event)"
+              >
+                <el-option
+                  v-for="category in categories"
+                  :key="category.categoryId"
+                  :label="category.name"
+                  :value="category.categoryId"
+                />
+              </el-select>
+            </template>
+          </el-table-column>
+
+          <el-table-column
+            :label="t('tag.reviewConfidence')"
+            width="110"
+            align="center"
+          >
+            <template #default="{ row }">
+              <el-tag :type="confidenceTagType(row.confidence || 0)" effect="plain">
+                {{ Math.round((row.confidence || 0) * 100) }}%
+              </el-tag>
+            </template>
+          </el-table-column>
+
+          <el-table-column
+            prop="reason"
+            :label="t('tag.reviewReason')"
+            min-width="260"
+            show-overflow-tooltip
+          />
+        </el-table>
+
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="PAGE_SIZE"
+          :total="task.successCount"
+          layout="prev, pager, next, jumper, total"
+          class="review-pagination"
+          @current-change="loadPage"
+        />
+      </template>
+      <el-empty v-else :description="t('tag.taskNoDrafts')" />
+    </template>
 
     <template #footer>
-      <el-button @click="handleCancel">
-        {{ t('common.cancel') }}
+      <el-button @click="closeDialog">
+        {{ t('common.close') }}
       </el-button>
       <el-button
+        v-if="task && task.successCount > 0 && !task.committedAt"
         type="primary"
-        :disabled="selectedCount === 0"
+        :loading="commitBusy"
+        :disabled="task.acceptedCount === 0 || task.status === 'running' || task.status === 'paused'"
         @click="handleConfirm"
       >
-        {{ t('tag.reviewCommit', { count: selectedCount }) }}
+        {{ t('tag.reviewCommit', { count: task.acceptedCount }) }}
       </el-button>
     </template>
   </el-dialog>
@@ -111,77 +222,76 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useClassificationTaskStore } from '@/stores/classificationTask'
 import type {
   ClassificationAssignment,
   ClassificationCategory,
-  ClassificationReviewItem
+  ClassificationTask,
+  ClassificationTaskItem,
+  Repository
 } from '@/types'
 
 const CONFIDENCE_THRESHOLD = 0.65
+const PAGE_SIZE = 50
 
 const props = defineProps<{
   modelValue: boolean
-  items: ClassificationReviewItem[]
+  task: ClassificationTask | null
   categories: ClassificationCategory[]
+  repositories: Repository[]
+  actionBusy: boolean
+  commitBusy: boolean
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
+  pause: []
+  resume: []
+  retry: []
+  'cancel-task': []
+  discard: []
   confirm: [assignments: ClassificationAssignment[]]
 }>()
 
 const { t } = useI18n()
-const selectedRepositoryIds = ref<Set<number>>(new Set())
-const selectedCategoryIds = ref<Map<number, string>>(new Map())
+const taskStore = useClassificationTaskStore()
+const currentPage = ref(1)
+const pageItems = ref<ClassificationTaskItem[]>([])
+const pageLoading = ref(false)
 const confidenceThresholdPercent = Math.round(CONFIDENCE_THRESHOLD * 100)
 
-const selectedCount = computed(() => selectedRepositoryIds.value.size)
-const allSelected = computed(
-  () => props.items.length > 0 && selectedCount.value === props.items.length
+const repositoryNames = computed(() => new Map(
+  props.repositories.map(repository => [repository.id, repository.full_name])
+))
+const progressPercent = computed(() => {
+  if (!props.task || props.task.totalCount === 0) return 0
+  return Math.round(props.task.processedCount / props.task.totalCount * 100)
+})
+const statusTagType = computed(() => {
+  if (!props.task) return 'info'
+  if (props.task.status === 'completed') return 'success'
+  if (props.task.status === 'partial' || props.task.status === 'paused') {
+    return 'warning'
+  }
+  if (props.task.status === 'cancelled') return 'danger'
+  return 'primary'
+})
+const selectedOnPage = computed(
+  () => pageItems.value.filter(item => item.accepted === 1).length
 )
-const isIndeterminate = computed(
-  () => selectedCount.value > 0 && selectedCount.value < props.items.length
+const allPageSelected = computed(
+  () => pageItems.value.length > 0 && selectedOnPage.value === pageItems.value.length
+)
+const pageIndeterminate = computed(
+  () => selectedOnPage.value > 0 && selectedOnPage.value < pageItems.value.length
 )
 
-function resetDraft() {
-  selectedRepositoryIds.value = new Set(
-    props.items
-      .filter(item => item.confidence >= CONFIDENCE_THRESHOLD)
-      .map(item => item.repositoryId)
-  )
-  selectedCategoryIds.value = new Map(
-    props.items.map(item => [item.repositoryId, item.categoryId])
-  )
+function formatNumber(value: number) {
+  return new Intl.NumberFormat().format(value)
 }
 
-watch(
-  () => [props.modelValue, props.items] as const,
-  ([visible]) => {
-    if (visible) resetDraft()
-  },
-  { deep: true }
-)
-
-function toggleAll(value: boolean | string | number) {
-  selectedRepositoryIds.value = value
-    ? new Set(props.items.map(item => item.repositoryId))
-    : new Set()
-}
-
-function toggleRepository(
-  repositoryId: number,
-  value: boolean | string | number
-) {
-  const next = new Set(selectedRepositoryIds.value)
-  if (value) next.add(repositoryId)
-  else next.delete(repositoryId)
-  selectedRepositoryIds.value = next
-}
-
-function setCategory(repositoryId: number, categoryId: string) {
-  const next = new Map(selectedCategoryIds.value)
-  next.set(repositoryId, categoryId)
-  selectedCategoryIds.value = next
+function repositoryName(repositoryId: number) {
+  return repositoryNames.value.get(repositoryId) || `#${repositoryId}`
 }
 
 function confidenceTagType(confidence: number) {
@@ -190,35 +300,106 @@ function confidenceTagType(confidence: number) {
   return 'success'
 }
 
-function handleCancel() {
+async function loadPage() {
+  if (!props.task || !props.modelValue) return
+  pageLoading.value = true
+  try {
+    pageItems.value = await taskStore.reviewPage(currentPage.value, PAGE_SIZE)
+  } finally {
+    pageLoading.value = false
+  }
+}
+
+watch(
+  () => [
+    props.modelValue,
+    props.task?.id,
+    props.task?.successCount
+  ] as const,
+  ([visible, taskId], previous) => {
+    if (!visible || !taskId) return
+    if (taskId !== previous?.[1]) currentPage.value = 1
+    void loadPage()
+  },
+  { immediate: true }
+)
+
+async function setAccepted(
+  repositoryId: number,
+  value: boolean | string | number
+) {
+  const accepted = Boolean(value)
+  await taskStore.updateReviewItem(repositoryId, { accepted })
+  const item = pageItems.value.find(candidate => candidate.repositoryId === repositoryId)
+  if (item) item.accepted = accepted ? 1 : 0
+}
+
+async function setCategory(repositoryId: number, categoryId: string) {
+  await taskStore.updateReviewItem(repositoryId, { categoryId })
+  const item = pageItems.value.find(candidate => candidate.repositoryId === repositoryId)
+  if (item) item.categoryId = categoryId
+}
+
+async function togglePage(value: boolean | string | number) {
+  const accepted = Boolean(value)
+  await taskStore.setReviewItemsAccepted(
+    pageItems.value.map(item => item.repositoryId),
+    accepted
+  )
+  pageItems.value.forEach(item => {
+    item.accepted = accepted ? 1 : 0
+  })
+}
+
+function closeDialog() {
   emit('update:modelValue', false)
 }
 
-function handleConfirm() {
-  const assignments = props.items
-    .filter(item => selectedRepositoryIds.value.has(item.repositoryId))
-    .map(item => ({
-      repositoryId: item.repositoryId,
-      categoryId:
-        selectedCategoryIds.value.get(item.repositoryId) || item.categoryId,
-      confidence: item.confidence,
-      reason: item.reason
-    }))
+async function handleConfirm() {
+  const assignments = await taskStore.acceptedAssignments()
   emit('confirm', assignments)
-  emit('update:modelValue', false)
 }
 </script>
 
 <style lang="scss" scoped>
-.review-notice {
-  margin-bottom: 14px;
+.task-summary {
+  padding: 14px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-secondary);
 }
 
+.task-heading,
+.task-metrics,
+.task-actions,
 .review-toolbar {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+}
+
+.task-heading {
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+}
+
+.task-metrics {
+  margin-top: 10px;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.task-alert,
+.review-notice,
+.task-actions {
+  margin-bottom: 12px;
+}
+
+.review-toolbar {
   justify-content: space-between;
-  gap: 16px;
   margin-bottom: 10px;
   color: var(--text-secondary);
   font-size: 0.82rem;
@@ -230,5 +411,10 @@ function handleConfirm() {
   :deep(.el-select) {
     width: 100%;
   }
+}
+
+.review-pagination {
+  justify-content: flex-end;
+  margin-top: 14px;
 }
 </style>
