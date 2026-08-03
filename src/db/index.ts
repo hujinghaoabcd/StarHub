@@ -2,6 +2,7 @@ import Dexie, { Table } from 'dexie'
 import type {
   ClassificationTask,
   ClassificationTaskItem,
+  ClassificationReadmeCache,
   RepoTag,
   Repository,
   StoredTag
@@ -27,6 +28,7 @@ class StarHubDatabase extends Dexie {
     ClassificationTaskItem,
     [string, number]
   >
+  classificationReadmeCache!: Table<ClassificationReadmeCache, number>
 
   constructor() {
     super('StarHubDB')
@@ -77,6 +79,16 @@ class StarHubDatabase extends Dexie {
       classificationTasks: 'id, status, updatedAt',
       classificationTaskItems:
         '[taskId+repositoryId], taskId, [taskId+status], [taskId+accepted], status, updatedAt'
+    })
+
+    this.version(5).stores({
+      repos: 'id, full_name, language, updated_at',
+      tags: 'id, name, createdAt',
+      repoTags: '[repoId+tagId], repoId, tagId',
+      classificationTasks: 'id, status, updatedAt',
+      classificationTaskItems:
+        '[taskId+repositoryId], taskId, [taskId+status], [taskId+accepted], status, updatedAt',
+      classificationReadmeCache: 'repositoryId, fullName, fetchedAt'
     })
   }
 }

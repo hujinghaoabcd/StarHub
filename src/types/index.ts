@@ -112,6 +112,15 @@ export type ClassificationTaskStatus =
 export type ClassificationTaskItemStatus = 'pending' | 'success' | 'failed'
 export type ClassificationTaskSelectionMode = 'random' | 'ordered' | 'all'
 export type ClassificationEvaluation = 'correct' | 'incorrect'
+export type ClassificationEnhancementStatus =
+  | 'running'
+  | 'paused'
+  | 'partial'
+  | 'completed'
+export type ClassificationEnhancementItemStatus =
+  | 'pending'
+  | 'success'
+  | 'failed'
 
 export interface ClassificationCorrectionSummary {
   modelCategoryId: string
@@ -127,6 +136,27 @@ export interface ClassificationEvaluationSummary {
   lowConfidenceCount: number
   accuracy: number | null
   corrections: ClassificationCorrectionSummary[]
+}
+
+export interface ClassificationEnhancementSummary {
+  candidateCount: number
+  pendingCount: number
+  successCount: number
+  failedCount: number
+  reviewedCount: number
+  correctedCount: number
+  regressionCount: number
+  changedCount: number
+}
+
+export interface ClassificationReadmeCache {
+  repositoryId: number
+  fullName: string
+  repositoryPushedAt: string
+  summary: string
+  sourceLength: number
+  truncated: 0 | 1
+  fetchedAt: number
 }
 
 export interface ClassificationTask {
@@ -152,6 +182,17 @@ export interface ClassificationTask {
   lastError?: string
   committedAt?: number
   committedCount?: number
+  enhancementStatus?: ClassificationEnhancementStatus
+  enhancementPromptVersion?: string
+  enhancementTargetCount?: number
+  enhancementProcessedCount?: number
+  enhancementSuccessCount?: number
+  enhancementFailedCount?: number
+  enhancementEstimatedInputTokens?: number
+  enhancementEstimatedOutputTokens?: number
+  enhancementStartedAt?: number
+  enhancementCompletedAt?: number
+  enhancementLastError?: string
 }
 
 export interface ClassificationTaskItem {
@@ -163,6 +204,20 @@ export interface ClassificationTaskItem {
   confidence?: number
   reason?: string
   evaluation?: ClassificationEvaluation
+  enhancementStatus?: ClassificationEnhancementItemStatus
+  baselineCategoryId?: string
+  baselineConfidence?: number
+  baselineReason?: string
+  baselineEvaluation?: ClassificationEvaluation
+  baselineAccepted?: 0 | 1
+  enhancedCategoryId?: string
+  enhancedConfidence?: number
+  enhancedReason?: string
+  enhancementEvaluation?: ClassificationEvaluation
+  /** IndexedDB-compatible boolean: 1 means the enhanced result was adopted. */
+  enhancementAdopted?: 0 | 1
+  enhancementError?: string
+  enhancementUpdatedAt?: number
   error?: string
   attempts: number
   /** IndexedDB-compatible boolean: 1 is accepted, 0 is not accepted. */

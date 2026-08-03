@@ -313,23 +313,36 @@ export const useRepoStore = defineStore('repo', {
         )
 
         await runDataMutation(() =>
-          db.transaction('rw', db.repos, db.repoTags, async () => {
-            const storedRelations = await db.repoTags.toArray()
-            const prunedRelations = pruneRepoTagsForRepositories(
-              storedRelations,
-              validRepositoryIds
-            )
+          db.transaction(
+            'rw',
+            db.repos,
+            db.repoTags,
+            db.classificationReadmeCache,
+            async () => {
+              const storedRelations = await db.repoTags.toArray()
+              const cachedReadmes = await db.classificationReadmeCache.toArray()
+              const prunedRelations = pruneRepoTagsForRepositories(
+                storedRelations,
+                validRepositoryIds
+              )
 
-            await db.repos.clear()
-            if (remoteRepositories.length > 0) {
-              await db.repos.bulkAdd(remoteRepositories)
-            }
+              await db.repos.clear()
+              if (remoteRepositories.length > 0) {
+                await db.repos.bulkAdd(remoteRepositories)
+              }
 
-            await db.repoTags.clear()
-            if (prunedRelations.repoTags.length > 0) {
-              await db.repoTags.bulkAdd(prunedRelations.repoTags)
+              await db.repoTags.clear()
+              if (prunedRelations.repoTags.length > 0) {
+                await db.repoTags.bulkAdd(prunedRelations.repoTags)
+              }
+              const staleReadmeIds = cachedReadmes
+                .filter(entry => !validRepositoryIds.has(entry.repositoryId))
+                .map(entry => entry.repositoryId)
+              if (staleReadmeIds.length > 0) {
+                await db.classificationReadmeCache.bulkDelete(staleReadmeIds)
+              }
             }
-          })
+          )
         )
 
         if (!isCurrentSync()) {
@@ -489,10 +502,17 @@ export const useRepoStore = defineStore('repo', {
 
     async removeRepository(repoId: number) {
       await runDataMutation(() =>
-        db.transaction('rw', db.repos, db.repoTags, async () => {
-          await db.repos.delete(repoId)
-          await db.repoTags.where('repoId').equals(repoId).delete()
-        })
+        db.transaction(
+          'rw',
+          db.repos,
+          db.repoTags,
+          db.classificationReadmeCache,
+          async () => {
+            await db.repos.delete(repoId)
+            await db.repoTags.where('repoId').equals(repoId).delete()
+            await db.classificationReadmeCache.delete(repoId)
+          }
+        )
       )
 
       this.$state.repos = this.$state.repos.filter(
@@ -547,10 +567,12 @@ export const useRepoStore = defineStore('repo', {
           db.repos,
           db.tags,
           db.repoTags,
+          db.classificationReadmeCache,
           async () => {
             await db.repos.clear()
             await db.tags.clear()
             await db.repoTags.clear()
+            await db.classificationReadmeCache.clear()
           }
         )
       )
