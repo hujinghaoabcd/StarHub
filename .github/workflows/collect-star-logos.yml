@@ -7,16 +7,9 @@ on:
     paths:
       - .github/workflows/collect-star-logos.yml
       - tools/collect_star_logos.py
-  pull_request:
-    branches:
-      - main
-    types: [opened, synchronize, reopened]
-    paths:
-      - .github/workflows/collect-star-logos.yml
-      - tools/collect_star_logos.py
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   collect:
@@ -25,6 +18,8 @@ jobs:
     steps:
       - name: Check out collector branch
         uses: actions/checkout@v4
+        with:
+          ref: logo-collector-20260805
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -46,6 +41,7 @@ jobs:
         run: python tools/collect_star_logos.py
 
       - name: Upload flat logo ZIP
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: star-project-logos-20260805
@@ -53,3 +49,26 @@ jobs:
           compression-level: 0
           retention-days: 1
           if-no-files-found: error
+
+      - name: Publish run locator on temporary branch
+        env:
+          RUN_ID: ${{ github.run_id }}
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_URL: ${{ steps.upload.outputs.artifact-url }}
+        run: |
+          python - <<'PY'
+          import json, os, pathlib, time
+          payload = {
+              "run_id": int(os.environ["RUN_ID"]),
+              "artifact_id": int(os.environ["ARTIFACT_ID"]),
+              "artifact_url": os.environ.get("ARTIFACT_URL", ""),
+              "artifact_name": "star-project-logos-20260805",
+              "completed_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+          }
+          pathlib.Path("collector-run.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add collector-run.json
+          git commit -m "chore: record temporary logo artifact run"
+          git push origin HEAD:logo-collector-20260805
